@@ -25,6 +25,20 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 - eslint for linting, `tsc --noEmit` for type-checking
 - The `@x402/paywall` peer dependency is intentionally unmet — this project is an API seller and never renders the browser paywall (see `pnpm.peerDependencyRules` in `package.json`)
 
+## Business model
+
+Two revenue streams (see `docs/adr/0001`): Credits (*monedas Nomai*) the Traveler
+buys for Agent research, and an FX fee on conversions the Agent executes
+(e.g. wARS→wBRL). Owners are never charged — a Booking's x402 `payTo` is the
+Owner's own wallet; the platform never holds booking funds.
+
+Abuse controls (`docs/adr/0002`): free credits release in verification tiers
+(phone → first Ripio funding or Self passport proof → government ID at Booking),
+with a daily free-tier budget and the agent wallet's balance as hard spend caps.
+
+Domain vocabulary lives in `GLOSSARY.md` — use its terms (Traveler, Owner, Agent,
+Booking, Credit, FX fee) in issues, specs and code comments.
+
 ## Agent skills
 
 ### Issue tracker
