@@ -14,6 +14,11 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -48,6 +53,20 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        terra: {
+          DEFAULT: "#B4552D",
+          deep: "#8F3F20",
+          soft: "#F3E2D6",
+        },
+        burn: "#D9480B",
+        gold: {
+          DEFAULT: "#E0A43B",
+          soft: "#F6E8C8",
+        },
+        cocoa: "#33200F",
+        espresso: "#2A1B10",
+        bone: "#F7F1E5",
+        sand: "#E4D8C4",
       },
       keyframes: {
         "accordion-down": {

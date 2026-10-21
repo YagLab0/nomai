@@ -1,14 +1,16 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
 import { Navbar } from '@/components/navbar';
 
-const inter = Inter({ subsets: ['latin'] });
+const sans = Space_Grotesk({ subsets: ['latin'], variable: '--font-sans' });
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata: Metadata = {
-  title: 'nomai',
-  description: 'software for tourism businesses using agents &amp; blockchain',
+  title: 'nomai — tu agente de viajes en tu moneda',
+  description:
+    'El agente de IA que busca, negocia y paga tu hospedaje en stablecoins locales sobre Celo. Sin tarjeta, sin dólar tarjeta, sin espera.',
 };
 
 export default function RootLayout({
@@ -17,15 +19,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        {/* Navbar is included on all pages */}
+    <html lang="es">
+      <body className={`${sans.variable} ${mono.variable} font-sans`}>
         <div className="relative flex min-h-screen flex-col">
           <Navbar />
           <main className="flex-1">
             {children}
           </main>
-                  </div>
+        </div>
       </body>
     </html>
   );
