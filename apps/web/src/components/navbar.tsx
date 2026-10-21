@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/sheet"
 
 const navLinks = [
+  { name: "Alojamientos", href: "/alojamientos" },
   { name: "Destinos", href: "/#destinos" },
   { name: "Cómo funciona", href: "/#como-funciona" },
   { name: "Viajeros", href: "/#viajeros" },
-  { name: "Alojamientos", href: "/#alojamientos" },
 ]
 
 export function Navbar() {

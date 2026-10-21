@@ -8,14 +8,14 @@ const stats = [
   { value: "60 días", label: "espera el dueño para cobrar una reserva" },
 ];
 
-const currencies = ["wARS", "wBRL", "wCOP", "wMXN", "wPEN", "wCLP"];
+const currencies = ["ARS", "BRL", "COP", "MXN", "PEN", "CLP"];
 
 const destinations = [
-  { code: "FLN", name: "Florianópolis", country: "BR", price: "wBRL 240", status: "DIRECTO" },
-  { code: "MDZ", name: "Mendoza", country: "AR", price: "wARS 38.000", status: "DIRECTO" },
-  { code: "CUN", name: "Cancún", country: "MX", price: "wMXN 780", status: "DIRECTO" },
-  { code: "CUZ", name: "Cusco", country: "PE", price: "wPEN 180", status: "DIRECTO" },
-  { code: "BOG", name: "Bogotá", country: "CO", price: "wCOP 96.000", status: "DIRECTO" },
+  { code: "FLN", name: "Florianópolis", country: "BR", price: "R$ 240", status: "DIRECTO" },
+  { code: "MDZ", name: "Mendoza", country: "AR", price: "$ 38.000", status: "DIRECTO" },
+  { code: "CUN", name: "Cancún", country: "MX", price: "MX$ 780", status: "DIRECTO" },
+  { code: "CUZ", name: "Cusco", country: "PE", price: "S/ 180", status: "DIRECTO" },
+  { code: "BOG", name: "Bogotá", country: "CO", price: "$ 96.000", status: "DIRECTO" },
 ];
 
 const steps = [
@@ -34,7 +34,7 @@ const steps = [
 ];
 
 const travelerPoints = [
-  "Pagás en wARS, wBRL o tu moneda local",
+  "Pagás en pesos, reales o tu moneda local",
   "Sin tarjeta internacional ni dólar tarjeta",
   "Descuentos por pago local que hoy no podés usar",
   "Ahorro del 15% al 30% por viaje",
@@ -110,9 +110,9 @@ function PhoneMock() {
   return (
     <div className="relative mx-auto w-[280px] md:w-[310px]">
       {/* tiles flotantes alrededor */}
-      <BoardTile code="FLN → BRASIL" price="wBRL 240" className="-left-44 top-20 -rotate-[8deg]" />
-      <BoardTile code="MDZ → ARG" price="wARS 38.000" className="-right-40 top-10 rotate-[7deg]" />
-      <BoardTile code="CUN → MEX" price="wMXN 780" className="-right-36 bottom-32 -rotate-[6deg]" />
+      <BoardTile code="FLN → BRASIL" price="R$ 240" className="-left-44 top-20 -rotate-[8deg]" />
+      <BoardTile code="MDZ → ARG" price="$ 38.000" className="-right-40 top-10 rotate-[7deg]" />
+      <BoardTile code="CUN → MEX" price="MX$ 780" className="-right-36 bottom-32 -rotate-[6deg]" />
 
       {/* chip testimonial estilo referencia */}
       <div className="hidden lg:flex absolute -left-48 bottom-40 rotate-[4deg] max-w-[190px] rounded-2xl border bg-terra-soft px-4 py-3 shadow-lg shadow-terra/10 items-start gap-2.5 text-left">
@@ -172,7 +172,7 @@ function PhoneMock() {
                 <div className="text-right">
                   <div className="font-mono text-sm font-semibold">R$ 1.240</div>
                   <div className="font-mono text-[9px] text-muted-foreground">
-                    wBRL
+                    BRL
                   </div>
                 </div>
               </div>
@@ -369,7 +369,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <Reveal className="md:col-span-4">
               <div className="rounded-2xl border p-7 h-full bg-background">
-                <div className="rounded-xl bg-muted p-4 space-y-3 mb-6 text-sm">
+                <div className="rounded-xl bg-secondary p-4 space-y-3 mb-6 text-sm">
                   <div className="flex">
                     <div className="rounded-xl rounded-tl-sm bg-card border px-3.5 py-2 text-muted-foreground">
                       ¿Mejor precio por pago directo?
@@ -424,8 +424,8 @@ export default function Home() {
             <Reveal delay={120} className="md:col-span-2">
               <div className="rounded-2xl border p-7 h-full bg-background">
                 <div className="flex flex-wrap gap-2 mb-6">
-                  <Chip>wARS → wBRL</Chip>
-                  <Chip>wCOP → wBRL</Chip>
+                  <Chip>ARS → BRL</Chip>
+                  <Chip>COP → BRL</Chip>
                 </div>
                 <h3 className="font-display font-semibold mb-1.5">
                   Tu moneda, siempre

@@ -4,7 +4,7 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 
 ## Structure
 
-- `apps/web` — Next.js 14 (App Router), Tailwind CSS, shadcn/ui-style components (Radix + CVA)
+- `apps/web` — Next.js 15 (App Router) + React 19, Tailwind CSS v4 + HeroUI v3 (`@heroui/styles` + `@heroui/react`, client-only — pages that use it must wrap it in client components). A few shadcn-style components remain under `src/components/ui/`; their design tokens are bridged in `globals.css` (`--sh-*` triplets → `--color-*`). Marketplace UI lives under `src/components/marketplace/` with routes `/alojamientos` and `/propietarios/[slug]` (Owner storefront).
 - `apps/api` — Hono server implementing both halves of an x402 payment: a seller that answers `402 Payment Required` (`GET /free` open, `POST /paid` charges USDC on Celo) and a buyer that pays it (`src/buyer.ts`)
 
 `X402_SETUP.md` explains the payment flow and facilitator setup. The buyer needs no CELO — the facilitator sponsors gas.

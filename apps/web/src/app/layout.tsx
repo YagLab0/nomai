@@ -1,11 +1,21 @@
 import type { Metadata } from 'next';
-import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { Space_Grotesk, JetBrains_Mono, Readex_Pro } from 'next/font/google';
 import './globals.css';
 
 import { Navbar } from '@/components/navbar';
 
-const sans = Space_Grotesk({ subsets: ['latin'], variable: '--font-sans' });
-const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
+const sans = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+});
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+});
+const readex = Readex_Pro({
+  subsets: ['latin'],
+  variable: '--font-readex-pro',
+});
 
 export const metadata: Metadata = {
   title: 'nomai — tu agente de viajes en tu moneda',
@@ -20,12 +30,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className={`${sans.variable} ${mono.variable} font-sans`}>
+      <body
+        className={`${sans.variable} ${mono.variable} ${readex.variable} font-sans`}
+      >
         <div className="relative flex min-h-screen flex-col">
           <Navbar />
-          <main className="flex-1">
-            {children}
-          </main>
+          <main className="flex-1">{children}</main>
         </div>
       </body>
     </html>
