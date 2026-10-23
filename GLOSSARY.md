@@ -31,6 +31,13 @@ _Avoid_: property, listing, hotel
 A paid reservation settled by an x402 payment in wFIAT, direct to the Owner's wallet.
 _Avoid_: reservation, order
 
+**Cancellation**:
+A Booking ended before check-in, initiated only by the Traveler, under one global
+rule: full refund until 7 days before check-in, 50% after. The money returns out
+of the Owner's wallet, which already holds the payment. Product Spanish:
+*cancelación*.
+_Avoid_: refund (the consequence, not the concept), annulment
+
 **Agent wallet**:
 The wallet a Traveler's Agent pays Bookings from. One per Traveler, with its own
 verifiable Agent identity. The Traveler funds it and sees its balance in local
