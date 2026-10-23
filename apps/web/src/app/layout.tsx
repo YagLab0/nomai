@@ -11,9 +11,9 @@ const brand = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: 'nomai — tu agente de viajes en tu moneda',
+  title: 'nomai — Nomito arma tu viaje al Norte',
   description:
-    'El agente de IA que busca, negocia y paga tu hospedaje en stablecoins locales sobre Celo. Sin tarjeta, sin dólar tarjeta, sin espera.',
+    'Contale a Nomito a dónde querés ir y te busca alojamiento en el Norte argentino. Pagás en tu moneda, directo al dueño, sin dólar tarjeta.',
 };
 
 export default function RootLayout({

@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+@custom-variant dark (&:is(.dark *));
+
 /*
  * Nomai palette (docs/design/traveler-views.md section 2). Raw values live in
  * :root so a dark theme can redefine them later. HeroUI v3 theme variables are
@@ -31,37 +33,10 @@
   --focus: var(--terra);
 }
 
-@custom-variant dark (&:is(.dark *));
-
-/*
- * Landing tokens. The shadcn-style hsl triplets live under --nm-* so they do
- * not collide with HeroUI's own --background/--accent/... variables (oklch).
- * The --color-* theme tokens below point Tailwind utilities at them.
- */
 @theme {
   --font-sans: var(--font-nm-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-nm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-nm-mono), ui-monospace, monospace;
-
-  --color-border: hsl(var(--nm-border));
-  --color-input: hsl(var(--nm-input));
-  --color-ring: hsl(var(--nm-ring));
-  --color-background: hsl(var(--nm-background));
-  --color-foreground: hsl(var(--nm-foreground));
-  --color-primary: hsl(var(--nm-primary));
-  --color-primary-foreground: hsl(var(--nm-primary-foreground));
-  --color-secondary: hsl(var(--nm-secondary));
-  --color-secondary-foreground: hsl(var(--nm-secondary-foreground));
-  --color-destructive: hsl(var(--nm-destructive));
-  --color-destructive-foreground: hsl(var(--nm-destructive-foreground));
-  --color-muted: hsl(var(--nm-muted));
-  --color-muted-foreground: hsl(var(--nm-muted-foreground));
-  --color-accent: hsl(var(--nm-accent));
-  --color-accent-foreground: hsl(var(--nm-accent-foreground));
-  --color-popover: hsl(var(--nm-popover));
-  --color-popover-foreground: hsl(var(--nm-popover-foreground));
-  --color-card: hsl(var(--nm-card));
-  --color-card-foreground: hsl(var(--nm-card-foreground));
+  --font-brand: var(--font-nm-brand), ui-serif, Georgia, serif;
 
   --color-terra: var(--terra);
   --color-terra-deep: var(--terra-deep);
@@ -72,111 +47,41 @@
   --color-sand: var(--sand);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
-
-  --font-brand: var(--font-nm-brand), ui-serif, Georgia, serif;
-
-  --color-burn: #D9480B;
-  --color-gold: #E0A43B;
-  --color-gold-soft: #F6E8C8;
-  --color-cocoa: #33200F;
-  --color-espresso: #2A1B10;
-  --color-bone: #F7F1E5;
-
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
-
-  @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
-  }
-  @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
-  }
 }
 
-@utility container {
-  width: 100%;
-  margin-inline: auto;
-  padding-inline: 2rem;
-  @media (width >= 640px) { max-width: 640px; }
-  @media (width >= 768px) { max-width: 768px; }
-  @media (width >= 1024px) { max-width: 1024px; }
-  @media (width >= 1280px) { max-width: 1280px; }
-  @media (width >= 1400px) { max-width: 1400px; }
-}
-
-
-@layer base {
-  :root {
-    --nm-border: 36 20% 83%;
-    --nm-input: 36 20% 83%;
-    --nm-ring: 22 90% 43%;
-
-    --nm-background: 40 40% 93%;
-    --nm-foreground: 24 45% 11%;
-
-    --nm-card: 0 0% 100%;
-    --nm-card-foreground: 24 45% 11%;
-
-    --nm-popover: 0 0% 100%;
-    --nm-popover-foreground: 24 45% 11%;
-
-    --nm-primary: 22 90% 43%;
-    --nm-primary-foreground: 40 40% 97%;
-
-    --nm-secondary: 34 30% 88%;
-    --nm-secondary-foreground: 24 45% 11%;
-
-    --nm-muted: 38 25% 90%;
-    --nm-muted-foreground: 25 15% 40%;
-
-    --nm-accent: 34 45% 88%;
-    --nm-accent-foreground: 24 45% 11%;
-
-    --nm-destructive: 0 72% 51%;
-    --nm-destructive-foreground: 40 40% 97%;
-
-    --nm-radius: 0.75rem;
-  }
-
-  .dark {
-    --nm-background: 243 35% 12%;
-    --nm-foreground: 40 40% 97%;
-
-    --nm-card: 243 35% 15%;
-    --nm-card-foreground: 40 40% 97%;
-
-    --nm-popover: 243 35% 15%;
-    --nm-popover-foreground: 40 40% 97%;
-
-    --nm-primary: 33 88% 55%;
-    --nm-primary-foreground: 243 35% 12%;
-
-    --nm-secondary: 243 25% 25%;
-    --nm-secondary-foreground: 40 40% 97%;
-
-    --nm-muted: 243 25% 22%;
-    --nm-muted-foreground: 240 20% 65%;
-
-    --nm-accent: 243 25% 25%;
-    --nm-accent-foreground: 40 40% 97%;
-
-    --nm-destructive: 0 62.8% 45%;
-    --nm-destructive-foreground: 40 40% 97%;
-
-    --nm-border: 243 25% 25%;
-    --nm-input: 243 25% 25%;
-    --nm-ring: 33 88% 55%;
-  }
+/* Fraunces at its softest, high-contrast optical size: for big headlines. */
+@utility brand-display {
+  font-family: var(--font-brand);
+  font-variation-settings: "SOFT" 70, "opsz" 144;
+  letter-spacing: -0.02em;
 }
 
 @layer base {
   * {
-    border-color: hsl(var(--nm-border));
+    border-color: var(--sand);
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
   body {
-    background-color: hsl(var(--nm-background));
-    color: hsl(var(--nm-foreground));
+    background-color: var(--paper);
+    color: var(--ink);
+  }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
