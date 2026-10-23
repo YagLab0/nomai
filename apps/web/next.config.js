@@ -5,7 +5,6 @@ const nextConfig = {
     return [
       { source: '/alojamientos', destination: '/lodgings', permanent: true },
       { source: '/propietarios/:slug', destination: '/owners/:slug', permanent: true },
-      { source: '/app/dueño', destination: '/app/owner', permanent: true },
       { source: '/app/dueno', destination: '/app/owner', permanent: true },
     ]
   },

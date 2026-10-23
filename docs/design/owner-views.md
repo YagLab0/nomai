@@ -14,7 +14,7 @@ data lives in `src/lib/mock/owner.ts`.
 | Route | Page |
 |---|---|
 | `/app/owner` | Owner dashboard ("Panel") |
-| `/app/dueño` | permanent redirect → `/app/owner` (in `next.config`, like §10 of traveler-views) |
+| `/app/dueno` | permanent redirect → `/app/owner` (in `next.config`, like §10 of traveler-views). ASCII only: Next's routing doesn't match a literal `/app/dueño` segment |
 
 `src/app/app/` splits into route groups:
 

@@ -393,14 +393,20 @@ function DoneStep({ draft }: { draft: LodgingDraft }) {
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Link
-          href={`/owners/${sample.slug}`}
+          href="/app/owner"
           className="inline-flex h-12 items-center justify-center rounded-full bg-terra px-7 text-base font-medium text-white transition-colors hover:bg-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+        >
+          Ir a tu panel
+        </Link>
+        <Link
+          href={`/owners/${sample.slug}`}
+          className="inline-flex h-12 items-center justify-center rounded-full border border-terra/40 px-7 text-base font-medium text-terra-deep transition-colors hover:bg-terra-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
         >
           Ver cómo se ve tu página
         </Link>
         <Link
           href="/"
-          className="inline-flex h-12 items-center justify-center rounded-full border border-terra/40 px-7 text-base font-medium text-terra-deep transition-colors hover:bg-terra-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+          className="inline-flex h-12 items-center justify-center rounded-full px-7 text-base font-medium text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
         >
           Volver al inicio
         </Link>

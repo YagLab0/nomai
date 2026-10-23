@@ -62,17 +62,26 @@ export function NavList() {
 
 export function UserChip() {
   return (
-    <div className="flex items-center gap-3">
-      <span
-        aria-hidden="true"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-agua-soft text-sm font-semibold text-agua"
+    <div>
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-agua-soft text-sm font-semibold text-agua"
+        >
+          {traveler.initials}
+        </span>
+        <span className="min-w-0 text-sm leading-tight">
+          <span className="block truncate font-medium text-ink">{traveler.name}</span>
+          <span className="block truncate text-xs text-ink-muted">{traveler.from}</span>
+        </span>
+      </div>
+      {/* One account is both Traveler and Owner — the panel is a mode, not a login. */}
+      <Link
+        href="/app/owner"
+        className="mt-3 inline-block rounded-lg text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
       >
-        {traveler.initials}
-      </span>
-      <span className="min-w-0 text-sm leading-tight">
-        <span className="block truncate font-medium text-ink">{traveler.name}</span>
-        <span className="block truncate text-xs text-ink-muted">{traveler.from}</span>
-      </span>
+        Modo dueño
+      </Link>
     </div>
   );
 }
