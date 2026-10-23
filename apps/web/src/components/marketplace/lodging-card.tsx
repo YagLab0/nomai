@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { CheckBadgeIcon, StarIcon } from '@/components/icons';
@@ -10,6 +11,7 @@ import {
   type FxRates,
   type Lodging,
 } from '@/lib/lodgings';
+import { PHOTOS } from '@/lib/photos';
 
 /**
  * Lodging as a ticket: landscape on top, perforated edge, then the stub with
@@ -29,11 +31,22 @@ export function LodgingCard({
   askHref: string;
 }) {
   const owner = ownerOf(lodging);
+  const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-sand bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
-      <div className="relative">
-        <LodgingArt lodging={lodging} className="h-40 w-full" />
+    <article className="group flex h-full flex-col overflow-hidden rounded-card bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
+      <div className="relative h-48 overflow-hidden">
+        {photo ? (
+          <Image
+            src={photo.src}
+            alt={photo.alt}
+            fill
+            sizes="(min-width: 1280px) 30vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover"
+          />
+        ) : (
+          <LodgingArt lodging={lodging} className="h-full w-full" />
+        )}
         {lodging.featured && (
           <span className="absolute left-3 top-3 rounded-full bg-paper px-3 py-1 text-xs font-medium text-terra-deep">
             Favorito de viajeros

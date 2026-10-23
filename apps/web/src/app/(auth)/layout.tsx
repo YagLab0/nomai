@@ -1,6 +1,10 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { NomitoAvatar } from '@/components/nomito-avatar';
+import { PHOTOS } from '@/lib/photos';
+
+const photo = PHOTOS.purmamarcaSieteColores;
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,8 +12,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex flex-col px-5 py-6 sm:px-10">
         <Link
           href="/"
-          className="font-brand text-2xl font-semibold tracking-tight text-terra-deep outline-none focus-visible:ring-2 focus-visible:ring-terra"
+          className="flex w-fit items-center gap-2.5 rounded-xl font-brand text-2xl font-semibold tracking-tight text-terra-deep outline-none focus-visible:ring-2 focus-visible:ring-terra"
         >
+          <NomitoAvatar size="sm" shape="icon" decorative />
           nomai
         </Link>
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10">
@@ -17,20 +22,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
       </div>
 
-      <aside
-        aria-hidden="true"
-        className="relative hidden flex-col items-center justify-center gap-6 overflow-hidden bg-terra px-12 text-center text-paper lg:flex"
-      >
-        <div className="absolute -bottom-24 -left-16 h-72 w-[130%] rotate-[-6deg] rounded-[50%] bg-terra-deep/50" />
-        <div className="absolute -bottom-40 -right-24 h-72 w-[120%] rotate-[4deg] rounded-[50%] bg-terra-deep/70" />
-        <div className="relative flex flex-col items-center gap-6">
-          <NomitoAvatar size="lg" className="bg-paper text-terra ring-0" />
-          <h2 className="max-w-xs font-brand text-4xl font-medium leading-tight">
-            Contale tu viaje a Nomito
-          </h2>
-          <p className="max-w-xs text-lg leading-relaxed text-paper/80">
-            Dónde, cuándo y con cuánto. Él busca, compara y se ocupa del resto.
-          </p>
+      <aside aria-hidden="true" className="hidden p-4 lg:block">
+        <div className="relative flex h-full flex-col justify-end overflow-hidden rounded-panel bg-terra p-12 text-paper">
+          <Image src={photo.src} alt="" fill priority sizes="50vw" className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-terra-deep via-terra-deep/55 to-terra-deep/5" />
+          <div className="relative flex flex-col items-start gap-6">
+            <NomitoAvatar size="lg" shape="icon" className="h-24 w-24" />
+            <h2 className="brand-display max-w-sm text-5xl font-medium leading-[0.95]">Contale tu viaje a Nomito</h2>
+            <p className="max-w-xs text-lg leading-relaxed text-paper/85">
+              Dónde, cuándo y con cuánto. Él busca, compara y se ocupa del resto.
+            </p>
+          </div>
         </div>
       </aside>
     </div>

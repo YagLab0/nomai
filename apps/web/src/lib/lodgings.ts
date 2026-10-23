@@ -9,6 +9,7 @@
  */
 
 import { formatBRL, formatNumber } from '@/lib/format';
+import type { PhotoKey } from '@/lib/photos';
 
 export type LodgingKind =
   | 'posada'
@@ -98,6 +99,8 @@ export interface Lodging {
   featured?: boolean;
   ownerSlug: string;
   tone: ArtTone;
+  /** Photo from lib/photos.ts; Lodgings without one fall back to LodgingArt. */
+  photo?: PhotoKey;
   /** Pinned quote figures so the headline scenario matches the spec exactly. */
   pinned?: { subtotalBRL: number; feeBRL: number };
 }
@@ -140,7 +143,7 @@ export const OWNERS: Owner[] = [
     wallet: '0x6c8e0a2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c',
     verified: true,
     responseTime: '~2 h',
-    bio: 'Cabañas de adobe frente al Cerro de los Siete Colores. Te despertás con el sol pintando el cerro.',
+    bio: 'Cabañas y una casa de adobe frente al Cerro de los Siete Colores. Te despertás con el sol pintando el cerro.',
   },
   {
     slug: 'tomas-aramayo',
@@ -167,6 +170,33 @@ export const OWNERS: Owner[] = [
     verified: true,
     responseTime: '~1 h',
     bio: 'Posada familiar en el casco histórico de Humahuaca. Cocino empanadas y locro para los que llegan tarde.',
+  },
+
+  {
+    slug: 'nilda-cruz',
+    name: 'Nilda Cruz',
+    initials: 'NC',
+    city: 'Tilcara',
+    country: 'Argentina',
+    countryCode: 'AR',
+    since: 2025,
+    wallet: '0x1a3c5e7b9d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c',
+    verified: true,
+    responseTime: '~1 h',
+    bio: 'Posada de patio rosado a dos cuadras de la plaza de Tilcara. Desayuno con pan casero y dulce de cayote.',
+  },
+  {
+    slug: 'ariel-tolaba',
+    name: 'Ariel Tolaba',
+    initials: 'AT',
+    city: 'Humahuaca',
+    country: 'Argentina',
+    countryCode: 'AR',
+    since: 2025,
+    wallet: '0x2c4e6a8b0d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c',
+    verified: true,
+    responseTime: '~2 h',
+    bio: 'Cabañas a la salida del pueblo, camino al Hornocal. Si querés, te llevo al mirador para ver el atardecer.',
   },
 
   {
@@ -257,6 +287,7 @@ export const LODGINGS: Lodging[] = [
     featured: true,
     ownerSlug: 'ramon-guaymas',
     tone: 'terra',
+    photo: 'cafayateHabitacion',
     pinned: { subtotalBRL: 1461.55, feeBRL: 14.6 },
   },
   {
@@ -278,6 +309,7 @@ export const LODGINGS: Lodging[] = [
     amenities: ['Desayuno casero', 'Wifi', 'Patio'],
     ownerSlug: 'graciela-torres',
     tone: 'sand',
+    photo: 'saltaCatedral',
   },
   {
     id: 'cabanas-siete-colores',
@@ -299,6 +331,7 @@ export const LODGINGS: Lodging[] = [
     featured: true,
     ownerSlug: 'lidia-condori',
     tone: 'siete-colores',
+    photo: 'purmamarcaAdobe',
   },
   {
     id: 'hostel-la-quebrada',
@@ -319,6 +352,7 @@ export const LODGINGS: Lodging[] = [
     amenities: ['Cocina compartida', 'Mapa de senderos', 'Wifi'],
     ownerSlug: 'tomas-aramayo',
     tone: 'agua',
+    photo: 'tilcaraRuinas',
   },
   {
     id: 'casona-guemes',
@@ -339,6 +373,7 @@ export const LODGINGS: Lodging[] = [
     amenities: ['Balcón', 'Cocina', 'Aire acondicionado'],
     ownerSlug: 'graciela-torres',
     tone: 'terra',
+    photo: 'saltaTeleferico',
   },
   {
     id: 'cabana-vinas-del-sol',
@@ -359,6 +394,7 @@ export const LODGINGS: Lodging[] = [
     amenities: ['Pileta', 'Parrilla', 'Entre viñedos'],
     ownerSlug: 'ramon-guaymas',
     tone: 'agua',
+    photo: 'cafayateVinedos',
   },
   {
     id: 'posada-quebrada-alta',
@@ -379,6 +415,71 @@ export const LODGINGS: Lodging[] = [
     amenities: ['Cena casera', 'Calefacción', 'Patio'],
     ownerSlug: 'elvira-vilte',
     tone: 'sand',
+    photo: 'humahuacaValle',
+  },
+  {
+    id: 'casa-los-colorados',
+    name: 'Casa Los Colorados',
+    kind: 'casa',
+    city: 'Purmamarca',
+    region: 'Quebrada de Humahuaca',
+    countryCode: 'AR',
+    code: 'PMA',
+    pricePerNight: 84_000,
+    currency: 'ARS',
+    blurb: 'Casa de adobe con patio, a una cuadra de la feria.',
+    rating: 4.7,
+    reviews: 52,
+    guests: 4,
+    bedrooms: 2,
+    baths: 1,
+    amenities: ['Patio', 'Cocina', 'Cerca de la feria'],
+    ownerSlug: 'lidia-condori',
+    tone: 'siete-colores',
+    photo: 'purmamarcaFeria',
+  },
+  {
+    id: 'posada-el-patio',
+    name: 'Posada El Patio',
+    kind: 'posada',
+    city: 'Tilcara',
+    region: 'Quebrada de Humahuaca',
+    countryCode: 'AR',
+    code: 'TIL',
+    pricePerNight: 64_000,
+    currency: 'ARS',
+    blurb: 'Patio rosado con mesas al sol, desayuno casero.',
+    rating: 4.8,
+    reviews: 131,
+    guests: 2,
+    bedrooms: 1,
+    baths: 1,
+    amenities: ['Desayuno casero', 'Patio', 'Wifi'],
+    featured: true,
+    ownerSlug: 'nilda-cruz',
+    tone: 'terra',
+    photo: 'tilcaraPatio',
+  },
+  {
+    id: 'cabanas-hornocal',
+    name: 'Cabañas Hornocal',
+    kind: 'cabana',
+    city: 'Humahuaca',
+    region: 'Quebrada de Humahuaca',
+    countryCode: 'AR',
+    code: 'HUM',
+    pricePerNight: 72_000,
+    currency: 'ARS',
+    blurb: 'Cabañas camino al Hornocal, con estufa a leña.',
+    rating: 4.8,
+    reviews: 47,
+    guests: 4,
+    bedrooms: 2,
+    baths: 1,
+    amenities: ['Estufa a leña', 'Vista a los cerros', 'Estacionamiento'],
+    ownerSlug: 'ariel-tolaba',
+    tone: 'sand',
+    photo: 'humahuacaCerros',
   },
   {
     id: 'posada-marina',

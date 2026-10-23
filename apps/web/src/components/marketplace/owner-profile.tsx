@@ -14,7 +14,7 @@ export function OwnerProfile({
   totalReviews: number;
 }) {
   return (
-    <section className="grid gap-8 rounded-3xl border border-sand bg-white p-6 md:grid-cols-[1fr_17rem] md:p-8">
+    <section className="grid gap-8 rounded-panel bg-white p-6 md:grid-cols-[1fr_17rem] md:p-10">
       <div className="flex flex-col gap-5 sm:flex-row">
         <span
           aria-hidden="true"
@@ -53,7 +53,7 @@ export function OwnerProfile({
         </div>
       </div>
 
-      <aside className="relative rounded-2xl border-2 border-dashed border-sand bg-paper p-5">
+      <aside className="relative rounded-card border-2 border-dashed border-sand bg-paper p-5">
         <p className="font-brand text-lg font-medium leading-snug text-ink">
           Cobra directo, sin comisión, al instante en su moneda
         </p>

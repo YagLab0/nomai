@@ -24,14 +24,14 @@ export function Savings() {
   const fee = quote.lines.find((l) => l.kind === 'fee')!;
 
   return (
-    <section className="border-y border-sand bg-white/60">
-      <div className="mx-auto grid max-w-6xl gap-14 px-5 py-20 lg:grid-cols-[0.8fr_1.2fr] lg:py-28">
+    <section className="mx-auto max-w-7xl px-4 py-20 sm:px-5 lg:py-28">
+      <div className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr]">
         <div>
-          <h2 className="brand-display text-4xl font-medium leading-tight text-ink sm:text-5xl">Por qué pagás menos</h2>
+          <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">Por qué pagás menos</h2>
           <p className="mt-4 text-lg leading-relaxed text-ink-muted">
             Pagás en reales, el dueño cobra en pesos, y nadie en el medio se queda con un pedazo.
           </p>
-          <div className="relative mt-8 rounded-2xl bg-terra p-6 text-paper">
+          <div className="relative mt-8 rounded-card bg-terra p-7 text-paper">
             <p className="text-sm text-paper/80">Un ejemplo: {quote.lodging}, {quote.nights} noches</p>
             <p className="mt-1 font-mono text-3xl font-semibold">{total.value}</p>
             <p className="mt-2 text-sm text-paper/80">
@@ -40,14 +40,14 @@ export function Savings() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-card bg-white px-6 py-4 sm:px-8">
           <table className="w-full min-w-[34rem] border-collapse text-left">
             <caption className="sr-only">Comparación entre pagar con tarjeta y pagar con Nomito</caption>
             <thead>
               <tr className="text-sm">
-                <th scope="col" className="w-[24%] pb-4 pr-4 font-normal text-ink-muted"><span className="sr-only">Concepto</span></th>
-                <th scope="col" className="pb-4 pr-6 font-medium text-ink-muted">Con tarjeta</th>
-                <th scope="col" className="pb-4 font-brand text-lg font-medium text-terra-deep">Con Nomito</th>
+                <th scope="col" className="w-[24%] pb-4 pt-4 pr-4 font-normal text-ink-muted"><span className="sr-only">Concepto</span></th>
+                <th scope="col" className="pb-4 pt-4 pr-6 font-medium text-ink-muted">Con tarjeta</th>
+                <th scope="col" className="pb-4 pt-4 font-brand text-lg font-medium text-terra-deep">Con Nomito</th>
               </tr>
             </thead>
             <tbody>

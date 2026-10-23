@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from '@heroui/react';
 
+import { NomitoAvatar } from '@/components/nomito-avatar';
 import { traveler } from '@/lib/mock/traveler';
 
 const ITEMS = [
@@ -18,7 +19,11 @@ const itemClass =
 
 export function Logo() {
   return (
-    <Link href="/" className="font-brand text-2xl font-semibold tracking-tight text-terra-deep">
+    <Link
+      href="/"
+      className="flex items-center gap-2.5 rounded-xl font-brand text-2xl font-semibold tracking-tight text-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+    >
+      <NomitoAvatar size="sm" shape="icon" decorative />
       nomai
     </Link>
   );

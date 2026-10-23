@@ -1,48 +1,170 @@
-import Image from 'next/image';
+'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRef, useState } from 'react';
+
+import { ArrowUpRightIcon, MapPinIcon, StarIcon } from '@/components/icons';
+import { NomitoArt } from '@/components/nomito-avatar';
 import { formatARS } from '@/lib/format';
-import { DESTINATIONS } from '@/lib/mock/destinations';
+import { formatLocalPrice, KIND_LABEL, type Lodging } from '@/lib/lodgings';
+import { DESTINATIONS, type Destination } from '@/lib/mock/destinations';
 import { PHOTOS } from '@/lib/photos';
 
-export function Destinations() {
-  return (
-    <section id="destinos" className="mx-auto max-w-6xl scroll-mt-16 px-5 py-20 lg:py-28">
-      <h2 className="brand-display max-w-2xl text-4xl font-medium leading-tight text-ink sm:text-5xl">
-        Cinco pueblos, una quebrada
-      </h2>
-      <p className="mt-4 max-w-lg text-lg text-ink-muted">Precios de referencia por noche, directo con el dueño.</p>
+const GRID_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw';
 
-      <ul className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
-        {DESTINATIONS.map((d, i) => (
-          <li key={d.code} className={i < 3 ? 'lg:col-span-2' : 'lg:col-span-3'}>
-            <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-sand bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
-              <div className={`relative w-full overflow-hidden ${i < 3 ? 'h-44' : 'h-52'}`}>
-                <Image
-                  src={PHOTOS[d.photo].src}
-                  alt={PHOTOS[d.photo].alt}
-                  fill
-                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                  className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-                />
-              </div>
-              <div className="relative flex flex-1 items-end justify-between gap-4 border-t-2 border-dashed border-sand p-5">
-                <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
-                <span aria-hidden="true" className="absolute -right-2 -top-2 h-4 w-4 rounded-full bg-paper" />
-                <div>
-                  <p className="font-mono text-xs tracking-widest text-ink-muted">{d.code}</p>
-                  <h3 className="font-brand text-2xl font-medium text-ink">{d.name}</h3>
-                  <p className="mt-1 max-w-[18rem] text-sm text-ink-muted">{d.tagline}</p>
-                </div>
-                <p className="shrink-0 text-right">
-                  <span className="block text-xs text-ink-muted">desde</span>
-                  <span className="font-mono text-sm font-semibold text-ink">{formatARS(d.fromARS)}</span>
-                  <span className="block text-xs text-ink-muted">por noche</span>
-                </p>
-              </div>
-            </article>
-          </li>
+function TownCard({ town }: { town: Destination }) {
+  const photo = PHOTOS[town.photo];
+  return (
+    <article className="relative flex min-h-[22rem] flex-col justify-end overflow-hidden rounded-card bg-ink sm:min-h-[26rem] p-6 text-paper">
+      <Image src={photo.src} alt={photo.alt} fill sizes={GRID_SIZES} className="object-cover" />
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/25 to-transparent" />
+      <div className="relative">
+        {town.province !== town.name && <p className="text-sm text-paper/80">{town.province}</p>}
+        <h3 className="brand-display text-5xl font-medium leading-none">{town.name}</h3>
+        <p className="mt-3 text-[15px] leading-snug text-paper/85">{town.tagline}</p>
+        <p className="mt-4 text-sm text-paper/80">
+          desde <span className="font-mono font-semibold text-paper">{formatARS(town.fromARS)}</span> la noche
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function LodgingPhotoCard({ lodging }: { lodging: Lodging }) {
+  const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
+  return (
+    <Link
+      href={`/owners/${lodging.ownerSlug}`}
+      className="group flex h-full flex-col overflow-hidden rounded-card bg-white p-2 transition-shadow hover:shadow-[0_24px_48px_-28px_rgba(143,63,32,0.55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+    >
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[1.35rem] bg-sand">
+        {photo && <Image src={photo.src} alt={photo.alt} fill sizes={GRID_SIZES} className="object-cover" />}
+        {lodging.featured && (
+          <span className="absolute left-3 top-3 rounded-full bg-paper/95 px-3 py-1 text-xs font-medium text-terra-deep">
+            Favorito de viajeros
+          </span>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col px-3 pb-3 pt-4">
+        <p className="text-xs text-ink-muted">{KIND_LABEL[lodging.kind]}</p>
+        <h4 className="font-brand text-xl font-medium leading-snug text-ink">{lodging.name}</h4>
+        <p className="mt-1 flex items-center gap-1 text-sm text-ink-muted">
+          <MapPinIcon className="h-3.5 w-3.5 text-terra" />
+          {lodging.city}
+        </p>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+          <p className="flex items-center gap-1 text-sm text-ink">
+            <StarIcon className="h-4 w-4 text-terra" />
+            {lodging.rating.toFixed(1)}
+            <span className="text-ink-muted">({lodging.reviews})</span>
+          </p>
+          <p className="text-right leading-none">
+            <span className="font-brand text-2xl font-semibold text-ink">{formatLocalPrice(lodging)}</span>
+            <span className="block pt-1 text-xs text-ink-muted">por noche</span>
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function AccentCard({ town }: { town: Destination }) {
+  return (
+    <Link
+      href="/signup"
+      className="group relative flex min-h-[17rem] flex-col overflow-hidden rounded-card bg-terra sm:min-h-[26rem] p-6 text-paper transition-colors hover:bg-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+    >
+      <h3 className="brand-display text-4xl font-medium leading-[1.02]">Hablá con Nomito</h3>
+      <p className="mt-3 max-w-[16rem] text-[15px] leading-snug text-paper/85">
+        Contale qué buscás en {town.name} y te arma una lista corta con el precio final en tu moneda.
+      </p>
+      <NomitoArt className="pointer-events-none absolute -bottom-6 -left-6 h-44 w-44 opacity-95" />
+      <span className="absolute bottom-5 right-5 flex h-12 w-12 items-center justify-center rounded-full bg-paper text-terra-deep transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">
+        <ArrowUpRightIcon className="h-5 w-5" />
+      </span>
+    </Link>
+  );
+}
+
+/** Pill segmented tabs over the five towns; each shows its town, its Lodgings and Nomito. */
+export function Destinations() {
+  const [active, setActive] = useState(0);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const town = DESTINATIONS[active];
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    const last = DESTINATIONS.length - 1;
+    const next =
+      e.key === 'ArrowRight' ? (active === last ? 0 : active + 1)
+      : e.key === 'ArrowLeft' ? (active === 0 ? last : active - 1)
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? last
+      : null;
+    if (next === null) return;
+    e.preventDefault();
+    setActive(next);
+    tabs.current[next]?.focus();
+  }
+
+  return (
+    <section id="destinos" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20 sm:px-5 lg:py-28">
+      <div className="flex flex-col items-center text-center">
+        <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">Cinco pueblos, una quebrada</h2>
+        <p className="mt-4 max-w-xl text-lg text-ink-muted">
+          Alojamientos de dueños del Norte. El precio es el del dueño, y el pago le llega directo.
+        </p>
+
+        <div
+          role="tablist"
+          aria-label="Destinos"
+          onKeyDown={onKeyDown}
+          className="mt-10 flex max-w-full gap-1 overflow-x-auto rounded-full bg-sand/70 p-1.5"
+        >
+          {DESTINATIONS.map((d, i) => (
+            <button
+              key={d.code}
+              ref={(el) => {
+                tabs.current[i] = el;
+              }}
+              id={`tab-${d.code}`}
+              role="tab"
+              type="button"
+              aria-selected={i === active}
+              aria-controls="destinos-panel"
+              tabIndex={i === active ? 0 : -1}
+              onClick={() => setActive(i)}
+              className={`shrink-0 rounded-full px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra sm:px-6 ${
+                i === active ? 'bg-white text-ink shadow-sm' : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {d.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div
+        id="destinos-panel"
+        role="tabpanel"
+        aria-labelledby={`tab-${town.code}`}
+        className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <TownCard town={town} />
+        {town.lodgings.slice(0, 2).map((l) => (
+          <LodgingPhotoCard key={l.id} lodging={l} />
         ))}
-      </ul>
+        <AccentCard town={town} />
+      </div>
+
+      <p className="mt-8 text-center">
+        <Link
+          href="/lodgings"
+          className="rounded-md font-medium text-terra-deep underline decoration-terra/40 underline-offset-[6px] hover:decoration-terra focus-visible:outline-2 focus-visible:outline-terra"
+        >
+          Ver todos los alojamientos
+        </Link>
+      </p>
     </section>
   );
 }

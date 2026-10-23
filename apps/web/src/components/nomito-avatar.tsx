@@ -16,6 +16,8 @@ const SHAPES = {
 export interface NomitoAvatarProps {
   size?: keyof typeof SIZES;
   shape?: keyof typeof SHAPES;
+  /** Next to visible text that already names it (e.g. the logo): hide from assistive tech. */
+  decorative?: boolean;
   className?: string;
 }
 
@@ -25,11 +27,10 @@ export interface NomitoAvatarProps {
  * forehead. The wrapper's background shows around the bird and its shape clips
  * the art, so `className="bg-paper"` re-skins it.
  */
-export function NomitoAvatar({ size = 'md', shape = 'disc', className }: NomitoAvatarProps) {
+export function NomitoAvatar({ size = 'md', shape = 'disc', decorative = false, className }: NomitoAvatarProps) {
   return (
     <span
-      role="img"
-      aria-label="Nomito"
+      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'Nomito' })}
       className={cn(
         'relative inline-flex shrink-0 select-none overflow-hidden bg-terra',
         SIZES[size],

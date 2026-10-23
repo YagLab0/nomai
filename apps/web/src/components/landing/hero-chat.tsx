@@ -80,7 +80,7 @@ export function HeroChat() {
     <div
       role="group"
       aria-label="Ejemplo de conversación entre Lucas y Nomito"
-      className="relative flex h-[600px] flex-col overflow-hidden rounded-[2rem] border border-sand bg-paper shadow-[0_30px_60px_-30px_rgba(143,63,32,0.45)]"
+      className="relative flex h-[600px] flex-col overflow-hidden rounded-card border border-sand bg-paper shadow-[0_30px_60px_-30px_rgba(143,63,32,0.45)]"
     >
       <div className="flex items-center gap-3 border-b border-sand bg-white/70 px-5 py-3.5">
         <NomitoAvatar size="md" />

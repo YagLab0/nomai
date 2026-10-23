@@ -18,6 +18,7 @@ import {
 } from '@heroui/react';
 
 import { VerificationLadder } from '@/components/auth/verification-ladder';
+import { ASK_PARAM } from '@/lib/nomito/ask';
 
 const COUNTRIES = [
   { code: 'AR', name: 'Argentina', dial: '+54' },
@@ -65,6 +66,12 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState<Busy>(null);
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
+  /** First message drafted on the landing's Contale a Nomito bar, if any. */
+  const [ask, setAsk] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAsk(new URLSearchParams(window.location.search).get(ASK_PARAM));
+  }, []);
 
   const dial = COUNTRIES.find((c) => c.code === country)?.dial ?? '+54';
   const digits = phone.replace(/\D/g, '');
@@ -83,7 +90,7 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
         setBusy(null);
         then();
       } else {
-        router.push('/app');
+        router.push(ask ? `/app?${ASK_PARAM}=${encodeURIComponent(ask)}` : '/app');
       }
     }, FAKE_LATENCY_MS);
   }
@@ -179,6 +186,12 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
     <div>
       <h1 className="font-brand text-3xl font-medium leading-tight text-ink">{copy.title}</h1>
       <p className="mt-2 text-ink-muted">{copy.lead}</p>
+      {ask && (
+        <figure className="mt-6 rounded-[1.25rem] bg-terra-soft px-4 py-3">
+          <figcaption className="text-xs font-medium text-terra-deep">Nomito ya tiene tu pedido</figcaption>
+          <blockquote className="mt-1 text-[15px] text-ink">{ask}</blockquote>
+        </figure>
+      )}
 
       <form noValidate onSubmit={sendCode} className="mt-8 flex flex-col gap-4">
         <fieldset className="flex flex-col gap-2" disabled={busy !== null}>

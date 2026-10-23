@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { Button, Drawer } from '@heroui/react';
 
+import { NomitoAvatar } from '@/components/nomito-avatar';
+
 const LINKS = [
   { name: 'Cómo funciona', href: '/#como-funciona' },
   { name: 'Alojamientos', href: '/lodgings' },
@@ -14,9 +16,13 @@ const linkClass =
 
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-sand bg-paper/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link href="/" className="font-brand text-2xl font-semibold tracking-tight text-terra-deep">
+    <header className="sticky top-0 z-50 w-full bg-paper/85 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-5">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 rounded-xl font-brand text-2xl font-semibold tracking-tight text-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+        >
+          <NomitoAvatar size="sm" shape="icon" decorative />
           nomai
         </Link>
 

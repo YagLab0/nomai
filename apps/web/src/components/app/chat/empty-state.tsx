@@ -13,8 +13,8 @@ const SUGGESTIONS = [
 export function EmptyState() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-10 text-center">
-      <NomitoAvatar size="lg" />
-      <h2 className="font-brand text-3xl font-medium text-ink">¿A dónde querés ir?</h2>
+      <NomitoAvatar size="lg" shape="icon" className="h-24 w-24" />
+      <h2 className="brand-display text-4xl font-medium text-ink">¿A dónde querés ir?</h2>
       <p className="max-w-sm text-ink-muted">
         Contale a Nomito y te busca alojamiento directo con el dueño, en tu moneda.
       </p>

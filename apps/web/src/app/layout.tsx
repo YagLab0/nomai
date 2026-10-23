@@ -22,8 +22,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body className={`${sans.variable} ${mono.variable} ${brand.variable} font-sans`}>
+    // Font variables live on <html> so :root-level tokens (--font-sans…) can resolve them.
+    <html lang="es" className={`${sans.variable} ${mono.variable} ${brand.variable}`}>
+      <body className="font-sans">
         <div className="relative flex min-h-screen flex-col">
           <main className="flex-1">
             {children}
