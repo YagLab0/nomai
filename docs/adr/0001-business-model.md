@@ -35,3 +35,6 @@ a fee or escrow exists.
 - The FX fee is shown to the Traveler as its own line at Booking confirmation
   (rate + Nomai commission), never folded into the rate — transparency against
   the dólar tarjeta is part of the pitch.
+- Revenue scales with Agent usage and cross-currency activity, not booking volume.
+  A Booking's payment path stays a plain x402 seller with `payTo` set per request —
+  no escrow, no split payments, no Owner payout ledger.

@@ -24,3 +24,9 @@ the Agent's x402 wallet balance as a hard cap on paid data calls.
   an optional alternative tier.
 - **On-chain transferable credits**: rejected — withdrawable grants would have resale
   value (a sybil payoff) and a token-like regulatory surface.
+
+## Consequences
+
+- Any feature that spends Credits or touches the Agent wallet must respect both
+  the daily budget and the wallet-balance cap; new verification steps belong
+  inside the tier ladder, not as ad-hoc checks.
