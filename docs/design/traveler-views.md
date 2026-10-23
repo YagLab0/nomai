@@ -56,10 +56,10 @@ survives, used for Booking cards and shortlist results — not everywhere.
 ### Nomito
 
 Nomito is the Agent's product name and the protagonist of the product.
-Avatar: simple isotype — a terracotta circle with a lowercase `n` in the display
-face and a small agua dot (like a sun over the hills). One component
-`<NomitoAvatar size="sm|md|lg" />`, used in the landing hero, chat header, chat
-messages and empty states. Never call it "bot", "asistente" or "Eve" in UI.
+Avatar: a loro alisero mascot (see §11). One component
+`<NomitoAvatar size="sm|md|lg" shape="disc|icon" />`, used in the logo, landing,
+chat header, chat messages and empty states. Never call it "bot", "asistente" or
+"Eve" in UI.
 
 ## 3. Copy rules
 
@@ -93,6 +93,7 @@ Total · R$ 1.476,15 BRL
 | `/signup` | Crear cuenta |
 | `/login` | Ingresar |
 | `/app` | Traveler home: chat with Nomito at the center + side panel |
+| `/owners/join` | Owner onboarding (§14) |
 
 `/app` is the dashboard. There is no separate `/app/chat`.
 
@@ -178,12 +179,11 @@ Sections:
 
 1. **Navbar**: logo · "Cómo funciona" · "Para dueños" · `Ingresar` (ghost) ·
    `Crear cuenta` (primary). Mobile: drawer.
-2. **Hero**: left — headline about traveling the Norte with Nomito ("Nomito
-   arma tu viaje al Norte. Vos pagás en tu moneda."), subcopy, CTA "Hablar con
-   Nomito" → `/signup`, secondary "Cómo funciona". Right — **live animated chat**
-   (auto-playing scripted conversation of the §4 scenario, loops, respects
-   `prefers-reduced-motion` by showing the final state). Nomito is visually
-   dominant here.
+2. **Hero** (superseded by landing v2, §13): kicker "Nomito te arma el viaje
+   a", the giant word "el Norte", a rounded photo card overlapping it and the
+   floating "Contale a Nomito" bar. The **live animated chat** (auto-playing
+   §4 scenario, loops, final state under `prefers-reduced-motion`) moved to
+   the section right below, "Mirá a Nomito en acción".
 3. **Cómo funciona**: 3 steps (Contale tu viaje → Nomito busca y compara → Pagás
    en tu moneda, directo al dueño).
 4. **Destinos del Norte**: ticket-style cards for Salta, Cafayate, Purmamarca,
@@ -192,7 +192,7 @@ Sections:
    (from the existing comparison data, rewritten without jargon).
 6. **Para dueños**: "Cero comisión. Siempre." + 3 points (cobro al instante en tu
    moneda, importamos tu perfil de Booking/Airbnb, la reserva se confirma sola)
-   + CTA "Sumá tu alojamiento" (no-op / mailto for now).
+   + CTA "Sumá tu alojamiento" → `/owners/join` (§14).
 7. **CTA final** with Nomito avatar + footer.
 
 Keep `Reveal` for scroll-in animations if it still fits.
@@ -235,3 +235,91 @@ same theme as the rest of the app.
   `/app?ask=<encoded "Quiero reservar <name>, <town>">`; the thread reads the
   param once (`AskFromUrl`), appends it as the Traveler's message, and clears the
   URL. Nomito then answers with the booking quote for that Lodging.
+
+## 11. Nomito mascot
+
+Nomito is a **loro alisero** (*Amazona tucumana*), the parrot of the Yungas of
+Salta, Jujuy and Tucumán: green with a red forehead. Drawn after
+`docs/design/refs/nomito-logo-ref.png` — geometric planes, bold ink outlines,
+big eye with a highlight, hooked beak, wing cropped at the bottom-left —
+recoloured to the palette: agua plumage (`#3E9C93`, shades `#2C7A72` and
+`#8ACFC5`), terra forehead, horn beak (`sand`), ink outlines.
+
+- `src/components/nomito-avatar.tsx`: `NomitoArt` (the bird, transparent
+  100×100 SVG) and `NomitoAvatar` (bird on a terra background, clipped by
+  `shape`: `disc` for chat, `icon` = rounded square for logo and big
+  appearances). `role="img"`, `aria-label="Nomito"`; `decorative` hides it next
+  to visible text such as the "nomai" wordmark. Any `bg-*` class re-skins the
+  background (e.g. `bg-paper` on terra surfaces).
+- App icon: `src/app/icon.svg` (same art, terra rounded square) and
+  `src/app/apple-icon.png` (180 px). Checked legible at 24 px: eye, beak and
+  red forehead survive.
+
+## 12. Photography
+
+Real photos of the launch region in `apps/web/public/images` (WebP, long edge
+≤ 1600 px, each ≤ ~300 KB), free licences (Unsplash, Pexels); sources and
+photographers in `public/images/CREDITS.md`. `src/lib/photos.ts` is the only
+registry (path, size, Spanish alt text); always render through `next/image`.
+
+- Each launch town has a cover photo (`lib/mock/destinations.ts`) and each Norte
+  Lodging a `photo` key (`lib/lodgings.ts`); Lodgings without one fall back to
+  the flat `LodgingArt` landscape.
+- Photos show the place they are named after; don't reuse a town's photo for
+  another town.
+
+## 13. Landing v2
+
+Adapted from the StayScape reference (`docs/design/refs/stayscape-ref.png`) into
+our theme: same rhythm, Norte palette and type.
+
+- Radius scale: `rounded-card` (1.75rem) for cards, `rounded-panel` (2.5rem) for
+  section panels and big photos, `rounded-full` for pills and buttons.
+- **Hero**: kicker "Nomito te arma el viaje a" over the giant Fraunces "el
+  Norte" (both in the `h1`); a `rounded-panel` photo (Purmamarca adobe) overlaps
+  the bottom of the word. Floating on it (below it on phones) the **Contale a
+  Nomito** bar: mascot · destino · fechas · viajeros (stepper) · round terra
+  button. It is not a search: it drafts the Traveler's first message ("Quiero ir
+  a Cafayate en julio. Somos 2.") and goes to `/signup?ask=…`; sign-up shows the
+  drafted message and, after the code, opens `/app?ask=…`, where the chat sends
+  it (`AskFromUrl`).
+- **Mirá a Nomito en acción**: the animated Lucas chat (`hero-chat.tsx`) next to
+  a short story of the §4 scenario, on a `terra-soft` panel.
+- **Destinos**: pill segmented tabs (Salta, Cafayate, Purmamarca, Tilcara,
+  Humahuaca; arrow keys move between them). Each tab shows a town photo card,
+  that town's two Lodgings as photo cards (type, name, town, rating, price per
+  night in ARS → Owner storefront) and a solid terra "Hablá con Nomito" card
+  with the mascot and an arrow button → `/signup`.
+- Then Cómo funciona (numbered steps on a white panel), Por qué pagás menos,
+  Para dueños (ink panel with a photo), final CTA over Salinas Grandes, and a
+  rounded-top terra footer.
+- The same tokens reach `/lodgings` (photo-topped ticket cards), `/owners/[slug]`
+  (cover photo under the profile), the auth side panel (photo + mascot) and the
+  `/app` shell (mascot logo, rounder widgets).
+- Fonts: the next/font variables sit on `<html>` and `--font-sans`, `--font-mono`,
+  `--font-brand` are set unlayered in `globals.css`, otherwise HeroUI's system
+  stack wins.
+
+## 14. Owner join (`/owners/join`)
+
+Template only: no backend, ~1 s simulated latency. One account can be both
+Traveler and Owner; Travelers still sign up at `/signup` with no role question,
+and Owners come in here (landing "Sumá tu alojamiento", Para dueños section,
+footer).
+
+1. **Tu teléfono**: `AuthForm mode="owner"` (phone + WhatsApp code only), with
+   the note "¿Ya viajás con nomai? Usá el mismo teléfono y sumamos tu perfil de
+   dueño".
+2. **Tu alojamiento**: name, type, town (Norte towns first, then other
+   destinations), capacity. Optional "Importar desde Booking o Airbnb" link;
+   the mock import fills the fields.
+3. **Cobros con Ripio**: Bookings are paid straight into the Owner's Ripio
+   account, instantly, in their currency, with no commission (ADR-0001: the
+   linked account is the Booking's payee; nomai never holds funds). "Conectar
+   con Ripio" → "Cuenta de Ripio conectada"; link "¿No tenés cuenta? Creala en
+   Ripio" (ripio.com, new tab). Owners may see the name Ripio; still no
+   addresses or crypto vocabulary.
+4. **Listo**: summary ticket and a link to a sample storefront
+   (`/owners/<slug>` of an Owner in the same town).
+
+No Owner-side Agent for now.

@@ -4,7 +4,7 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 
 ## Structure
 
-- `apps/web` — Next.js 15 (App Router), React 19, Tailwind CSS 4, HeroUI v3; the Agent chat uses assistant-ui on a mock runtime (`src/lib/nomito/mock-adapter.ts`). Design spec: `docs/design/traveler-views.md` Lodgings marketplace: `/lodgings`, `/owners/[slug]`, `/app/lodgings` (see §10 of the design spec).
+- `apps/web` — Next.js 15 (App Router), React 19, Tailwind CSS 4, HeroUI v3; the Agent chat uses assistant-ui on a mock runtime (`src/lib/nomito/mock-adapter.ts`). Design spec: `docs/design/traveler-views.md`. Lodgings marketplace: `/lodgings`, `/owners/[slug]`, `/app/lodgings` (§10); Owner onboarding: `/owners/join` (§14). Photos live in `public/images` (credits in `CREDITS.md`).
 - `apps/api` — Hono server implementing both halves of an x402 payment: a seller that answers `402 Payment Required` (`GET /free` open, `POST /paid` charges USDC on Celo) and a buyer that pays it (`src/buyer.ts`)
 
 `X402_SETUP.md` explains the payment flow and facilitator setup. The buyer needs no CELO — the facilitator sponsors gas.
