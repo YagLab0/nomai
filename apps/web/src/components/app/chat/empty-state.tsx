@@ -6,8 +6,8 @@ import { NomitoAvatar } from '@/components/nomito-avatar';
 
 const SUGGESTIONS = [
   'Una semana en Salta y Cafayate',
-  'Algo tranquilo en Purmamarca',
-  'Hostel en Tilcara para 2',
+  'Playa en Florianópolis para 2',
+  'Cartagena en diciembre',
 ];
 
 export function EmptyState() {

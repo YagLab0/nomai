@@ -1,7 +1,7 @@
 const STEPS = [
   {
     title: 'Contale tu viaje',
-    text: 'Destino, fechas y presupuesto, como se lo contarías a un amigo que conoce todo el Norte.',
+    text: 'Destino, fechas y presupuesto, como se lo contarías a un amigo que conoce toda Latinoamérica.',
   },
   {
     title: 'Nomito busca y compara',

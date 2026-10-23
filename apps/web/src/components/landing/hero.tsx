@@ -4,13 +4,11 @@ import Link from 'next/link';
 import { MapPinIcon } from '@/components/icons';
 import { HeroChat } from '@/components/landing/hero-chat';
 import { NomitoAvatar } from '@/components/nomito-avatar';
-import { RIPIO_COUNTRY_NAMES } from '@/lib/lodgings';
+import { RIPIO_COUNTRIES_TEXT } from '@/lib/lodgings';
 import { PHOTOS } from '@/lib/photos';
 
 const photo = PHOTOS.humahuacaHornocal;
 
-/** "Argentina, Brasil, Chile, Colombia, México y Uruguay" */
-const countries = `${RIPIO_COUNTRY_NAMES.slice(0, -1).join(', ')} y ${RIPIO_COUNTRY_NAMES.at(-1)}`;
 
 /**
  * First impression: the live chat with Nomito over a full-bleed Jujuy landscape.
@@ -61,7 +59,7 @@ export function Hero() {
               Cómo funciona
             </Link>
           </div>
-          <p className="mt-8 hidden max-w-md text-sm text-paper/70 lg:block">En {countries}.</p>
+          <p className="mt-8 hidden max-w-md text-sm text-paper/70 lg:block">En {RIPIO_COUNTRIES_TEXT}.</p>
         </div>
 
         <div className="relative mt-7 lg:mt-0">
@@ -80,7 +78,7 @@ export function Hero() {
           >
             Cómo funciona
           </Link>
-          <p className="text-sm text-paper/70">En {countries}.</p>
+          <p className="text-sm text-paper/70">En {RIPIO_COUNTRIES_TEXT}.</p>
         </div>
       </div>
     </section>

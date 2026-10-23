@@ -6,7 +6,6 @@ import { useRef, useState } from 'react';
 
 import { ArrowUpRightIcon, MapPinIcon, StarIcon } from '@/components/icons';
 import { NomitoArt } from '@/components/nomito-avatar';
-import { formatARS } from '@/lib/format';
 import { formatLocalPrice, KIND_LABEL, type Lodging } from '@/lib/lodgings';
 import { DESTINATIONS, type Destination } from '@/lib/mock/destinations';
 import { PHOTOS } from '@/lib/photos';
@@ -20,11 +19,11 @@ function TownCard({ town }: { town: Destination }) {
       <Image src={photo.src} alt={photo.alt} fill sizes={GRID_SIZES} className="object-cover" />
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/25 to-transparent" />
       <div className="relative">
-        {town.province !== town.name && <p className="text-sm text-paper/80">{town.province}</p>}
-        <h3 className="brand-display text-5xl font-medium leading-none">{town.name}</h3>
+        <p className="text-sm text-paper/80">{town.country}</p>
+        <h3 className="brand-display text-[2.6rem] font-medium leading-[0.95]">{town.name}</h3>
         <p className="mt-3 text-[15px] leading-snug text-paper/85">{town.tagline}</p>
         <p className="mt-4 text-sm text-paper/80">
-          desde <span className="font-mono font-semibold text-paper">{formatARS(town.fromARS)}</span> la noche
+          <span className="font-mono font-semibold text-paper">{town.from}</span> la noche
         </p>
       </div>
     </article>
@@ -61,7 +60,7 @@ function LodgingPhotoCard({ lodging }: { lodging: Lodging }) {
           </p>
           <p className="text-right leading-none">
             <span className="font-brand text-2xl font-semibold text-ink">{formatLocalPrice(lodging)}</span>
-            <span className="block pt-1 text-xs text-ink-muted">por noche</span>
+            <span className="block pt-1 text-xs text-ink-muted">{lodging.currency} por noche</span>
           </p>
         </div>
       </div>
@@ -87,7 +86,7 @@ function AccentCard({ town }: { town: Destination }) {
   );
 }
 
-/** Pill segmented tabs over the five towns; each shows its town, its Lodgings and Nomito. */
+/** Pill segmented tabs over one destination per Ripio country; each shows the place, two Lodgings and Nomito. */
 export function Destinations() {
   const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -110,9 +109,10 @@ export function Destinations() {
   return (
     <section id="destinos" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20 sm:px-5 lg:py-28">
       <div className="flex flex-col items-center text-center">
-        <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">Cinco pueblos, una quebrada</h2>
+        <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">De la Quebrada al Caribe</h2>
         <p className="mt-4 max-w-xl text-lg text-ink-muted">
-          Alojamientos de dueños del Norte. El precio es el del dueño, y el pago le llega directo.
+          Alojamientos de dueños en los seis países donde funciona Ripio. El precio es el del dueño, en su moneda, y
+          el pago le llega directo.
         </p>
 
         <div
@@ -138,7 +138,7 @@ export function Destinations() {
                 i === active ? 'bg-white text-ink shadow-sm' : 'text-ink-muted hover:text-ink'
               }`}
             >
-              {d.name}
+              {d.label}
             </button>
           ))}
         </div>

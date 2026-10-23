@@ -13,9 +13,10 @@ import { FALLBACK_USD_RATES, FIAT_OPTIONS, type Fiat } from "@/lib/lodgings";
  *      client-credentials flow (POST {base}/oauth2/token/, Basic auth), or a
  *      raw RIPIO_B2B_TOKEN override for manual testing. Ripio quotes
  *      crypto↔fiat pairs, so we read the USDC_{FIAT} legs and treat them as
- *      fiat-per-USD. Coverage gaps (Ripio may not list PEN/CLP) fall through
+ *      fiat-per-USD. Coverage gaps (Ripio may not list CLP/UYU) fall through
  *      to the next source for those fiats.
- *   2. open.er-api.com — free public fiat FX, no key, covers all six fiats.
+ *   2. open.er-api.com — free public fiat FX, no key, covers all six fiats
+ *      (the currencies of the Ripio countries).
  *   3. Static FALLBACK_USD_RATES — last resort, marked source:"static".
  *
  * This is a display estimate only. The firm quote — with the FX fee on top —

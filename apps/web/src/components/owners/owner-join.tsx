@@ -16,7 +16,7 @@ import {
 
 import { AuthForm } from '@/components/auth/auth-form';
 import { CheckIcon, MinusIcon, PlusIcon } from '@/components/icons';
-import { KIND_LABEL, LODGING_KINDS, NORTE_TOWNS, OWNERS, type LodgingKind } from '@/lib/lodgings';
+import { KIND_LABEL, LODGING_KINDS, NORTE_TOWNS, OWNERS, RIPIO_COUNTRIES_TEXT, type LodgingKind } from '@/lib/lodgings';
 
 /**
  * Owner onboarding, UI only (no backend): phone → Lodging → Ripio → done.
@@ -31,7 +31,17 @@ const STEPS = ['Tu teléfono', 'Tu alojamiento', 'Cobros con Ripio', 'Listo'] as
 type Step = 0 | 1 | 2 | 3;
 
 const MORE_NORTE = ['Cachi', 'Iruya', 'San Salvador de Jujuy'];
-const OTHER_TOWNS = ['Mendoza', 'Bariloche', 'Buenos Aires', 'Florianópolis', 'Cusco', 'Bogotá', 'Cancún'];
+
+/** Towns by Ripio country (Owners get paid through Ripio, so only these). Norte first. */
+const TOWN_GROUPS: { label: string; towns: string[] }[] = [
+  { label: 'Norte argentino', towns: [...NORTE_TOWNS, ...MORE_NORTE] },
+  { label: 'Resto de Argentina', towns: ['Buenos Aires', 'Mendoza', 'Bariloche'] },
+  { label: 'Brasil', towns: ['Florianópolis', 'Río de Janeiro', 'Salvador'] },
+  { label: 'Chile', towns: ['San Pedro de Atacama', 'Santiago', 'Valparaíso'] },
+  { label: 'Colombia', towns: ['Cartagena', 'Bogotá', 'Medellín'] },
+  { label: 'México', towns: ['Tulum', 'Ciudad de México', 'Oaxaca'] },
+  { label: 'Uruguay', towns: ['Colonia del Sacramento', 'Montevideo', 'Punta del Este'] },
+];
 
 /** What the mock import "finds" behind any Booking or Airbnb link. */
 const IMPORTED = { name: 'Casa del Algarrobo Viejo', kind: 'casa' as LodgingKind, town: 'Cafayate', capacity: 4 };
@@ -202,24 +212,17 @@ function LodgingStep({
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                <ListBox.Section>
-                  <Header>Norte argentino</Header>
-                  {[...NORTE_TOWNS, ...MORE_NORTE].map((t) => (
-                    <ListBox.Item key={t} id={t} textValue={t}>
-                      {t}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox.Section>
-                <ListBox.Section>
-                  <Header>Otros destinos</Header>
-                  {OTHER_TOWNS.map((t) => (
-                    <ListBox.Item key={t} id={t} textValue={t}>
-                      {t}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox.Section>
+                {TOWN_GROUPS.map((g) => (
+                  <ListBox.Section key={g.label}>
+                    <Header>{g.label}</Header>
+                    {g.towns.map((t) => (
+                      <ListBox.Item key={t} id={t} textValue={t}>
+                        {t}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox.Section>
+                ))}
               </ListBox>
             </Select.Popover>
             <FieldError>Elegí dónde queda.</FieldError>
@@ -331,6 +334,7 @@ function RipioStep({ lodgingName, onDone }: { lodgingName: string; onDone: () =>
 
       {state !== 'connected' && (
         <p className="mt-4 text-center text-sm text-ink-muted">
+          Ripio funciona en {RIPIO_COUNTRIES_TEXT}.{' '}
           ¿No tenés cuenta?{' '}
           <a
             href={RIPIO_SIGNUP_URL}

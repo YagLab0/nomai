@@ -16,7 +16,23 @@ import {
 
 const TOKEN_DELAY_MS = 28;
 
-const TOWNS = ['salta', 'cafayate', 'purmamarca', 'tilcara', 'humahuaca'];
+const NORTE_KEYWORDS = ['salta', 'cafayate', 'purmamarca', 'tilcara', 'humahuaca', 'jujuy', 'norte', 'quebrada'];
+
+/** Places outside the Norte, by what a Traveler might type → catalog cities. */
+const PLACES: { keywords: string[]; cities: string[] }[] = [
+  { keywords: ['floripa', 'florianópolis', 'florianopolis', 'brasil', 'brazil'], cities: ['Florianópolis'] },
+  { keywords: ['cartagena', 'caribe colombiano'], cities: ['Cartagena'] },
+  { keywords: ['bogotá', 'bogota'], cities: ['Bogotá'] },
+  { keywords: ['colombia'], cities: ['Cartagena', 'Bogotá'] },
+  { keywords: ['tulum', 'riviera maya', 'cenote', 'méxico', 'mexico'], cities: ['Tulum'] },
+  { keywords: ['atacama', 'san pedro', 'chile'], cities: ['San Pedro de Atacama'] },
+  { keywords: ['colonia', 'uruguay'], cities: ['Colonia del Sacramento'] },
+  { keywords: ['mendoza'], cities: ['Mendoza'] },
+];
+
+function placeIn(t: string): string[] | null {
+  return PLACES.find((p) => p.keywords.some((k) => t.includes(k)))?.cities ?? null;
+}
 
 type Content = NonNullable<ChatModelRunResult['content']>;
 
@@ -46,6 +62,9 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
 
 function shortlistFor(text: string): Lodging[] {
   const t = text.toLowerCase();
+  // "Venimos desde Florianópolis… una semana en Salta": the Norte wins.
+  const cities = NORTE_KEYWORDS.some((k) => t.includes(k)) ? null : placeIn(t);
+  if (cities) return LODGINGS.filter((l) => cities.includes(l.city)).slice(0, 3);
   const norte = LODGINGS.filter(isNorte);
   if (t.includes('hostel')) return norte.filter((l) => l.kind === 'hostal' || l.city === 'Tilcara').slice(0, 3);
   const byTown = norte.filter((l) => t.includes(l.city.toLowerCase()));
@@ -61,7 +80,7 @@ type Plan = { text: string; tool?: Content[number] };
 
 function plan(text: string, isFirstTurn: boolean): Plan {
   const t = text.toLowerCase();
-  const mentionsTown = TOWNS.some((x) => t.includes(x));
+  const mentionsTown = NORTE_KEYWORDS.some((x) => t.includes(x)) || placeIn(t) !== null;
   const wantsBooking = /reserv|confirm|elegir|quiero esa|quiero ese|me quedo/.test(t);
 
   if (wantsBooking) {
@@ -73,7 +92,7 @@ function plan(text: string, isFirstTurn: boolean): Plan {
     };
   }
 
-  if (mentionsTown || /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje/.test(t)) {
+  if (mentionsTown || /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje|playa|viaj/.test(t)) {
     const options = shortlistFor(text);
     return {
       text: `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.`,
@@ -83,8 +102,8 @@ function plan(text: string, isFirstTurn: boolean): Plan {
 
   return {
     text: isFirstTurn
-      ? '¡Hola, Lucas! Contame un poco más: ¿qué zona del Norte te tienta, cuántas noches y cuántas personas van? Con eso te busco opciones.'
-      : 'Tomé nota. ¿Querés que te busque algo en Salta, Cafayate, Purmamarca o Tilcara? Decime fechas y cuántos son.',
+      ? '¡Hola, Lucas! Contame un poco más: ¿a dónde te tienta ir, cuántas noches y cuántas personas van? Con eso te busco opciones.'
+      : 'Tomé nota. ¿Te busco algo en el Norte argentino, Florianópolis, Cartagena, Tulum, Atacama o Colonia? Decime fechas y cuántos son.',
   };
 }
 

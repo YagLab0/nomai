@@ -96,7 +96,9 @@ export function LodgingCard({
           <div>
             <p className="font-mono text-base font-semibold text-ink">
               {formatNightPrice(lodging, fiat, rates)}
-              <span className="font-sans text-sm font-normal text-ink-muted"> / noche</span>
+              <span className="font-sans text-sm font-normal text-ink-muted">
+                {fiat && fiat !== lodging.currency ? ' / noche' : ` ${lodging.currency} / noche`}
+              </span>
             </p>
             <p className="mt-1 inline-flex rounded-full bg-agua-soft px-2 py-0.5 text-xs font-medium text-agua">
               directo con el dueño

@@ -84,7 +84,7 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
         <SearchField aria-label="Destino" name="destino" value={query} onChange={setQuery} fullWidth>
           <SearchField.Group>
             <SearchIcon className="ml-3 h-4 w-4 text-ink-muted" />
-            <SearchField.Input placeholder="¿A dónde vas? Salta, Cafayate, Tilcara…" />
+            <SearchField.Input placeholder="¿A dónde vas? Salta, Florianópolis, Cartagena…" />
             <SearchField.ClearButton />
           </SearchField.Group>
         </SearchField>

@@ -12,7 +12,8 @@ export function Footer() {
               <NomitoAvatar size="sm" shape="icon" decorative className="bg-paper" />
               nomai
             </p>
-            <p className="mt-3 text-sm text-paper/75">Pagos en moneda local sobre infraestructura abierta</p>
+            <p className="mt-3 text-sm text-paper/75">Nacimos en Jujuy. Viajamos por Latinoamérica.</p>
+            <p className="mt-1 text-sm text-paper/75">Pagos en moneda local sobre infraestructura abierta</p>
           </div>
           <nav aria-label="Pie" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <Link href="/lodgings" className="hover:underline">Alojamientos</Link>

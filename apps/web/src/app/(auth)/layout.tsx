@@ -30,7 +30,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <NomitoAvatar size="lg" shape="icon" className="h-24 w-24" />
             <h2 className="brand-display max-w-sm text-5xl font-medium leading-[0.95]">Contale tu viaje a Nomito</h2>
             <p className="max-w-xs text-lg leading-relaxed text-paper/85">
-              Dónde, cuándo y con cuánto. Él busca, compara y se ocupa del resto.
+              De Jujuy a Cartagena: dónde, cuándo y con cuánto. Él busca, compara y se ocupa del resto.
             </p>
           </div>
         </div>

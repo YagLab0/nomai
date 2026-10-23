@@ -5,7 +5,7 @@ import { LodgingExplorer } from '@/components/marketplace/lodging-explorer';
 export const metadata: Metadata = {
   title: 'Alojamientos · nomai',
   description:
-    'Alojamientos de dueños verificados, del Norte argentino y más. Pagás en tu moneda, directo al dueño, sin comisión.',
+    'Alojamientos de dueños verificados en Argentina, Brasil, Chile, Colombia, México y Uruguay. Pagás en tu moneda, directo al dueño, sin comisión.',
 };
 
 export default function LodgingsPage() {
