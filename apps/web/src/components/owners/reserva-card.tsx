@@ -9,7 +9,7 @@ import type { OwnerBooking, OwnerBookingStatus } from '@/lib/mock/owner';
 
 const STATUS: Record<OwnerBookingStatus, { label: string; className: string }> = {
   confirmada: { label: 'Confirmada', className: 'bg-agua-soft text-agua' },
-  'en-curso': { label: 'En curso', className: 'bg-terra-soft text-terra-deep' },
+  'en-curso': { label: 'En curso', className: 'bg-sand text-ink' },
   completada: { label: 'Completada', className: 'bg-sand/70 text-ink-muted' },
   cancelada: { label: 'Cancelada', className: 'bg-sand/70 text-ink-muted' },
 };
@@ -69,7 +69,7 @@ export function ReservaCard({ booking }: { booking: OwnerBooking }) {
           onClick={() => toast('Pronto vas a poder escribirle al viajero')}
           className="text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
         >
-          Contactar
+          Contactar al viajero
         </button>
       </div>
     </article>

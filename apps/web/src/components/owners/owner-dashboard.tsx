@@ -11,8 +11,8 @@ import { currentOwner, monthNetARS, ownerBookings } from '@/lib/mock/owner';
 
 /** The Owner's panel: Resumen → Reservas → Tus alojamientos (owner-views §3). */
 export function OwnerDashboard() {
-  const next = ownerBookings.find((b) => b.status === 'confirmada');
-  const nextLodging = next && lodgingById(next.lodgingId);
+  const nextArrival = ownerBookings.find((b) => b.status === 'confirmada');
+  const nextLodging = nextArrival && lodgingById(nextArrival.lodgingId);
   const [lodgings, setLodgings] = useState(() => lodgingsByOwner(currentOwner.slug));
 
   function saveAlojamiento(id: string, draft: AlojamientoDraft) {
@@ -35,16 +35,16 @@ export function OwnerDashboard() {
           <p className="mt-2 font-mono text-4xl font-semibold tracking-tight">
             $ {formatNumber(monthNetARS)}
           </p>
-          <p className="mt-2 text-xs text-white/70">neto de reembolsos · al instante en tu Ripio</p>
+          <p className="mt-2 text-xs text-white/70">neto de devoluciones · al instante en tu Ripio</p>
         </div>
-        {next && nextLodging && (
+        {nextArrival && nextLodging && (
           <div className="rounded-card border border-sand bg-white p-6">
             <p className="text-sm text-ink-muted">Próxima llegada</p>
             <p className="mt-2 font-brand text-2xl font-medium text-ink">
-              {next.traveler.name} · {formatShortDate(next.checkIn)}
+              {nextArrival.traveler.name} · {formatShortDate(nextArrival.checkIn)}
             </p>
             <p className="mt-1 text-sm text-ink-muted">
-              {nextLodging.name} · {next.nights} noches
+              {nextLodging.name} · {nextArrival.nights} noches
             </p>
           </div>
         )}

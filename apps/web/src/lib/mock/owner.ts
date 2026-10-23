@@ -40,8 +40,8 @@ export const ownerBookings: OwnerBooking[] = [
     id: 'b-lucas',
     traveler: { name: 'Lucas', origin: 'Florianópolis, Brasil', verified: true },
     lodgingId: 'casa-de-adobe',
-    checkIn: '2026-11-12',
-    checkOut: '2026-11-15',
+    checkIn: '2026-11-20',
+    checkOut: '2026-11-23',
     nights: 3,
     amount: 285_000,
     status: 'confirmada',
@@ -92,4 +92,6 @@ export const ownerBookings: OwnerBooking[] = [
 ];
 
 /** November's net take: $285.000 + $480.000 settled − $142.500 refunded. */
-export const monthNetARS = 622_500;
+export const monthNetARS = ownerBookings
+  .filter((b) => b.checkIn.startsWith('2026-11'))
+  .reduce((sum, b) => sum + (b.status === 'cancelada' ? -(b.refunded ?? 0) : b.amount), 0);

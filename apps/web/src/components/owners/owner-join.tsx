@@ -404,12 +404,6 @@ function DoneStep({ draft }: { draft: LodgingDraft }) {
         >
           Ver cómo se ve tu página
         </Link>
-        <Link
-          href="/"
-          className="inline-flex h-12 items-center justify-center rounded-full px-7 text-base font-medium text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
-        >
-          Volver al inicio
-        </Link>
       </div>
       <p className="mt-3 text-sm text-ink-muted">
         Mientras armamos la tuya, te mostramos la página de {sample.name}, otro dueño de nomai.

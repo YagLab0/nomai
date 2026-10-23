@@ -48,7 +48,9 @@ export interface OwnerBooking {
   /** Settled to the Owner's Ripio account, in the Owner's own fiat. */
   amount: number;
   status: 'confirmada' | 'en-curso' | 'completada' | 'cancelada';
-  /** Set only when status is 'cancelada': what went back to the Traveler. */
+  /** Set only when status is 'cancelada': when it was canceled and what went
+   * back to the Traveler (ADR-0004). */
+  canceledAt?: string;
   refunded?: number;
   isNew?: boolean;
 }
@@ -63,8 +65,9 @@ a verified document.
 Mock Bookings for Ramón (keep the numbers internally consistent — price/night ×
 nights = amount):
 
-- Lucas · Florianópolis, Brasil · Casa de Adobe · 12→15 nov · 3 noches ·
-  $285.000 · confirmada · `isNew` — the §4 Booking.
+- Lucas · Florianópolis, Brasil · Casa de Adobe · 20→23 nov · 3 noches ·
+  $285.000 · confirmada · `isNew` — the §4 Booking; dated after his Salta stay
+  (`mock/traveler.ts` has him at Posada El Algarrobo 12→19 nov).
 - Martina · Montevideo · Cabaña Viñas del Sol · 3→7 nov · 4 noches · $480.000 ·
   en curso.
 - Sofía · Buenos Aires · Casa de Adobe · 12→15 oct · 3 noches · $285.000 ·
@@ -82,7 +85,7 @@ One page, three stacked blocks.
 
 - "Este mes cobraste $622.500" — money in minus money out in November
   ($285.000 + $480.000 − $142.500).
-- "Próxima llegada: Lucas · Casa de Adobe · 12 nov".
+- "Próxima llegada: Lucas · Casa de Adobe · 20 nov".
 
 **Reservas** — one ticket-style card per Booking: Traveler name, origin, badge
 "documento verificado", lodging, dates and nights, amount (`$285.000`), status
