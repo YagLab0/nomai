@@ -270,7 +270,7 @@ registry (path, size, Spanish alt text); always render through `next/image`.
 
 ## 13. Landing v2
 
-Adapted from the StayScape reference (`docs/design/refs/stayscape-ref.png`) into
+Adapted from the StayScape reference ([Dribbble: StayScape](https://dribbble.com/shots/25105219-StayScape-Travel-Hotel-Booking-Platform-Landing-Page-Website)) into
 our theme: same rhythm, Norte palette and type.
 
 - Radius scale: `rounded-card` (1.75rem) for cards, `rounded-panel` (2.5rem) for
