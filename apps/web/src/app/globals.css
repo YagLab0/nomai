@@ -1,6 +1,36 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+/*
+ * Nomai palette (docs/design/traveler-views.md section 2). Raw values live in
+ * :root so a dark theme can redefine them later. HeroUI v3 theme variables are
+ * pointed at them below; this block is unlayered, so it wins over HeroUI's
+ * layered defaults. Light mode only for now.
+ */
+:root {
+  --terra: #B4552D;
+  --terra-deep: #8F3F20;
+  --terra-soft: #F3E2D6;
+  --agua: #3E9C93;
+  --agua-soft: #DDF0EC;
+  --paper: #FBF6F0;
+  --sand: #EADFD2;
+  --ink: #2A1E17;
+  --ink-muted: #7A6A5E;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --accent: var(--terra);
+  --accent-foreground: #FFFFFF;
+  --success: var(--agua);
+  --success-foreground: #FFFFFF;
+  --border: var(--sand);
+  --separator: var(--sand);
+  --muted: var(--ink-muted);
+  --link: var(--terra-deep);
+  --focus: var(--terra);
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -33,16 +63,24 @@
   --color-card: hsl(var(--nm-card));
   --color-card-foreground: hsl(var(--nm-card-foreground));
 
-  --color-terra: #B4552D;
-  --color-terra-deep: #8F3F20;
-  --color-terra-soft: #F3E2D6;
+  --color-terra: var(--terra);
+  --color-terra-deep: var(--terra-deep);
+  --color-terra-soft: var(--terra-soft);
+  --color-agua: var(--agua);
+  --color-agua-soft: var(--agua-soft);
+  --color-paper: var(--paper);
+  --color-sand: var(--sand);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+
+  --font-brand: var(--font-nm-brand), ui-serif, Georgia, serif;
+
   --color-burn: #D9480B;
   --color-gold: #E0A43B;
   --color-gold-soft: #F6E8C8;
   --color-cocoa: #33200F;
   --color-espresso: #2A1B10;
   --color-bone: #F7F1E5;
-  --color-sand: #E4D8C4;
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
