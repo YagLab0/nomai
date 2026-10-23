@@ -1,76 +1,144 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "@heroui/styles";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Landing tokens. The shadcn-style hsl triplets live under --nm-* so they do
+ * not collide with HeroUI's own --background/--accent/... variables (oklch).
+ * The --color-* theme tokens below point Tailwind utilities at them.
+ */
+@theme {
+  --font-sans: var(--font-nm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-nm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-nm-mono), ui-monospace, monospace;
+
+  --color-border: hsl(var(--nm-border));
+  --color-input: hsl(var(--nm-input));
+  --color-ring: hsl(var(--nm-ring));
+  --color-background: hsl(var(--nm-background));
+  --color-foreground: hsl(var(--nm-foreground));
+  --color-primary: hsl(var(--nm-primary));
+  --color-primary-foreground: hsl(var(--nm-primary-foreground));
+  --color-secondary: hsl(var(--nm-secondary));
+  --color-secondary-foreground: hsl(var(--nm-secondary-foreground));
+  --color-destructive: hsl(var(--nm-destructive));
+  --color-destructive-foreground: hsl(var(--nm-destructive-foreground));
+  --color-muted: hsl(var(--nm-muted));
+  --color-muted-foreground: hsl(var(--nm-muted-foreground));
+  --color-accent: hsl(var(--nm-accent));
+  --color-accent-foreground: hsl(var(--nm-accent-foreground));
+  --color-popover: hsl(var(--nm-popover));
+  --color-popover-foreground: hsl(var(--nm-popover-foreground));
+  --color-card: hsl(var(--nm-card));
+  --color-card-foreground: hsl(var(--nm-card-foreground));
+
+  --color-terra: #B4552D;
+  --color-terra-deep: #8F3F20;
+  --color-terra-soft: #F3E2D6;
+  --color-burn: #D9480B;
+  --color-gold: #E0A43B;
+  --color-gold-soft: #F6E8C8;
+  --color-cocoa: #33200F;
+  --color-espresso: #2A1B10;
+  --color-bone: #F7F1E5;
+  --color-sand: #E4D8C4;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+@utility container {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= 640px) { max-width: 640px; }
+  @media (width >= 768px) { max-width: 768px; }
+  @media (width >= 1024px) { max-width: 1024px; }
+  @media (width >= 1280px) { max-width: 1280px; }
+  @media (width >= 1400px) { max-width: 1400px; }
+}
+
 
 @layer base {
   :root {
-    --border: 36 20% 83%;
-    --input: 36 20% 83%;
-    --ring: 22 90% 43%;
+    --nm-border: 36 20% 83%;
+    --nm-input: 36 20% 83%;
+    --nm-ring: 22 90% 43%;
 
-    --background: 40 40% 93%;
-    --foreground: 24 45% 11%;
+    --nm-background: 40 40% 93%;
+    --nm-foreground: 24 45% 11%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 24 45% 11%;
+    --nm-card: 0 0% 100%;
+    --nm-card-foreground: 24 45% 11%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 24 45% 11%;
+    --nm-popover: 0 0% 100%;
+    --nm-popover-foreground: 24 45% 11%;
 
-    --primary: 22 90% 43%;
-    --primary-foreground: 40 40% 97%;
+    --nm-primary: 22 90% 43%;
+    --nm-primary-foreground: 40 40% 97%;
 
-    --secondary: 34 30% 88%;
-    --secondary-foreground: 24 45% 11%;
+    --nm-secondary: 34 30% 88%;
+    --nm-secondary-foreground: 24 45% 11%;
 
-    --muted: 38 25% 90%;
-    --muted-foreground: 25 15% 40%;
+    --nm-muted: 38 25% 90%;
+    --nm-muted-foreground: 25 15% 40%;
 
-    --accent: 34 45% 88%;
-    --accent-foreground: 24 45% 11%;
+    --nm-accent: 34 45% 88%;
+    --nm-accent-foreground: 24 45% 11%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 40 40% 97%;
+    --nm-destructive: 0 72% 51%;
+    --nm-destructive-foreground: 40 40% 97%;
 
-    --radius: 0.75rem;
+    --nm-radius: 0.75rem;
   }
 
   .dark {
-    --background: 243 35% 12%;
-    --foreground: 40 40% 97%;
+    --nm-background: 243 35% 12%;
+    --nm-foreground: 40 40% 97%;
 
-    --card: 243 35% 15%;
-    --card-foreground: 40 40% 97%;
+    --nm-card: 243 35% 15%;
+    --nm-card-foreground: 40 40% 97%;
 
-    --popover: 243 35% 15%;
-    --popover-foreground: 40 40% 97%;
+    --nm-popover: 243 35% 15%;
+    --nm-popover-foreground: 40 40% 97%;
 
-    --primary: 33 88% 55%;
-    --primary-foreground: 243 35% 12%;
+    --nm-primary: 33 88% 55%;
+    --nm-primary-foreground: 243 35% 12%;
 
-    --secondary: 243 25% 25%;
-    --secondary-foreground: 40 40% 97%;
+    --nm-secondary: 243 25% 25%;
+    --nm-secondary-foreground: 40 40% 97%;
 
-    --muted: 243 25% 22%;
-    --muted-foreground: 240 20% 65%;
+    --nm-muted: 243 25% 22%;
+    --nm-muted-foreground: 240 20% 65%;
 
-    --accent: 243 25% 25%;
-    --accent-foreground: 40 40% 97%;
+    --nm-accent: 243 25% 25%;
+    --nm-accent-foreground: 40 40% 97%;
 
-    --destructive: 0 62.8% 45%;
-    --destructive-foreground: 40 40% 97%;
+    --nm-destructive: 0 62.8% 45%;
+    --nm-destructive-foreground: 40 40% 97%;
 
-    --border: 243 25% 25%;
-    --input: 243 25% 25%;
-    --ring: 33 88% 55%;
+    --nm-border: 243 25% 25%;
+    --nm-input: 243 25% 25%;
+    --nm-ring: 33 88% 55%;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--nm-border));
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--nm-background));
+    color: hsl(var(--nm-foreground));
   }
 }

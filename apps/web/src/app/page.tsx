@@ -71,7 +71,7 @@ const stack = [
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-mono text-muted-foreground shadow-sm">
+    <span className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
       {children}
     </span>
   );
@@ -148,13 +148,13 @@ function PhoneMock() {
           {/* mensajes */}
           <div className="space-y-3 px-3.5 py-4 text-[12.5px] leading-snug">
             <div className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-burn px-3.5 py-2.5 text-white">
+              <div className="max-w-[85%] rounded-2xl rounded-tr-xs bg-burn px-3.5 py-2.5 text-white">
                 Me voy 5 días a Floripa con mi pareja. Lo más económico con
                 desayuno, cerca de la playa.
               </div>
             </div>
             <div className="flex">
-              <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-sand/70 px-3.5 py-2.5 text-foreground/80">
+              <div className="max-w-[85%] rounded-2xl rounded-tl-xs bg-sand/70 px-3.5 py-2.5 text-foreground/80">
                 Encontré 4 opciones. La mejor: Posada Marina, a 3 cuadras de la
                 playa, con −12% por pago directo.
               </div>
@@ -194,7 +194,7 @@ function PhoneMock() {
 
             {/* escribiendo */}
             <div className="flex">
-              <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm bg-sand/70 px-3.5 py-3">
+              <div className="flex items-center gap-1 rounded-2xl rounded-tl-xs bg-sand/70 px-3.5 py-3">
                 <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
                 <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
                 <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
@@ -371,12 +371,12 @@ export default function Home() {
               <div className="rounded-2xl border p-7 h-full bg-background">
                 <div className="rounded-xl bg-muted p-4 space-y-3 mb-6 text-sm">
                   <div className="flex">
-                    <div className="rounded-xl rounded-tl-sm bg-card border px-3.5 py-2 text-muted-foreground">
+                    <div className="rounded-xl rounded-tl-xs bg-card border px-3.5 py-2 text-muted-foreground">
                       ¿Mejor precio por pago directo?
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <div className="rounded-xl rounded-tr-sm bg-burn text-white px-3.5 py-2">
+                    <div className="rounded-xl rounded-tr-xs bg-burn text-white px-3.5 py-2">
                       −12% confirmado. Queda en R$ 1.240 por 5 noches.
                     </div>
                   </div>

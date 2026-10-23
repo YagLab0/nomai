@@ -4,8 +4,8 @@ import './globals.css';
 
 import { Navbar } from '@/components/navbar';
 
-const sans = Space_Grotesk({ subsets: ['latin'], variable: '--font-sans' });
-const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
+const sans = Space_Grotesk({ subsets: ['latin'], variable: '--font-nm-sans' });
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-nm-mono' });
 
 export const metadata: Metadata = {
   title: 'nomai — tu agente de viajes en tu moneda',
