@@ -12,7 +12,8 @@ The person who chats with the Agent and pays for bookings. Product Spanish: *via
 _Avoid_: user, customer, tourist, buyer
 
 **Owner**:
-The lodging host who receives bookings. Pays the platform nothing, ever.
+The lodging host who receives bookings. Pays the platform nothing, ever. Gets paid
+into their own Ripio account, linked when they join.
 Product Spanish: *dueño*, *hotelero*.
 _Avoid_: host, merchant, seller, hotel
 

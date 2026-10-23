@@ -38,3 +38,6 @@ a fee or escrow exists.
 - Revenue scales with Agent usage and cross-currency activity, not booking volume.
   A Booking's payment path stays a plain x402 seller with `payTo` set per request —
   no escrow, no split payments, no Owner payout ledger.
+- An Owner must have a Ripio account; its wallet is linked once at Owner onboarding
+  and becomes the `payTo` of every Booking for their Lodgings. There is no
+  Owner-side Agent for now (may be evaluated later).
