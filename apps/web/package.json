@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.15.31",
     "@heroui/react": "^3.2.6",
     "@heroui/styles": "^3.2.6",
     "@radix-ui/react-dialog": "^1.0.5",

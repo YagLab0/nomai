@@ -1,0 +1,129 @@
+import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
+
+import { findLodging, LODGINGS, quoteFor, type Lodging } from '@/lib/mock/lodgings';
+import {
+  BOOKING_QUOTE_TOOL,
+  MONEDAS_SPENT_KEY,
+  SEARCH_COST_MONEDAS,
+  SHORTLIST_TOOL,
+} from '@/lib/nomito/tools';
+
+/**
+ * The ONLY place that knows Nomito's replies are fake. A real backend replaces
+ * this adapter with one that streams the same text and emits the same
+ * `shortlist` / `booking_quote` tool calls.
+ */
+
+const TOKEN_DELAY_MS = 28;
+
+const TOWNS = ['salta', 'cafayate', 'purmamarca', 'tilcara', 'humahuaca'];
+
+type Content = NonNullable<ChatModelRunResult['content']>;
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(t);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages']): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== 'user') continue;
+    return m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ');
+  }
+  return '';
+}
+
+function shortlistFor(text: string): Lodging[] {
+  const t = text.toLowerCase();
+  const byTown = LODGINGS.filter((l) => t.includes(l.town.toLowerCase()));
+  if (t.includes('hostel')) return LODGINGS.filter((l) => l.town === 'Tilcara' || l.name.includes('Hostel'));
+  if (byTown.length > 0) return byTown.length >= 2 ? byTown : [...byTown, ...LODGINGS.filter((l) => !byTown.includes(l)).slice(0, 2)];
+  return LODGINGS.slice(0, 3);
+}
+
+function tokens(text: string): string[] {
+  return text.match(/\S+\s*/g) ?? [];
+}
+
+type Plan = { text: string; tool?: Content[number] };
+
+function plan(text: string, isFirstTurn: boolean): Plan {
+  const t = text.toLowerCase();
+  const mentionsTown = TOWNS.some((x) => t.includes(x));
+  const wantsBooking = /reserv|confirm|elegir|quiero esa|quiero ese|me quedo/.test(t);
+
+  if (wantsBooking) {
+    const lodging = findLodging(text) ?? LODGINGS[0];
+    const quote = quoteFor(lodging);
+    return {
+      text: `Buenísimo, ${lodging.name} en ${lodging.town}. Te armé el detalle en reales; el pago va directo al dueño y la comisión de conversión figura aparte.`,
+      tool: toolCall('quote', BOOKING_QUOTE_TOOL, quote),
+    };
+  }
+
+  if (mentionsTown || /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje/.test(t)) {
+    const options = shortlistFor(text);
+    return {
+      text: `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.`,
+      tool: toolCall('list', SHORTLIST_TOOL, { options }),
+    };
+  }
+
+  return {
+    text: isFirstTurn
+      ? '¡Hola, Lucas! Contame un poco más: ¿qué zona del Norte te tienta, cuántas noches y cuántas personas van? Con eso te busco opciones.'
+      : 'Tomé nota. ¿Querés que te busque algo en Salta, Cafayate, Purmamarca o Tilcara? Decime fechas y cuántos son.',
+  };
+}
+
+function toolCall(id: string, toolName: string, args: object): Content[number] {
+  return {
+    type: 'tool-call',
+    toolCallId: `${id}-${Date.now()}`,
+    toolName,
+    args: args as never,
+    argsText: JSON.stringify(args),
+    // Already "answered": the UI is display-only, nothing waits on the model.
+    result: { ok: true },
+  };
+}
+
+export const mockAdapter: ChatModelAdapter = {
+  async *run({ messages, abortSignal }) {
+    const userText = lastUserText(messages);
+    const isFirstTurn = messages.filter((m) => m.role === 'user').length <= 1;
+    const { text, tool } = plan(userText, isFirstTurn);
+
+    await sleep(500, abortSignal);
+
+    let acc = '';
+    for (const tok of tokens(text)) {
+      if (abortSignal.aborted) return;
+      acc += tok;
+      yield { content: [{ type: 'text', text: acc }] };
+      await sleep(TOKEN_DELAY_MS, abortSignal);
+    }
+
+    if (tool && !abortSignal.aborted) {
+      await sleep(350, abortSignal);
+      const isSearch = tool.type === 'tool-call' && tool.toolName === SHORTLIST_TOOL;
+      yield {
+        content: [{ type: 'text', text: acc }, tool],
+        ...(isSearch && {
+          metadata: { custom: { [MONEDAS_SPENT_KEY]: SEARCH_COST_MONEDAS } },
+        }),
+      };
+    }
+  },
+};

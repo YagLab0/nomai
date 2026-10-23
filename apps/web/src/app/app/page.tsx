@@ -1,7 +1,9 @@
+import type { Metadata } from 'next';
+
+import { Thread } from '@/components/app/chat/thread';
+
+export const metadata: Metadata = { title: 'Nomito · nomai' };
+
 export default function AppHomePage() {
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <p className="font-brand text-3xl text-ink">Pronto</p>
-    </div>
-  );
+  return <Thread />;
 }
