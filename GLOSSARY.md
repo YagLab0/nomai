@@ -18,12 +18,18 @@ _Avoid_: host, merchant, seller, hotel
 
 **Agent**:
 The AI that researches options and executes bookings for a Traveler. Every research
-run spends real money on LLM inference and paid data APIs.
-_Avoid_: bot, assistant
+run spends real money on LLM inference and paid data APIs. Product name: *Nomito*.
+_Avoid_: bot, assistant, Eve
 
 **Booking**:
 A paid reservation settled by an x402 payment in wFIAT, direct to the Owner's wallet.
 _Avoid_: reservation, order
+
+**Agent wallet**:
+The wallet a Traveler's Agent pays Bookings from. One per Traveler, with its own
+verifiable Agent identity. The Traveler funds it and sees its balance in local
+currency, but never operates it directly.
+_Avoid_: user wallet, account, custodial wallet
 
 ### Money
 
