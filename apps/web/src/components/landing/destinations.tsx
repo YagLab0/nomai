@@ -1,6 +1,8 @@
-import { HillArt } from '@/components/landing/hills';
+import Image from 'next/image';
+
 import { formatARS } from '@/lib/format';
 import { DESTINATIONS } from '@/lib/mock/destinations';
+import { PHOTOS } from '@/lib/photos';
 
 export function Destinations() {
   return (
@@ -14,12 +16,15 @@ export function Destinations() {
         {DESTINATIONS.map((d, i) => (
           <li key={d.code} className={i < 3 ? 'lg:col-span-2' : 'lg:col-span-3'}>
             <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-sand bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
-              <HillArt
-                palette={d.palette}
-                seed={d.seed}
-                stripes={d.stripes}
-                className={`w-full ${i < 3 ? 'h-44' : 'h-52'} transition-transform duration-700 group-hover:scale-[1.03]`}
-              />
+              <div className={`relative w-full overflow-hidden ${i < 3 ? 'h-44' : 'h-52'}`}>
+                <Image
+                  src={PHOTOS[d.photo].src}
+                  alt={PHOTOS[d.photo].alt}
+                  fill
+                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                />
+              </div>
               <div className="relative flex flex-1 items-end justify-between gap-4 border-t-2 border-dashed border-sand p-5">
                 <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
                 <span aria-hidden="true" className="absolute -right-2 -top-2 h-4 w-4 rounded-full bg-paper" />

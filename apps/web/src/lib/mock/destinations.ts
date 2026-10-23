@@ -1,4 +1,5 @@
 import { lodgingsInTown } from '@/lib/lodgings';
+import type { PhotoKey } from '@/lib/photos';
 
 export interface Destination {
   code: string;
@@ -10,6 +11,7 @@ export interface Destination {
   palette: [string, string, string, string];
   seed: number;
   stripes?: boolean;
+  photo: PhotoKey;
 }
 
 /** Sample "desde" prices for the landing. */
@@ -17,6 +19,7 @@ const BASE: readonly Destination[] = [
   {
     code: 'SLA',
     name: 'Salta',
+    photo: 'saltaSanFrancisco',
     tagline: 'La linda: casonas, peñas y cerros al fondo.',
     fromARS: 0,
     palette: ['var(--terra-soft)', 'var(--sand)', 'var(--terra)', 'var(--terra-deep)'],
@@ -25,6 +28,7 @@ const BASE: readonly Destination[] = [
   {
     code: 'CFY',
     name: 'Cafayate',
+    photo: 'cafayateVinedos',
     tagline: 'Viñedos, bodegas y atardeceres colorados.',
     fromARS: 0,
     palette: ['var(--agua-soft)', 'var(--sand)', 'var(--terra)', 'var(--terra-deep)'],
@@ -33,6 +37,7 @@ const BASE: readonly Destination[] = [
   {
     code: 'PMA',
     name: 'Purmamarca',
+    photo: 'purmamarcaSieteColores',
     tagline: 'El cerro de los siete colores, desde tu ventana.',
     fromARS: 0,
     palette: ['var(--terra-soft)', 'var(--agua)', 'var(--terra)', 'var(--terra-deep)'],
@@ -42,6 +47,7 @@ const BASE: readonly Destination[] = [
   {
     code: 'TIL',
     name: 'Tilcara',
+    photo: 'tilcaraPucara',
     tagline: 'Pucará, peñas y calles de tierra.',
     fromARS: 0,
     palette: ['var(--agua-soft)', 'var(--agua)', 'var(--terra)', 'var(--terra-deep)'],
@@ -50,6 +56,7 @@ const BASE: readonly Destination[] = [
   {
     code: 'HUM',
     name: 'Humahuaca',
+    photo: 'humahuacaValle',
     tagline: 'Carnaval, quebrada y cielo enorme.',
     fromARS: 0,
     palette: ['var(--sand)', 'var(--terra-soft)', 'var(--terra)', 'var(--terra-deep)'],
