@@ -19,3 +19,35 @@ export function formatBRL(amount: number, opts: { withCode?: boolean } = {}): st
 export function formatNumber(n: number): string {
   return ars.format(n);
 }
+
+const MONTHS_SHORT = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+] as const;
+
+/** '2026-11-12' -> `'12 nov'` */
+export function formatShortDate(iso: string): string {
+  const [, m, d] = iso.split('-').map(Number);
+  return `${d} ${MONTHS_SHORT[m - 1]}`;
+}
+
+/** ISO range -> `'12 → 15 nov'`; across months `'30 nov → 3 dic'`. */
+export function formatStayRange(checkIn: string, checkOut: string): string {
+  const inM = Number(checkIn.split('-')[1]);
+  const outM = Number(checkOut.split('-')[1]);
+  const inD = Number(checkIn.split('-')[2]);
+  const outD = Number(checkOut.split('-')[2]);
+  return inM === outM
+    ? `${inD} → ${outD} ${MONTHS_SHORT[inM - 1]}`
+    : `${formatShortDate(checkIn)} → ${formatShortDate(checkOut)}`;
+}

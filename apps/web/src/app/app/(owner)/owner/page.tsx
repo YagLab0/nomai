@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 
+import { OwnerDashboard } from '@/components/owners/owner-dashboard';
+
 export const metadata: Metadata = { title: 'Panel · nomai' };
 
 export default function OwnerPanelPage() {
-  return <h1 className="brand-display text-3xl font-medium text-ink">Panel</h1>;
+  return <OwnerDashboard />;
 }
