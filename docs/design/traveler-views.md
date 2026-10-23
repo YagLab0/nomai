@@ -25,9 +25,10 @@ helpers) is removed.
 
 ## 2. Visual identity
 
-Launch region is northern Argentina (Salta, Jujuy, Cafayate, Quebrada de
-Humahuaca). The palette is the earth of the Quebrada: terracotta primary, a
-verde agua accent, warm paper neutrals.
+Identity: the team is from Jujuy, so the brand is born in northern Argentina
+(Salta, Jujuy, Cafayate, Quebrada de Humahuaca). Scope: travel across LATAM,
+wherever Ripio operates (§15). The palette is the earth of the Quebrada:
+terracotta primary, a verde agua accent, warm paper neutrals.
 
 | Token | Value | Use |
 |---|---|---|
@@ -179,15 +180,12 @@ Sections:
 
 1. **Navbar**: logo · "Cómo funciona" · "Para dueños" · `Ingresar` (ghost) ·
    `Crear cuenta` (primary). Mobile: drawer.
-2. **Hero** (superseded by landing v2, §13): kicker "Nomito te arma el viaje
-   a", the giant word "el Norte", a rounded photo card overlapping it and the
-   floating "Contale a Nomito" bar. The **live animated chat** (auto-playing
-   §4 scenario, loops, final state under `prefers-reduced-motion`) moved to
-   the section right below, "Mirá a Nomito en acción".
+2. **Hero**: chat-first, see §15. The **live animated chat** (auto-playing §4
+   scenario, loops, final state under `prefers-reduced-motion`) is the
+   centerpiece.
 3. **Cómo funciona**: 3 steps (Contale tu viaje → Nomito busca y compara → Pagás
    en tu moneda, directo al dueño).
-4. **Destinos del Norte**: ticket-style cards for Salta, Cafayate, Purmamarca,
-   Tilcara, Humahuaca with sample price/noche in ARS.
+4. **Destinos**: one per Ripio country, Norte argentino first (§13, §15).
 5. **Por qué pagás menos**: plain comparison vs tarjeta + dólar tarjeta/IOF
    (from the existing comparison data, rewritten without jargon).
 6. **Para dueños**: "Cero comisión. Siempre." + 3 points (cobro al instante en tu
@@ -262,9 +260,11 @@ Real photos of the launch region in `apps/web/public/images` (WebP, long edge
 photographers in `public/images/CREDITS.md`. `src/lib/photos.ts` is the only
 registry (path, size, Spanish alt text); always render through `next/image`.
 
-- Each launch town has a cover photo (`lib/mock/destinations.ts`) and each Norte
-  Lodging a `photo` key (`lib/lodgings.ts`); Lodgings without one fall back to
-  the flat `LodgingArt` landscape.
+- Each destination has a cover photo (`lib/mock/destinations.ts`) and each
+  Lodging shown on the landing a `photo` key (`lib/lodgings.ts`); Lodgings
+  without one (Mendoza, Bogotá) fall back to the flat `LodgingArt` landscape.
+- Norte photos (Salta, Jujuy) plus three per LATAM destination: Florianópolis,
+  Tulum, Cartagena, San Pedro de Atacama, Colonia del Sacramento.
 - Photos show the place they are named after; don't reuse a town's photo for
   another town.
 
@@ -275,21 +275,15 @@ our theme: same rhythm, Norte palette and type.
 
 - Radius scale: `rounded-card` (1.75rem) for cards, `rounded-panel` (2.5rem) for
   section panels and big photos, `rounded-full` for pills and buttons.
-- **Hero**: kicker "Nomito te arma el viaje a" over the giant Fraunces "el
-  Norte" (both in the `h1`); a `rounded-panel` photo (Purmamarca adobe) overlaps
-  the bottom of the word. Floating on it (below it on phones) the **Contale a
-  Nomito** bar: mascot · destino · fechas · viajeros (stepper) · round terra
-  button. It is not a search: it drafts the Traveler's first message ("Quiero ir
-  a Cafayate en julio. Somos 2.") and goes to `/signup?ask=…`; sign-up shows the
-  drafted message and, after the code, opens `/app?ask=…`, where the chat sends
-  it (`AskFromUrl`).
-- **Mirá a Nomito en acción**: the animated Lucas chat (`hero-chat.tsx`) next to
-  a short story of the §4 scenario, on a `terra-soft` panel.
-- **Destinos**: pill segmented tabs (Salta, Cafayate, Purmamarca, Tilcara,
-  Humahuaca; arrow keys move between them). Each tab shows a town photo card,
-  that town's two Lodgings as photo cards (type, name, town, rating, price per
-  night in ARS → Owner storefront) and a solid terra "Hablá con Nomito" card
-  with the mascot and an arrow button → `/signup`.
+- **Hero**: replaced by the chat-first hero (§15). The giant "el Norte"
+  headline, the floating "Contale a Nomito" bar and the "Mirá a Nomito en
+  acción" section are gone.
+- **Destinos** ("De la Quebrada al Caribe"): pill segmented tabs, one
+  destination per Ripio country (§15; arrow keys move between them). Each tab
+  shows a destination photo card (country, name, tagline, cheapest night in
+  its currency), two of its Lodgings as photo cards (type, name, town, rating,
+  price per night with currency code → Owner storefront) and a solid terra
+  "Hablá con Nomito" card with the mascot and an arrow button → `/signup`.
 - Then Cómo funciona (numbered steps on a white panel), Por qué pagás menos,
   Para dueños (ink panel with a photo), final CTA over Salinas Grandes, and a
   rounded-top terra footer.
@@ -310,8 +304,8 @@ footer).
 1. **Tu teléfono**: `AuthForm mode="owner"` (phone + WhatsApp code only), with
    the note "¿Ya viajás con nomai? Usá el mismo teléfono y sumamos tu perfil de
    dueño".
-2. **Tu alojamiento**: name, type, town (Norte towns first, then other
-   destinations), capacity. Optional "Importar desde Booking o Airbnb" link;
+2. **Tu alojamiento**: name, type, town (grouped by Ripio country, Norte
+   argentino first), capacity. Optional "Importar desde Booking o Airbnb" link;
    the mock import fills the fields.
 3. **Cobros con Ripio**: Bookings are paid straight into the Owner's Ripio
    account, instantly, in their currency, with no commission (ADR-0001: the
@@ -323,3 +317,49 @@ footer).
    (`/owners/<slug>` of an Owner in the same town).
 
 No Owner-side Agent for now.
+
+## 15. LATAM scope and the chat-first hero
+
+**Scope.** nomai is born in Jujuy and travels wherever Ripio operates, because
+Travelers fund their Agent wallet and Owners get paid through Ripio. Countries
+(registered Ripio entities listed on https://www.ripio.com, checked
+2026-10-23): **Argentina, Brasil, Chile, Colombia, México, Uruguay**. Peru
+appears on ripio.com only as a wPEN stablecoin and a Yape on-ramp, with no
+registered entity, so it is out. `RIPIO_COUNTRIES` in `lib/lodgings.ts` is the
+single list; `Fiat` is exactly their currencies (ARS, BRL, CLP, COP, MXN, UYU).
+
+| Destination (tab) | Country | Lodgings in the catalog |
+|---|---|---|
+| Norte argentino (featured, "donde nacimos") | Argentina | Salta, Cafayate, Purmamarca, Tilcara, Humahuaca |
+| Florianópolis | Brasil | Praia Brava, Ingleses |
+| Cartagena | Colombia | Getsemaní, Centro histórico (Bogotá also in the catalog) |
+| Tulum | México | Tulum |
+| Atacama | Chile | San Pedro de Atacama |
+| Colonia | Uruguay | Barrio Histórico, Rambla |
+
+Mendoza (Argentina) stays in the catalog and explorer. Nomito's mock adapter
+shortlists by destination keywords (floripa, cartagena, tulum, atacama,
+colonia, bogotá, mendoza, country names); Norte keywords win when a message
+names both ("venimos desde Florianópolis… una semana en Salta").
+
+**Hero.** The first impression is the live chat with Nomito.
+
+- Full-bleed Serranía de Hornocal photo (Jujuy) under an ink overlay
+  (left-to-right on desktop, top-to-bottom on phones), rounded bottom corners.
+- Left: pill "Nacimos en Jujuy", `h1` "Viajá por Latinoamérica pagando en tu
+  moneda", subcopy, "Hablar con Nomito" (primary → `/signup`) and "Cómo
+  funciona", then "En Argentina, Brasil, Chile, Colombia, México y Uruguay."
+- Right: `HeroChat` (the §4 Lucas conversation, looping) with the mascot as a
+  large app icon riding its top-left corner. The chat ends in a real composer
+  ("Contale a Nomito a dónde querés ir…"): what the Traveler types goes to
+  `/signup?ask=…`, sign-up shows it, and after the code `/app?ask=…` sends it
+  (`AskFromUrl`). This composer is the single first action; the old separate
+  "Contale a Nomito" bar is gone.
+- Phones (390×844): pill, headline, subcopy, then the whole chat including
+  its composer above the fold; "Cómo funciona" and the country line follow.
+
+**Copy.** LATAM-wide wording in metadata, the auth side panel ("De Jujuy a
+Cartagena…"), `/app` header and empty-state suggestions ("Playa en
+Florianópolis para 2", "Cartagena en diciembre"), Para dueños (the six
+countries), the footer ("Nacimos en Jujuy. Viajamos por Latinoamérica.") and
+the Owner join town list.
