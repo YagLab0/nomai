@@ -16,6 +16,7 @@ export function Footer() {
           </div>
           <nav aria-label="Pie" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <Link href="/lodgings" className="hover:underline">Alojamientos</Link>
+            <Link href="/owners/join" className="hover:underline">Sumá tu alojamiento</Link>
             <Link href="/login" className="hover:underline">Ingresar</Link>
             <Link href="/signup" className="hover:underline">Crear cuenta</Link>
             <a href="mailto:hola@nomai.app" className="hover:underline">hola@nomai.app</a>

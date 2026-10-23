@@ -727,7 +727,7 @@ export function lodgingById(id: string): Lodging | undefined {
 /** The headline scenario: Casa de Adobe, Cafayate. */
 export const CASA_DE_ADOBE = lodgingById('casa-de-adobe')!;
 
-const NORTE_TOWNS = ['Salta', 'Cafayate', 'Purmamarca', 'Tilcara', 'Humahuaca'];
+export const NORTE_TOWNS = ['Salta', 'Cafayate', 'Purmamarca', 'Tilcara', 'Humahuaca'];
 
 /** Lodging in the Argentine Norte, where Nomito launches. */
 export function isNorte(l: Lodging): boolean {

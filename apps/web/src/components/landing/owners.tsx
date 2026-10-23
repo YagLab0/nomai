@@ -39,7 +39,7 @@ export function Owners() {
             ))}
           </ul>
           <Link
-            href="mailto:hola@nomai.app?subject=Quiero%20sumar%20mi%20alojamiento"
+            href="/owners/join"
             className="mt-10 inline-flex h-12 items-center rounded-full bg-paper px-7 text-base font-medium text-ink transition-colors hover:bg-terra-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
           >
             Sumá tu alojamiento

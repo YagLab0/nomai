@@ -49,15 +49,28 @@ const COPY = {
     swapLink: 'Creala',
     swapHref: '/signup',
   },
+  owner: {
+    title: 'Verificá tu teléfono',
+    lead: 'Te mandamos un código por WhatsApp para confirmar que sos vos.',
+    swapText: '',
+    swapLink: '',
+    swapHref: '',
+  },
 } as const;
 
 function formatClock(s: number) {
   return `0:${String(s).padStart(2, '0')}`;
 }
 
-export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
+/**
+ * Phone + WhatsApp code, UI only. `signup`/`login` end in /app; `owner` (the
+ * first step of /owners/join) is phone-only and hands control back through
+ * `onVerified` instead of navigating.
+ */
+export function AuthForm({ mode, onVerified }: { mode: keyof typeof COPY; onVerified?: () => void }) {
   const router = useRouter();
   const copy = COPY[mode];
+  const Heading = mode === 'owner' ? 'h2' : 'h1';
 
   const [step, setStep] = useState<'method' | 'otp'>('method');
   const [country, setCountry] = useState<string>('AR');
@@ -89,6 +102,9 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
       if (then) {
         setBusy(null);
         then();
+      } else if (onVerified) {
+        setBusy(null);
+        onVerified();
       } else {
         router.push(ask ? `/app?${ASK_PARAM}=${encodeURIComponent(ask)}` : '/app');
       }
@@ -114,9 +130,9 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
   if (step === 'otp') {
     return (
       <div>
-        <h1 className="font-brand text-3xl font-medium leading-tight text-ink">
+        <Heading className="font-brand text-3xl font-medium leading-tight text-ink">
           Revisá tu WhatsApp
-        </h1>
+        </Heading>
         <p className="mt-2 text-ink-muted">
           Te mandamos un código de 6 dígitos al {dial} {digits}.
         </p>
@@ -184,7 +200,7 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
 
   return (
     <div>
-      <h1 className="font-brand text-3xl font-medium leading-tight text-ink">{copy.title}</h1>
+      <Heading className="font-brand text-3xl font-medium leading-tight text-ink">{copy.title}</Heading>
       <p className="mt-2 text-ink-muted">{copy.lead}</p>
       {ask && (
         <figure className="mt-6 rounded-[1.25rem] bg-terra-soft px-4 py-3">
@@ -241,54 +257,58 @@ export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
         </Button>
       </form>
 
-      <div className="my-6 flex items-center gap-3 text-sm text-ink-muted" role="separator" aria-label="o">
-        <Separator className="flex-1" />
-        o
-        <Separator className="flex-1" />
-      </div>
+      {mode !== 'owner' && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-sm text-ink-muted" role="separator" aria-label="o">
+            <Separator className="flex-1" />
+            o
+            <Separator className="flex-1" />
+          </div>
 
-      <div className="flex flex-col gap-3">
-        <Button
-          variant="secondary"
-          fullWidth
-          size="lg"
-          isPending={busy === 'google'}
-          isDisabled={busy !== null && busy !== 'google'}
-          onPress={() => simulate('google')}
-        >
-          {({ isPending }) => (
-            <>
-              {isPending && <Spinner color="current" size="sm" />}
-              Continuar con Google
-            </>
-          )}
-        </Button>
-        <Button
-          variant="secondary"
-          fullWidth
-          size="lg"
-          isPending={busy === 'email'}
-          isDisabled={busy !== null && busy !== 'email'}
-          onPress={() => simulate('email')}
-        >
-          {({ isPending }) => (
-            <>
-              {isPending && <Spinner color="current" size="sm" />}
-              Continuar con email
-            </>
-          )}
-        </Button>
-      </div>
+          <div className="flex flex-col gap-3">
+            <Button
+              variant="secondary"
+              fullWidth
+              size="lg"
+              isPending={busy === 'google'}
+              isDisabled={busy !== null && busy !== 'google'}
+              onPress={() => simulate('google')}
+            >
+              {({ isPending }) => (
+                <>
+                  {isPending && <Spinner color="current" size="sm" />}
+                  Continuar con Google
+                </>
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              fullWidth
+              size="lg"
+              isPending={busy === 'email'}
+              isDisabled={busy !== null && busy !== 'email'}
+              onPress={() => simulate('email')}
+            >
+              {({ isPending }) => (
+                <>
+                  {isPending && <Spinner color="current" size="sm" />}
+                  Continuar con email
+                </>
+              )}
+            </Button>
+          </div>
 
-      <p className="mt-6 text-sm text-ink-muted">
-        {copy.swapText}{' '}
-        <Link
-          href={copy.swapHref}
-          className="font-medium text-terra-deep underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-terra"
-        >
-          {copy.swapLink}
-        </Link>
-      </p>
+          <p className="mt-6 text-sm text-ink-muted">
+            {copy.swapText}{' '}
+            <Link
+              href={copy.swapHref}
+              className="font-medium text-terra-deep underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-terra"
+            >
+              {copy.swapLink}
+            </Link>
+          </p>
+        </>
+      )}
 
       {mode === 'signup' && <VerificationLadder />}
     </div>
