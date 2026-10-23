@@ -1,7 +1,8 @@
 # Photo credits
 
-Photos of the Argentine Norte used on the landing, the lodgings explorer and Owner
-storefronts. Resized to at most 1600 px on the long edge and re-encoded as WebP.
+Photos of the Argentine Norte, where nomai started, and of LATAM destinations in
+countries where Ripio operates, used on the landing, the lodgings explorer and
+Owner storefronts. Resized to at most 1600 px on the long edge and re-encoded as WebP.
 Neither license requires attribution; we credit anyway.
 
 - Unsplash License: https://unsplash.com/license
@@ -29,3 +30,23 @@ Neither license requires attribution; we credit anyway.
 ¹ Unsplash tags these only as "Jujuy, Argentina"; the specific place was identified
 from the image (the salt-extraction pools of Salinas Grandes; the stone monument
 among cardones at the Pucará de Tilcara).
+
+## LATAM destinations
+
+| File | Shows | Photographer | Source | License |
+|---|---|---|---|---|
+| `floripa-lagoinha-do-leste.webp` | Praia da Lagoinha do Leste, Florianópolis (Brasil) | Julie Fernandes | https://unsplash.com/photos/8F9fNXY8IIs | Unsplash |
+| `floripa-ingleses.webp` | Praia dos Ingleses, Florianópolis (Brasil) | will dornelles | https://unsplash.com/photos/YMncnCs7qQ4 | Unsplash |
+| `floripa-praia-brava.webp` | Praia Brava from above, Florianópolis (Brasil) | Paulo Kopzinski | https://unsplash.com/photos/yCFvgBQd7C8 | Unsplash |
+| `tulum-ruinas.webp` | Mayan ruins on the cliff over the sea, Tulum (México) | Jennifer Simmons | https://unsplash.com/photos/c1p-bA1R9Dk | Unsplash |
+| `tulum-palapa.webp` | Palm-thatched shade over the beach, Tulum (México) | Roberto Nickson | https://unsplash.com/photos/HmieZw0YOC0 | Unsplash |
+| `tulum-bici.webp` | Bicycle under the "Follow that dream" sign, Tulum (México) | Alex Azabache | https://unsplash.com/photos/V83v-MYB_Z8 | Unsplash |
+| `cartagena-torre-reloj.webp` | Torre del Reloj, Cartagena (Colombia) | Carlos Sarmiento | https://unsplash.com/photos/oY-wv4XitLY | Unsplash |
+| `cartagena-casas.webp` | Colourful colonial houses, Cartagena (Colombia) | Ricardo Gomez Angel | https://unsplash.com/photos/L6T_6Rp2iEk | Unsplash |
+| `cartagena-balcon.webp` | Painted wooden balcony in Getsemaní, Cartagena (Colombia) | Sergio Aguirre | https://unsplash.com/photos/Jmr5PiAPvXE | Unsplash |
+| `atacama-valle-de-la-luna.webp` | Valle de la Luna, San Pedro de Atacama (Chile) | Vinícius Henrique Photography | https://unsplash.com/photos/A7GwggrhXm4 | Unsplash |
+| `atacama-laguna-lejia.webp` | Volcanoes reflected in Laguna Lejía, San Pedro de Atacama (Chile) | Vinícius Henrique Photography | https://unsplash.com/photos/tlCzxI2RQAc | Unsplash |
+| `atacama-baltinache.webp` | Salt lagoon at Baltinache, San Pedro de Atacama (Chile) | Mauro Lima | https://unsplash.com/photos/ZsP_spoY_dI | Unsplash |
+| `colonia-faro.webp` | The lighthouse of Colonia del Sacramento (Uruguay) | Mayumi Maciel | https://unsplash.com/photos/n2IhyWVtxW8 | Unsplash |
+| `colonia-portal.webp` | Old door with bougainvillea, Colonia del Sacramento (Uruguay) | Gonzalo Kaplanski | https://unsplash.com/photos/MOPtPKMk7Qc | Unsplash |
+| `colonia-cafe.webp` | Café under a tree with a vintage car, Colonia del Sacramento (Uruguay) | Tammy Taabassum | https://unsplash.com/photos/5Dio0xzXVg0 | Unsplash |
