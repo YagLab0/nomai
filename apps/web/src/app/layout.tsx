@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, JetBrains_Mono, Fraunces } from 'next/font/google';
 import './globals.css';
 
-import { Navbar } from '@/components/navbar';
-
 const sans = Space_Grotesk({ subsets: ['latin'], variable: '--font-nm-sans' });
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-nm-mono' });
 const brand = Fraunces({
@@ -27,7 +25,6 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${sans.variable} ${mono.variable} ${brand.variable} font-sans`}>
         <div className="relative flex min-h-screen flex-col">
-          <Navbar />
           <main className="flex-1">
             {children}
           </main>
