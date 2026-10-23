@@ -56,6 +56,22 @@ export const FALLBACK_USD_RATES: Record<Fiat, number> = {
 
 export type FxRates = Partial<Record<Fiat, number>>;
 
+/**
+ * LATAM countries where Ripio operates (registered entities listed on
+ * ripio.com, 2026-10). Travelers fund their Agent wallet and Owners get paid
+ * through Ripio, so nomai's destinations are exactly these.
+ */
+export const RIPIO_COUNTRIES = [
+  { code: 'AR', name: 'Argentina' },
+  { code: 'BR', name: 'Brasil' },
+  { code: 'CL', name: 'Chile' },
+  { code: 'CO', name: 'Colombia' },
+  { code: 'MX', name: 'México' },
+  { code: 'UY', name: 'Uruguay' },
+] as const;
+
+export const RIPIO_COUNTRY_NAMES = RIPIO_COUNTRIES.map((c) => c.name);
+
 export interface Owner {
   slug: string;
   name: string;
