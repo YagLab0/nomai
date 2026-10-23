@@ -1,14 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { toast } from '@heroui/react';
 
 import { traveler } from '@/lib/mock/traveler';
 
 const ITEMS = [
-  { label: 'Inicio', active: true },
-  { label: 'Reservas', active: false },
-  { label: 'Ayuda', active: false },
+  { label: 'Inicio', href: '/app' },
+  { label: 'Explorar', href: '/app/lodgings' },
+  { label: 'Reservas' },
+  { label: 'Ayuda' },
 ] as const;
 
 const itemClass =
@@ -23,11 +25,19 @@ export function Logo() {
 }
 
 export function NavList() {
+  const pathname = usePathname();
   return (
     <nav aria-label="Principal" className="flex flex-col gap-1">
       {ITEMS.map((item) =>
-        item.active ? (
-          <Link key={item.label} href="/app" aria-current="page" className={`${itemClass} bg-terra-soft text-terra-deep`}>
+        'href' in item ? (
+          <Link
+            key={item.label}
+            href={item.href}
+            aria-current={pathname === item.href ? 'page' : undefined}
+            className={`${itemClass} ${
+              pathname === item.href ? 'bg-terra-soft text-terra-deep' : 'text-ink-muted hover:bg-sand/50 hover:text-ink'
+            }`}
+          >
             {item.label}
           </Link>
         ) : (

@@ -30,7 +30,7 @@ export function Destinations() {
                 </div>
                 <p className="shrink-0 text-right">
                   <span className="block text-xs text-ink-muted">desde</span>
-                  <span className="font-mono text-sm font-semibold text-ink">{formatARS(d.nightlyARS)}</span>
+                  <span className="font-mono text-sm font-semibold text-ink">{formatARS(d.fromARS)}</span>
                   <span className="block text-xs text-ink-muted">por noche</span>
                 </p>
               </div>

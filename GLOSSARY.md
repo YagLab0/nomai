@@ -21,6 +21,11 @@ The AI that researches options and executes bookings for a Traveler. Every resea
 run spends real money on LLM inference and paid data APIs. Product name: *Nomito*.
 _Avoid_: bot, assistant, Eve
 
+**Lodging**:
+A place an Owner lists for Travelers to book (posada, cabaña, departamento…).
+Product Spanish: *alojamiento*.
+_Avoid_: property, listing, hotel
+
 **Booking**:
 A paid reservation settled by an x402 payment in wFIAT, direct to the Owner's wallet.
 _Avoid_: reservation, order

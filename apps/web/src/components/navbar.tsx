@@ -5,6 +5,7 @@ import { Button, Drawer } from '@heroui/react';
 
 const LINKS = [
   { name: 'Cómo funciona', href: '/#como-funciona' },
+  { name: 'Alojamientos', href: '/lodgings' },
   { name: 'Para dueños', href: '/#duenos' },
 ];
 

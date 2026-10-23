@@ -1,4 +1,4 @@
-import { LODGINGS, quoteFor } from '@/lib/mock/lodgings';
+import { CASA_DE_ADOBE, quoteFor } from '@/lib/lodgings';
 
 const ROWS = [
   {
@@ -19,7 +19,7 @@ const ROWS = [
 ];
 
 export function Savings() {
-  const quote = quoteFor(LODGINGS[0]);
+  const quote = quoteFor(CASA_DE_ADOBE);
   const total = quote.lines.find((l) => l.kind === 'total')!;
   const fee = quote.lines.find((l) => l.kind === 'fee')!;
 

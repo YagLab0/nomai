@@ -1,124 +1,102 @@
-"use client";
+import Link from 'next/link';
 
-import { useState } from "react";
-import NextLink from "next/link";
-import { Avatar, Button, Card, Chip } from "@heroui/react";
-import { BadgeCheck, Heart, Star } from "lucide-react";
-
-import { cn } from "@/lib/utils";
+import { CheckBadgeIcon, StarIcon } from '@/components/icons';
+import { LodgingArt } from '@/components/marketplace/lodging-art';
 import {
   formatNightPrice,
-  ownerOf,
   KIND_LABEL,
+  ownerOf,
   type Fiat,
   type FxRates,
   type Lodging,
-} from "@/lib/lodgings";
-import { LodgingArt } from "./lodging-art";
+} from '@/lib/lodgings';
 
 /**
- * Airbnb-style listing card, Material You flavour: a large-radius photo
- * container, a favourite heart, a tonal "featured" chip, and the Owner
- * attribution line that links to their storefront.
- * Prices render in the lodging's local fiat — or the Traveler's preferred
- * currency when `fiat` is set; the wFIAT settlement rail stays invisible.
+ * Lodging as a ticket: landscape on top, perforated edge, then the stub with
+ * price and the hand-off to Nomito. Server-safe: no client hooks.
  */
 export function LodgingCard({
   lodging,
   fiat,
   rates,
+  askHref,
 }: {
   lodging: Lodging;
   fiat?: Fiat;
   /** Live rates from /api/fx; falls back to the static table when absent. */
   rates?: FxRates;
+  /** Where "Pedirle a Nomito" goes: /signup publicly, /app?ask=... inside the app. */
+  askHref: string;
 }) {
   const owner = ownerOf(lodging);
-  const [favorite, setFavorite] = useState(false);
 
   return (
-    <Card
-      variant="transparent"
-      className="group gap-0 p-0 transition-transform duration-300 hover:-translate-y-1"
-    >
+    <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-sand bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
       <div className="relative">
-        <LodgingArt
-          lodging={lodging}
-          className="aspect-[4/3] w-full rounded-[1.75rem] transition-shadow duration-300 group-hover:shadow-xl group-hover:shadow-terra/20"
-        />
+        <LodgingArt lodging={lodging} className="h-40 w-full" />
         {lodging.featured && (
-          <Chip
-            size="sm"
-            variant="primary"
-            color="accent"
-            className="absolute left-3 top-3"
-          >
-            Favorito del viajero
-          </Chip>
+          <span className="absolute left-3 top-3 rounded-full bg-paper px-3 py-1 text-xs font-medium text-terra-deep">
+            Favorito de viajeros
+          </span>
         )}
-        <Button
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={favorite ? "Quitar de favoritos" : "Guardar en favoritos"}
-          aria-pressed={favorite}
-          onPress={() => setFavorite((f) => !f)}
-          className="absolute right-3 top-3 h-9 w-9 min-w-0 rounded-full bg-surface/85 text-foreground shadow-sm backdrop-blur-sm hover:bg-surface"
-        >
-          <Heart
-            className={cn(
-              "h-4 w-4 transition-colors",
-              favorite && "fill-burn text-burn",
-            )}
-          />
-        </Button>
       </div>
 
-      <Card.Content className="gap-0 px-1 pt-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-medium leading-snug">{lodging.name}</h3>
-          <span className="flex shrink-0 items-center gap-1 pt-0.5 text-sm">
-            <Star className="h-3.5 w-3.5 fill-foreground" aria-hidden />
+      <div className="relative flex flex-1 flex-col border-t-2 border-dashed border-sand p-5">
+        <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
+        <span aria-hidden="true" className="absolute -right-2 -top-2 h-4 w-4 rounded-full bg-paper" />
+
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-xs tracking-widest text-ink-muted">
+              {lodging.code} · {lodging.city}
+            </p>
+            <h3 className="mt-0.5 font-brand text-xl font-medium leading-snug text-ink">{lodging.name}</h3>
+          </div>
+          <span className="flex shrink-0 items-center gap-1 pt-1 text-sm text-ink">
+            <StarIcon className="h-3.5 w-3.5 text-terra" />
             {lodging.rating.toFixed(1)}
-            <span className="text-muted">({lodging.reviews})</span>
+            <span className="text-ink-muted">({lodging.reviews})</span>
           </span>
         </div>
-        <p className="text-sm text-muted">
-          {KIND_LABEL[lodging.kind]} · {lodging.region}
-        </p>
-        <p className="text-sm text-muted">
-          Hasta {lodging.guests} huéspedes · {lodging.bedrooms} dorm. ·{" "}
-          {lodging.baths} baños
-        </p>
 
-        <NextLink
-          href={`/propietarios/${owner.slug}`}
-          className="group/owner mt-2 flex w-fit items-center gap-2"
+        <p className="mt-1 text-sm text-ink-muted">
+          {KIND_LABEL[lodging.kind]} · {lodging.region} · hasta {lodging.guests} personas
+        </p>
+        <p className="mt-2 text-sm leading-snug text-ink">{lodging.blurb}</p>
+
+        <Link
+          href={`/owners/${owner.slug}`}
+          className="mt-3 flex w-fit items-center gap-2 rounded-md text-xs text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
         >
-          <Avatar size="sm">
-            <Avatar.Fallback>{owner.initials}</Avatar.Fallback>
-          </Avatar>
-          <span className="text-xs text-muted transition-colors group-hover/owner:text-foreground">
-            por {owner.name}
+          <span
+            aria-hidden="true"
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-terra-soft text-[10px] font-semibold text-terra-deep"
+          >
+            {owner.initials}
           </span>
-          {owner.verified && (
-            <BadgeCheck
-              className="h-3.5 w-3.5 text-burn"
-              aria-label="Dueño verificado"
-            />
-          )}
-        </NextLink>
+          por {owner.name}
+          {owner.verified && <CheckBadgeIcon className="h-3.5 w-3.5 text-agua" />}
+          {owner.verified && <span className="sr-only">Dueño verificado</span>}
+        </Link>
 
-        <div className="mt-2.5 flex items-baseline gap-1.5">
-          <span className="font-mono text-[15px] font-semibold">
-            {formatNightPrice(lodging, fiat, rates)}
-          </span>
-          <span className="text-sm text-muted">/ noche</span>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+          <div>
+            <p className="font-mono text-base font-semibold text-ink">
+              {formatNightPrice(lodging, fiat, rates)}
+              <span className="font-sans text-sm font-normal text-ink-muted"> / noche</span>
+            </p>
+            <p className="mt-1 inline-flex rounded-full bg-agua-soft px-2 py-0.5 text-xs font-medium text-agua">
+              directo con el dueño
+            </p>
+          </div>
+          <Link
+            href={askHref}
+            className="shrink-0 rounded-full bg-terra px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+          >
+            Pedirle a Nomito
+          </Link>
         </div>
-        <p className="mt-0.5 text-xs text-muted">
-          Pago directo · 0% comisión · x402
-        </p>
-      </Card.Content>
-    </Card>
+      </div>
+    </article>
   );
 }

@@ -1,6 +1,6 @@
 import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
 
-import { findLodging, LODGINGS, quoteFor, type Lodging } from '@/lib/mock/lodgings';
+import { CASA_DE_ADOBE, findLodging, isNorte, LODGINGS, quoteFor, type Lodging } from '@/lib/lodgings';
 import {
   BOOKING_QUOTE_TOOL,
   MONEDAS_SPENT_KEY,
@@ -46,10 +46,11 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
 
 function shortlistFor(text: string): Lodging[] {
   const t = text.toLowerCase();
-  const byTown = LODGINGS.filter((l) => t.includes(l.town.toLowerCase()));
-  if (t.includes('hostel')) return LODGINGS.filter((l) => l.town === 'Tilcara' || l.name.includes('Hostel'));
-  if (byTown.length > 0) return byTown.length >= 2 ? byTown : [...byTown, ...LODGINGS.filter((l) => !byTown.includes(l)).slice(0, 2)];
-  return LODGINGS.slice(0, 3);
+  const norte = LODGINGS.filter(isNorte);
+  if (t.includes('hostel')) return norte.filter((l) => l.kind === 'hostal' || l.city === 'Tilcara').slice(0, 3);
+  const byTown = norte.filter((l) => t.includes(l.city.toLowerCase()));
+  if (byTown.length >= 2) return byTown.slice(0, 3);
+  return [...byTown, ...norte.filter((l) => !byTown.includes(l))].slice(0, 3);
 }
 
 function tokens(text: string): string[] {
@@ -64,10 +65,10 @@ function plan(text: string, isFirstTurn: boolean): Plan {
   const wantsBooking = /reserv|confirm|elegir|quiero esa|quiero ese|me quedo/.test(t);
 
   if (wantsBooking) {
-    const lodging = findLodging(text) ?? LODGINGS[0];
+    const lodging = findLodging(text) ?? CASA_DE_ADOBE;
     const quote = quoteFor(lodging);
     return {
-      text: `Buenísimo, ${lodging.name} en ${lodging.town}. Te armé el detalle en reales; el pago va directo al dueño y la comisión de conversión figura aparte.`,
+      text: `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle en reales; el pago va directo al dueño y la comisión de conversión figura aparte.`,
       tool: toolCall('quote', BOOKING_QUOTE_TOOL, quote),
     };
   }

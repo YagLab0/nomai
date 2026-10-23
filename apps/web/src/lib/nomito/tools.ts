@@ -1,4 +1,4 @@
-import type { BookingQuote, Lodging } from '@/lib/mock/lodgings';
+import type { BookingQuote, Lodging } from '@/lib/lodgings';
 
 /** Tool-call contract between Nomito (any backend) and the chat UI. */
 export const SHORTLIST_TOOL = 'shortlist';

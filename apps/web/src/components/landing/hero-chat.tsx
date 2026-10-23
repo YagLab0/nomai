@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 
 import { NomitoAvatar } from '@/components/nomito-avatar';
-import { formatARS, formatBRL } from '@/lib/format';
-import { LODGINGS, nightlyBRL, quoteFor } from '@/lib/mock/lodgings';
+import { formatBRL } from '@/lib/format';
+import { CASA_DE_ADOBE, formatLocalPrice, nightlyBRL, quoteFor } from '@/lib/lodgings';
 
-const lodging = LODGINGS[0];
+const lodging = CASA_DE_ADOBE;
 const quote = quoteFor(lodging);
 
 const ASK = 'Hola Nomito. Somos 2, venimos desde Florianópolis. Queremos una semana en Salta y Cafayate.';
@@ -112,7 +112,7 @@ export function HeroChat() {
           <div className="flex overflow-hidden rounded-2xl border border-sand bg-white">
             <div className="min-w-0 flex-1 p-3.5">
               <p className="font-brand text-base font-medium leading-tight text-ink">{lodging.name}</p>
-              <p className="text-xs text-ink-muted">{lodging.town}</p>
+              <p className="text-xs text-ink-muted">{lodging.city}</p>
               <span className="mt-2 inline-flex rounded-full bg-agua-soft px-2 py-0.5 text-xs font-medium text-agua">
                 directo con el dueño
               </span>
@@ -121,7 +121,7 @@ export function HeroChat() {
               <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
               <span aria-hidden="true" className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-paper" />
               <span className="font-mono text-[11px] tracking-widest text-ink-muted">FLN → {lodging.code}</span>
-              <span className="font-mono text-sm font-semibold text-ink">{formatARS(lodging.nightlyARS).replace(' ARS', '')}</span>
+              <span className="font-mono text-sm font-semibold text-ink">{formatLocalPrice(lodging)}</span>
               <span className="font-mono text-[11px] text-ink-muted">≈ {formatBRL(nightlyBRL(lodging))} / noche</span>
             </div>
           </div>

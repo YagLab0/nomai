@@ -209,3 +209,29 @@ Each stage ends green on `pnpm --filter web build`, `pnpm --filter web lint`,
 3. **Auth pages** (§6).
 4. **/app** (§7) with assistant-ui mock runtime.
 5. **Landing redesign** (§8).
+
+## 10. Lodgings marketplace
+
+A public catalog of Lodgings (alojamientos) from verified Owners, built on the
+same theme as the rest of the app.
+
+| Route | Page |
+|---|---|
+| `/lodgings` | Public explorer: search, kind filters, price currency picker, ticket-style cards |
+| `/owners/[slug]` | Owner storefront (profile + that Owner's Lodgings) |
+| `/app/lodgings` | Same explorer inside the app shell ("Explorar" in the nav rail and drawer) |
+| `/api/fx` | Display FX rates (Ripio when configured, public feed, static table) |
+
+`/alojamientos` and `/propietarios/:slug` redirect permanently to the English routes.
+
+- One catalog: `src/lib/lodgings.ts` holds Owners, Lodgings, FX helpers and
+  `quoteFor`. Nomito's mock adapter, the hero chat, the destinations section and
+  the explorer all read from it. Norte argentino Lodgings come first.
+- Copy rules (§3) apply: prices are local currency; Owner storefronts say
+  "Cobra directo, sin comisión, al instante en su moneda" and never show the
+  Owner's wallet address (kept in the data model only).
+- **"Pedirle a Nomito"** is the hand-off from a Lodging card to the chat.
+  Publicly it links to `/signup`. Inside the app it links to
+  `/app?ask=<encoded "Quiero reservar <name>, <town>">`; the thread reads the
+  param once (`AskFromUrl`), appends it as the Traveler's message, and clears the
+  URL. Nomito then answers with the booking quote for that Lodging.

@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return [
+      { source: '/alojamientos', destination: '/lodgings', permanent: true },
+      { source: '/propietarios/:slug', destination: '/owners/:slug', permanent: true },
+    ]
+  },
   webpack: (config) => {
     config.externals.push('pino-pretty', 'lokijs', 'encoding')
 

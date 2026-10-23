@@ -14,3 +14,8 @@ export function formatBRL(amount: number, opts: { withCode?: boolean } = {}): st
   const body = Number.isInteger(amount) ? ars.format(amount) : brl.format(amount);
   return `R$ ${body}${opts.withCode ? ' BRL' : ''}`;
 }
+
+/** 1234567 -> `1.234.567` (es-AR grouping). */
+export function formatNumber(n: number): string {
+  return ars.format(n);
+}

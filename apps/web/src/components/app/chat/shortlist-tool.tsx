@@ -3,8 +3,8 @@
 import { makeAssistantToolUI, useAui } from '@assistant-ui/react';
 import { Button } from '@heroui/react';
 
-import { formatARS, formatBRL } from '@/lib/format';
-import { nightlyBRL, type Lodging } from '@/lib/mock/lodgings';
+import { formatBRL } from '@/lib/format';
+import { formatLocalPrice, nightlyBRL, type Lodging } from '@/lib/lodgings';
 import { SHORTLIST_TOOL, type ShortlistArgs } from '@/lib/nomito/tools';
 
 function TicketCard({ lodging }: { lodging: Lodging }) {
@@ -12,14 +12,14 @@ function TicketCard({ lodging }: { lodging: Lodging }) {
   const choose = () =>
     aui.thread().append({
       role: 'user',
-      content: [{ type: 'text', text: `Quiero reservar ${lodging.name}, ${lodging.town}` }],
+      content: [{ type: 'text', text: `Quiero reservar ${lodging.name}, ${lodging.city}` }],
     });
 
   return (
     <li className="flex overflow-hidden rounded-2xl border border-sand bg-white">
       <div className="min-w-0 flex-1 p-4">
         <p className="font-brand text-lg font-medium leading-tight text-ink">{lodging.name}</p>
-        <p className="mt-0.5 text-sm text-ink-muted">{lodging.town}</p>
+        <p className="mt-0.5 text-sm text-ink-muted">{lodging.city}</p>
         <p className="mt-2 text-sm leading-snug text-ink">{lodging.blurb}</p>
         <span className="mt-3 inline-flex rounded-full bg-agua-soft px-2.5 py-0.5 text-xs font-medium text-agua">
           directo con el dueño
@@ -31,7 +31,7 @@ function TicketCard({ lodging }: { lodging: Lodging }) {
         <span aria-hidden="true" className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-paper" />
         <span className="font-mono text-xs tracking-widest text-ink-muted">{lodging.code}</span>
         <div>
-          <p className="font-mono text-sm font-semibold text-ink">{formatARS(lodging.nightlyARS).replace(' ARS', '')}</p>
+          <p className="font-mono text-sm font-semibold text-ink">{formatLocalPrice(lodging)}</p>
           <p className="font-mono text-xs text-ink-muted">≈ {formatBRL(nightlyBRL(lodging))} / noche</p>
         </div>
         <Button size="sm" fullWidth onPress={choose}>
