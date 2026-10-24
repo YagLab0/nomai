@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ArrowLeftIcon } from '@/components/icons';
-import { LodgingCard } from '@/components/marketplace/lodging-card';
 import { OwnerProfile } from '@/components/marketplace/owner-profile';
+import { StorefrontLodgings } from '@/components/marketplace/storefront-lodgings';
 import { catalog } from '@/lib/catalog';
 import { ownerBySlug, OWNERS } from '@/lib/lodgings';
 import { PHOTOS } from '@/lib/photos';
@@ -58,13 +58,7 @@ export default async function OwnerPage({ params }: { params: Promise<{ slug: st
       </div>
 
       <h2 className="brand-display mt-14 text-2xl font-medium text-ink">Alojamientos de {owner.name.split(' ')[0]}</h2>
-      <ul className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {lodgings.map((lodging) => (
-          <li key={lodging.id}>
-            <LodgingCard lodging={lodging} askHref="/signup" />
-          </li>
-        ))}
-      </ul>
+      <StorefrontLodgings ownerSlug={owner.slug} />
     </div>
   );
 }

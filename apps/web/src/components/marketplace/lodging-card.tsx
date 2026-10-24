@@ -65,11 +65,17 @@ export function LodgingCard({
             </p>
             <h3 className="mt-0.5 font-brand text-xl font-medium leading-snug text-ink">{lodging.name}</h3>
           </div>
-          <span className="flex shrink-0 items-center gap-1 pt-1 text-sm text-ink">
-            <StarIcon className="h-3.5 w-3.5 text-terra" />
-            {lodging.rating.toFixed(1)}
-            <span className="text-ink-muted">({lodging.reviews})</span>
-          </span>
+          {lodging.reviews === 0 ? (
+            <span className="shrink-0 rounded-full bg-agua-soft px-2.5 py-1 text-xs font-medium text-agua">
+              Nuevo
+            </span>
+          ) : (
+            <span className="flex shrink-0 items-center gap-1 pt-1 text-sm text-ink">
+              <StarIcon className="h-3.5 w-3.5 text-terra" />
+              {lodging.rating.toFixed(1)}
+              <span className="text-ink-muted">({lodging.reviews})</span>
+            </span>
+          )}
         </div>
 
         <p className="mt-1 text-sm text-ink-muted">

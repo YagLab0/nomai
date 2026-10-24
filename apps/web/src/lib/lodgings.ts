@@ -866,11 +866,80 @@ export function ownerOf(lodging: Lodging): Owner {
   return owner;
 }
 
+/** The fiat an Owner is paid in — their country's Ripio currency (ADR-0001). */
+export function ownerFiat(owner: Owner): Fiat {
+  const fiat = RIPIO_COUNTRIES.find((c) => c.code === owner.countryCode)?.fiat;
+  if (!fiat) throw new Error(`unsupported owner country: ${owner.countryCode}`);
+  return fiat;
+}
+
 export const NORTE_TOWNS = ['Salta', 'Cafayate', 'Purmamarca', 'Tilcara', 'Humahuaca'];
 
 /** Lodging in the Argentine Norte, where Nomito launches. */
 export function isNorte(l: Lodging): boolean {
   return NORTE_TOWNS.includes(l.city);
+}
+
+/**
+ * A town where an Owner can list a Lodging. The catalog derives the Lodging's
+ * `code`, `region` and `countryCode` from its town — never typed by the Owner
+ * (owner-views §9).
+ */
+export interface Town {
+  name: string;
+  /** Three-letter ticket code, e.g. CFY. */
+  code: string;
+  /** Area label under the Lodging's name, e.g. 'Quebrada de Humahuaca'. */
+  region: string;
+  countryCode: string;
+}
+
+/**
+ * Every listable town: the Ripio countries only, since the Booking settles into
+ * the Owner's own-country account (ADR-0001). Codes match the seeded Lodgings.
+ */
+export const TOWNS: readonly Town[] = [
+  // Argentina
+  { name: 'Salta', code: 'SLA', region: 'Valle de Lerma', countryCode: 'AR' },
+  { name: 'Cafayate', code: 'CFY', region: 'Valles Calchaquíes', countryCode: 'AR' },
+  { name: 'Purmamarca', code: 'PMA', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
+  { name: 'Tilcara', code: 'TIL', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
+  { name: 'Humahuaca', code: 'HUM', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
+  { name: 'Cachi', code: 'CAC', region: 'Valles Calchaquíes', countryCode: 'AR' },
+  { name: 'Iruya', code: 'IRU', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
+  { name: 'San Salvador de Jujuy', code: 'JUJ', region: 'San Salvador', countryCode: 'AR' },
+  { name: 'Buenos Aires', code: 'BUE', region: 'Buenos Aires', countryCode: 'AR' },
+  { name: 'Mendoza', code: 'MDZ', region: 'Cuyo', countryCode: 'AR' },
+  { name: 'Bariloche', code: 'BRC', region: 'Patagonia', countryCode: 'AR' },
+  // Brasil
+  { name: 'Florianópolis', code: 'FLN', region: 'Santa Catarina', countryCode: 'BR' },
+  { name: 'Río de Janeiro', code: 'RIO', region: 'Costa Verde', countryCode: 'BR' },
+  { name: 'Salvador', code: 'SSA', region: 'Bahía', countryCode: 'BR' },
+  // Chile
+  { name: 'San Pedro de Atacama', code: 'CJC', region: 'Desierto de Atacama', countryCode: 'CL' },
+  { name: 'Santiago', code: 'SCL', region: 'Región Metropolitana', countryCode: 'CL' },
+  { name: 'Valparaíso', code: 'VAP', region: 'Costa central', countryCode: 'CL' },
+  // Colombia
+  { name: 'Cartagena', code: 'CTG', region: 'Caribe colombiano', countryCode: 'CO' },
+  { name: 'Bogotá', code: 'BOG', region: 'Cundinamarca', countryCode: 'CO' },
+  { name: 'Medellín', code: 'MDE', region: 'Antioquia', countryCode: 'CO' },
+  // México
+  { name: 'Tulum', code: 'TUL', region: 'Riviera Maya', countryCode: 'MX' },
+  { name: 'Ciudad de México', code: 'MEX', region: 'CDMX', countryCode: 'MX' },
+  { name: 'Oaxaca', code: 'OAX', region: 'Valles Centrales', countryCode: 'MX' },
+  // Uruguay
+  { name: 'Colonia del Sacramento', code: 'CYR', region: 'Colonia', countryCode: 'UY' },
+  { name: 'Montevideo', code: 'MVD', region: 'Montevideo', countryCode: 'UY' },
+  { name: 'Punta del Este', code: 'PDE', region: 'Maldonado', countryCode: 'UY' },
+];
+
+export function townByName(name: string): Town | undefined {
+  return TOWNS.find((t) => t.name === name);
+}
+
+/** Towns an Owner with that country can list in — the wizard's town list. */
+export function townsInCountry(countryCode: string): Town[] {
+  return TOWNS.filter((t) => t.countryCode === countryCode);
 }
 
 // --- Money ------------------------------------------------------------------

@@ -154,10 +154,16 @@ export function AlojamientoCard({
         </h3>
         <p className="mt-1 flex items-center gap-2 text-sm text-ink-muted">
           {KIND_LABEL[lodging.kind]}
-          <span className="inline-flex items-center gap-1 text-ink">
-            <StarIcon className="h-3.5 w-3.5 text-terra" />
-            {lodging.rating.toFixed(1)}
-          </span>
+          {lodging.reviews === 0 ? (
+            <span className="rounded-full bg-agua-soft px-2 py-0.5 text-xs font-medium text-agua">
+              Nuevo
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-ink">
+              <StarIcon className="h-3.5 w-3.5 text-terra" />
+              {lodging.rating.toFixed(1)}
+            </span>
+          )}
         </p>
         <p className="mt-2 text-sm leading-snug text-ink">{lodging.blurb}</p>
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Servicios">

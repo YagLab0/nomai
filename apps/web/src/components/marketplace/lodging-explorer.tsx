@@ -14,7 +14,7 @@ import {
 
 import { SearchIcon } from '@/components/icons';
 import { LodgingCard } from '@/components/marketplace/lodging-card';
-import { catalog } from '@/lib/catalog';
+import { useLodgings } from '@/lib/use-lodgings';
 import {
   FALLBACK_USD_RATES,
   FIAT_OPTIONS,
@@ -68,9 +68,10 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
       .catch(() => {});
   }, []);
 
+  const lodgings = useLodgings();
   const results = useMemo(
-    () => catalog.all().filter((l) => (selected.size === 0 || selected.has(l.kind)) && matches(l, query)),
-    [selected, query],
+    () => lodgings.filter((l) => (selected.size === 0 || selected.has(l.kind)) && matches(l, query)),
+    [lodgings, selected, query],
   );
 
   const clearFilters = () => {

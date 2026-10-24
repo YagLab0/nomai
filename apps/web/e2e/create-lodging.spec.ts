@@ -1,0 +1,63 @@
+import { expect, test } from '@playwright/test';
+
+test('an Owner publishes a Lodging from the panel and it reaches every surface', async ({ page }) => {
+  await page.goto('/app/owner');
+  await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
+
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Nombre del alojamiento')).toBeVisible();
+
+  // 1. Básico
+  await page.getByLabel('Nombre del alojamiento').fill('Posada del Molino');
+  await page.getByLabel('Tipo').click();
+  await page.getByRole('option', { name: 'Cabaña' }).click();
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+
+  // 2. Ubicación (towns limited to the Owner's country)
+  await page.getByLabel('Pueblo o ciudad').click();
+  await page.getByRole('option', { name: 'Tilcara' }).click();
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+
+  // 3. Detalles
+  await page.getByLabel('Descripción corta').fill('Cabaña de adobe frente al Pucará.');
+  await page.getByLabel('Servicios (uno por línea)').fill('Parrilla\nWifi');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+
+  // 4. Precio
+  await page.getByLabel(/Precio por noche/).fill('85000');
+  await page.getByRole('button', { name: 'Publicar' }).click();
+
+  // Back in the panel right away, with the "Nuevo" chip instead of a rating.
+  const card = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Posada del Molino' }) });
+  await expect(card).toBeVisible();
+  await expect(card.getByText('Nuevo', { exact: true })).toBeVisible();
+
+  // Survives a reload.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Posada del Molino' })).toBeVisible();
+
+  // Public catalog.
+  await page.goto('/lodgings');
+  await expect(page.getByRole('heading', { name: 'Posada del Molino' })).toBeVisible();
+
+  // Owner storefront.
+  await page.goto('/owners/ramon-guaymas');
+  await expect(page.getByRole('heading', { name: 'Posada del Molino' })).toBeVisible();
+});
+
+test('the wizard validates the current step before moving on', async ({ page }) => {
+  await page.goto('/app/owner');
+  await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
+
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(page.getByText('Escribí el nombre, como lo conocen tus huéspedes.')).toBeVisible();
+  // Still on step 1: the name field never left.
+  await expect(page.getByLabel('Nombre del alojamiento')).toBeVisible();
+
+  await page.getByLabel('Nombre del alojamiento').fill('Posada del Molino');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+
+  // Atrás keeps what was typed.
+  await page.getByRole('button', { name: 'Atrás' }).click();
+  await expect(page.getByLabel('Nombre del alojamiento')).toHaveValue('Posada del Molino');
+});

@@ -1,5 +1,4 @@
-import { catalog } from '@/lib/catalog';
-import { formatAmount, NORTE_TOWNS, type Lodging } from '@/lib/lodgings';
+import { formatAmount, LODGINGS, NORTE_TOWNS, type Lodging } from '@/lib/lodgings';
 import type { PhotoKey } from '@/lib/photos';
 
 /**
@@ -41,8 +40,10 @@ const BASE = [
   { code: 'CYR', label: 'Colonia', name: 'Colonia del Sacramento', country: 'Uruguay', photo: 'coloniaFaro', towns: ['Colonia del Sacramento'], tagline: 'Calles de piedra, faro y atardeceres sobre el río.' },
 ] as const satisfies readonly Omit<Destination, 'from' | 'lodgings'>[];
 
+// Seed only: the landing is authored content and must render identically on
+// server and client — Lodgings created in the browser don't belong here.
 export const DESTINATIONS: readonly Destination[] = BASE.map((d) => {
-  const all = catalog.all().filter((l) => (d.towns as readonly string[]).includes(l.city));
+  const all = LODGINGS.filter((l) => (d.towns as readonly string[]).includes(l.city));
   const cheapest = all.reduce((a, b) => (b.pricePerNight < a.pricePerNight ? b : a));
   const lodgings = [...all.filter((l) => l.featured), ...all.filter((l) => !l.featured)].slice(0, 2);
   return { ...d, lodgings, from: `desde ${formatAmount(cheapest.pricePerNight, cheapest.currency)}` };
