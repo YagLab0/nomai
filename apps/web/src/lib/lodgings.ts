@@ -66,10 +66,10 @@ export const FALLBACK_USD_RATES: Record<Fiat, number> = {
 export type FxRates = Partial<Record<Fiat, number>>;
 
 /**
- * LATAM countries served through Ripio rails. Travelers fund their Agent
- * wallet and Owners get paid through Ripio, so nomai's destinations are
- * exactly these. Perú is in through the wPEN stablecoin rail even though
- * Ripio lists no registered entity there.
+ * LATAM countries served through Ripio rails. Owners get paid through Ripio
+ * everywhere on this list, so nomai's destinations are exactly these.
+ * Funding splits in two tiers below: registered-entity countries get fiat
+ * ramps; the rest are reached through the wFIAT stablecoin rail only.
  */
 export const RIPIO_COUNTRIES = [
   { code: 'AR', name: 'Argentina', fiat: 'ARS' },
@@ -81,10 +81,49 @@ export const RIPIO_COUNTRIES = [
   { code: 'UY', name: 'Uruguay', fiat: 'UYU' },
 ] as const satisfies readonly { code: string; name: string; fiat: Fiat }[];
 
+/**
+ * Countries with a registered Ripio entity (listed on ripio.com): fiat ramps
+ * work there, so the Traveler funds the Agent wallet straight from a local
+ * bank transfer — no wallet needed up front.
+ */
+export const RAMP_COUNTRY_CODES: ReadonlySet<string> = new Set([
+  'AR',
+  'BR',
+  'CL',
+  'CO',
+  'MX',
+  'UY',
+]);
+
+/** Countries whose Travelers fund through Ripio fiat ramps. */
+export const RAMP_COUNTRIES = RIPIO_COUNTRIES.filter((c) =>
+  RAMP_COUNTRY_CODES.has(c.code),
+);
+
+/**
+ * Countries with no registered Ripio entity, reached through the wFIAT
+ * stablecoin rail only (wPEN for Perú). There is no fiat ramp: the Traveler
+ * must already hold a wallet — Ripio or any other — and funds the Agent
+ * wallet with a manual QR transfer inside the app.
+ */
+export const QR_FUNDING_COUNTRIES = RIPIO_COUNTRIES.filter(
+  (c) => !RAMP_COUNTRY_CODES.has(c.code),
+);
+
+/** How a Traveler from `countryCode` funds the Agent wallet. */
+export function fundingMethod(countryCode: string): 'ramp' | 'qr' {
+  return RAMP_COUNTRY_CODES.has(countryCode) ? 'ramp' : 'qr';
+}
+
 export const RIPIO_COUNTRY_NAMES = RIPIO_COUNTRIES.map((c) => c.name);
 
 /** "Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay" */
 export const RIPIO_COUNTRIES_TEXT = `${RIPIO_COUNTRY_NAMES.slice(0, -1).join(', ')} y ${RIPIO_COUNTRY_NAMES.at(-1)}`;
+
+const RAMP_COUNTRY_NAMES = RAMP_COUNTRIES.map((c) => c.name);
+
+/** "Argentina, Brasil, Chile, Colombia, México y Uruguay" — the ramp tier. */
+export const RAMP_COUNTRIES_TEXT = `${RAMP_COUNTRY_NAMES.slice(0, -1).join(', ')} y ${RAMP_COUNTRY_NAMES.at(-1)}`;
 
 export interface Owner {
   slug: string;

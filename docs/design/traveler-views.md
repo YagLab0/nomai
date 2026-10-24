@@ -320,14 +320,20 @@ No Owner-side Agent for now.
 
 ## 15. LATAM scope and the chat-first hero
 
-**Scope.** nomai is born in Jujuy and travels wherever Ripio operates, because
-Travelers fund their Agent wallet and Owners get paid through Ripio. Countries
-(registered Ripio entities listed on https://www.ripio.com, checked
-2026-10-23): **Argentina, Brasil, Chile, Colombia, México, Uruguay** — plus
-**Perú**, which ripio.com serves only through the wPEN stablecoin (no
-registered entity) but is in on the strength of that rail.
+**Scope.** nomai is born in Jujuy and travels wherever Ripio reaches, because
+Travelers fund their Agent wallet and Owners get paid through Ripio.
+Destinations: **Argentina, Brasil, Chile, Colombia, México, Perú, Uruguay**.
 `RIPIO_COUNTRIES` in `lib/lodgings.ts` is the single list; `Fiat` is exactly
 their currencies (ARS, BRL, CLP, COP, MXN, PEN, UYU).
+
+**Funding tiers.** Countries with a registered Ripio entity (checked
+2026-10-23) — Argentina, Brasil, Chile, Colombia, México, Uruguay —
+are `RAMP_COUNTRIES`: the Traveler funds the Agent wallet straight from a
+local bank transfer. The rest — today only **Perú** — are
+`QR_FUNDING_COUNTRIES`, reached through the wPEN stablecoin rail with no
+fiat ramp: the Traveler must already hold a wallet (Ripio or any other) and
+funds with a manual QR transfer inside the app. `fundingMethod(code)` returns
+the tier.
 
 | Destination (tab) | Country | Lodgings in the catalog |
 |---|---|---|
