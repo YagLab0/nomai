@@ -1,0 +1,159 @@
+/* Vendored from beautiful-ui (MIT) — see VENDORED.md
+ *
+ * The slice of upstream app/globals.css the vendored primitives rely on,
+ * renamed under a `bui-` prefix so nothing collides with Tailwind's own
+ * keyframes (spin) or the app's globals. Colors reference the Nomai palette
+ * (--ink, --paper, --sand, --terra…) defined in app/globals.css. Imported by
+ * each component that needs it, so wiring a primitive needs no global edit.
+ */
+
+:root {
+  /* upstream --line-strong: a sand a step darker, for tracks and outlines */
+  --bui-line-strong: color-mix(in srgb, var(--ink-muted) 30%, var(--sand));
+}
+
+.bui-card-pad {
+  padding: 12px;
+}
+
+.bui-card-footer {
+  padding: 10px;
+}
+
+.bui-icon-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
+
+.bui-animated-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.bui-animated-underline::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  content: "";
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+a:hover .bui-animated-underline::after,
+a:focus-visible .bui-animated-underline::after {
+  transform: scaleX(1);
+}
+
+.bui-source-avatar {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+/* StreamText: the newest characters resolve out of a soft blur; the caret
+ * holds solid while streaming, then blinks once the string settles. */
+.bui-stream-tail {
+  filter: blur(1.6px);
+  -webkit-mask-image: linear-gradient(to right, #000 20%, rgb(0 0 0 / 0.2));
+  mask-image: linear-gradient(to right, #000 20%, rgb(0 0 0 / 0.2));
+}
+
+.bui-stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1.5px;
+  translate: 0 -0.5px;
+  border-radius: 1px;
+  background: var(--terra);
+  vertical-align: text-bottom;
+  animation: bui-caret-blink 1s step-end infinite;
+}
+
+.bui-stream-caret.is-streaming {
+  animation: none;
+}
+
+/* PromptBar: replaces upstream's WebGL "glimm" rainbow sweep with a one-shot
+ * gradient band in the Nomai palette, slid across the composer interior. */
+.bui-sweep {
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, var(--terra-soft) 90%, transparent) 30%,
+    color-mix(in srgb, var(--agua-soft) 90%, transparent) 50%,
+    color-mix(in srgb, var(--terra-soft) 90%, transparent) 70%,
+    transparent 100%
+  );
+  background-size: 250% 100%;
+  animation: bui-sweep 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes bui-sweep {
+  0% { background-position: 150% 0; opacity: 1; }
+  85% { opacity: 1; }
+  100% { background-position: -50% 0; opacity: 0; }
+}
+
+@keyframes bui-shimmer-text {
+  from { background-position: 150% center; }
+  to { background-position: -50% center; }
+}
+
+@keyframes bui-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bui-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bui-pop-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bui-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bui-eq-bounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes bui-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* pixel-grid loader — brighten plateau, staggered per cell */
+@keyframes bui-pixel-on {
+  0%, 100% { opacity: 0.15; }
+  18%, 42% { opacity: 1; }
+  62% { opacity: 0.15; }
+}
+
+/* app/globals.css already collapses every animation/transition under reduced
+ * motion; these additionally drop the effects that are not time-based. */
+@media (prefers-reduced-motion: reduce) {
+  .bui-stream-caret {
+    animation: none;
+  }
+  .bui-stream-tail {
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .bui-sweep {
+    display: none;
+  }
+}
