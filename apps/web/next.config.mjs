@@ -1,3 +1,8 @@
+import { createRequire } from 'node:module'
+import { withEve } from 'eve/next'
+
+const require = createRequire(import.meta.url)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -46,6 +51,8 @@ const nextConfig = {
 
     return config
   },
-};
+}
 
-module.exports = nextConfig;
+// Mounts the eve agent at apps/agent (eveRoot holds the agent/ dir) same-origin
+// under /eve/v1/*. In dev, withEve spawns `eve dev --no-ui` alongside next dev.
+export default withEve(nextConfig, { eveRoot: '../agent' })

@@ -15,7 +15,7 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 ## Commands
 
 - `pnpm install` — install dependencies (pnpm 8, Node >= 18; `apps/agent` needs Node 24)
-- `pnpm dev` — run all apps via turbo
+- `pnpm dev` — api (:3001) + web (:3000); web's `withEve` spawns the eve dev server itself and proxies same-origin `/eve/v1/*`
 - `pnpm api:dev` — run only the api (`tsx watch`, port 3001)
 - `pnpm api:buy` — run the x402 buyer script
 - `pnpm agent:dev` — run the eve agent TUI (`eve dev`, port 2000)
