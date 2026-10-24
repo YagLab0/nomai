@@ -21,10 +21,12 @@ import {
   action,
   createLibrary,
   defineComponent,
+  useSetFieldValue,
   useTriggerAction,
   type ComponentRenderProps,
   type PromptOptions,
 } from '@openuidev/react-lang';
+import { useState } from 'react';
 import { z } from 'zod/v4';
 
 import { ProseText } from '@/components/app/chat/prose-text';
@@ -229,9 +231,331 @@ const ImageGrid = defineComponent({
   component: ImageGridView,
 });
 
+const sectionHeaderProps = z.object({
+  title: z.string(),
+  subtitle: z.string().optional(),
+});
+
+function SectionHeaderView({
+  props,
+}: ComponentRenderProps<z.infer<typeof sectionHeaderProps>>) {
+  return (
+    <header>
+      <p className="font-brand text-lg font-medium leading-tight text-ink">{props.title}</p>
+      {props.subtitle ? (
+        <p className="mt-0.5 text-sm text-ink-muted">{props.subtitle}</p>
+      ) : null}
+    </header>
+  );
+}
+
+const SectionHeader = defineComponent({
+  name: 'SectionHeader',
+  props: sectionHeaderProps,
+  description:
+    'Screen/section heading inside a program — the title of a generated view or a group divider.',
+  component: SectionHeaderView,
+});
+
+const chipRowProps = z.object({
+  chips: z.array(
+    z.object({
+      label: z.string(),
+      /** Optional follow-up fired when the chip is tapped. */
+      action: action().optional(),
+    }),
+  ),
+});
+
+function ChipRowView({ props }: ComponentRenderProps<z.infer<typeof chipRowProps>>) {
+  const triggerAction = useTriggerAction();
+  const chipClass =
+    'rounded-full border border-sand bg-white px-3 py-1.5 text-sm text-ink';
+  return (
+    <div className="flex flex-wrap gap-2">
+      {props.chips.map((chip, i) =>
+        chip.action ? (
+          <button
+            key={`${chip.label}-${i}`}
+            type="button"
+            onClick={() => void triggerAction(chip.label, undefined, chip.action)}
+            className={`${chipClass} transition-colors hover:bg-paper`}
+          >
+            {chip.label}
+          </button>
+        ) : (
+          <span key={`${chip.label}-${i}`} className={chipClass}>
+            {chip.label}
+          </span>
+        ),
+      )}
+    </div>
+  );
+}
+
+const ChipRow = defineComponent({
+  name: 'ChipRow',
+  props: chipRowProps,
+  description:
+    'Row of refinement/filter chips (e.g. "Solo posadas", "Solo San Blas") — each chip can carry an action to trigger a follow-up.',
+  component: ChipRowView,
+});
+
+const detailListProps = z.object({
+  items: z.array(
+    z.object({
+      label: z.string(),
+      value: z.string(),
+    }),
+  ),
+});
+
+function DetailListView({ props }: ComponentRenderProps<z.infer<typeof detailListProps>>) {
+  return (
+    <dl className="divide-y divide-sand">
+      {props.items.map((item) => (
+        <div
+          key={item.label}
+          className="flex items-baseline justify-between gap-4 py-2 text-sm"
+        >
+          <dt className="text-ink-muted">{item.label}</dt>
+          <dd className="shrink-0 text-right font-medium text-ink">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const DetailList = defineComponent({
+  name: 'DetailList',
+  props: detailListProps,
+  description:
+    'Label/value detail rows for a listing detail view: check-in/out times, max guests, policies, owner name.',
+  component: DetailListView,
+});
+
+const amenityChipsProps = z.object({
+  items: z.array(z.string()),
+});
+
+function AmenityChipsView({
+  props,
+}: ComponentRenderProps<z.infer<typeof amenityChipsProps>>) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {props.items.map((item) => (
+        <span
+          key={item}
+          className="rounded-full bg-sand px-2.5 py-1 text-xs text-ink"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+const AmenityChips = defineComponent({
+  name: 'AmenityChips',
+  props: amenityChipsProps,
+  description:
+    'Amenity pills for a listing detail view — wifi, breakfast, heating, etc.',
+  component: AmenityChipsView,
+});
+
+const quoteFormProps = z.object({
+  /** Action fired on submit — the form values ride along as event.formState. */
+  submit: action(),
+  /** Card heading, e.g. "Elegí fechas". */
+  title: z.string().optional(),
+});
+
+const inputClass =
+  'mt-1 w-full rounded-xl border border-sand bg-white px-3 py-2 text-sm text-ink';
+
+function QuoteFormView({ props }: ComponentRenderProps<z.infer<typeof quoteFormProps>>) {
+  const triggerAction = useTriggerAction();
+  const setFieldValue = useSetFieldValue();
+  const [checkIn, setCheckIn] = useState('');
+  const [checkOut, setCheckOut] = useState('');
+  const [guests, setGuests] = useState(2);
+
+  const onSubmit = () => {
+    // The action event's formState comes from the renderer's state store, not
+    // from a payload arg — mirror the local inputs into the store first so the
+    // host appends them as "Form values: {json}". Top-level keys keep the JSON
+    // flat: {checkIn: {value: …}, checkOut: {value: …}, guests: {value: …}}.
+    setFieldValue(undefined, undefined, 'checkIn', checkIn);
+    setFieldValue(undefined, undefined, 'checkOut', checkOut);
+    setFieldValue(undefined, undefined, 'guests', guests);
+    void triggerAction(props.title ?? 'Cotizar', undefined, props.submit);
+  };
+
+  return (
+    <section className="rounded-2xl border border-sand bg-white p-4">
+      {props.title ? (
+        <p className="font-brand text-lg font-medium leading-tight text-ink">{props.title}</p>
+      ) : null}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-xs text-ink-muted">Llegada</span>
+          <input
+            type="date"
+            value={checkIn}
+            onChange={(e) => setCheckIn(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs text-ink-muted">Salida</span>
+          <input
+            type="date"
+            value={checkOut}
+            onChange={(e) => setCheckOut(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="col-span-2 block">
+          <span className="text-xs text-ink-muted">Huéspedes</span>
+          <input
+            type="number"
+            min={1}
+            value={guests}
+            onChange={(e) => setGuests(Math.max(1, Number(e.target.value) || 1))}
+            className={inputClass}
+          />
+        </label>
+      </div>
+      <div className="mt-4">
+        <Button fullWidth onPress={onSubmit}>
+          Cotizar
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+const QuoteForm = defineComponent({
+  name: 'QuoteForm',
+  props: quoteFormProps,
+  description:
+    'Interactive quote form: check-in/check-out dates and guest count. Render INSTEAD of asking for dates in prose when the Traveler has not given them.',
+  component: QuoteFormView,
+});
+
+const bookingCardProps = z.object({
+  /** e.g. "Departamento familiar en San Blas". */
+  title: z.string(),
+  /** Booking id returned by book_listing, e.g. "bkg_1". */
+  code: z.string(),
+  lines: z.array(
+    z.object({
+      label: z.string(),
+      value: z.string(),
+    }),
+  ),
+});
+
+function BookingCardView({ props }: ComponentRenderProps<z.infer<typeof bookingCardProps>>) {
+  return (
+    <section
+      aria-label={`Reserva confirmada: ${props.title}`}
+      className="overflow-hidden rounded-2xl border border-sand bg-white"
+    >
+      <div className="flex items-start justify-between gap-3 px-4 pt-3.5">
+        <div className="min-w-0">
+          <p className="font-brand text-lg font-medium leading-tight text-ink">{props.title}</p>
+          <p className="mt-0.5 font-mono text-xs tracking-widest text-ink-muted">{props.code}</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-agua-soft px-2.5 py-0.5 text-xs font-medium text-agua">
+          Confirmada
+        </span>
+      </div>
+      <dl className="mt-1 divide-y divide-sand px-4 pb-2">
+        {props.lines.map((line) => (
+          <div
+            key={line.label}
+            className="flex items-baseline justify-between gap-4 py-2.5 text-sm text-ink"
+          >
+            <dt className="text-ink-muted">{line.label}</dt>
+            <dd className="shrink-0 font-mono">{line.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+const BookingCard = defineComponent({
+  name: 'BookingCard',
+  props: bookingCardProps,
+  description:
+    'Confirmed booking ticket — only after a real book_listing result. code = the booking id (e.g. bkg_1).',
+  component: BookingCardView,
+});
+
+const tableProps = z.object({
+  /** Header labels — the first column heads the row-label column (often ""). */
+  columns: z.array(z.string()),
+  /** Body rows; each row should have one cell per column. */
+  rows: z.array(z.array(z.string())),
+});
+
+function TableView({ props }: ComponentRenderProps<z.infer<typeof tableProps>>) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-sand bg-white">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-sand">
+            {props.columns.map((col, i) => (
+              <th
+                key={i}
+                className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-muted"
+              >
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-sand">
+          {props.rows.map((row, ri) => (
+            <tr key={ri}>
+              {row.map((cell, ci) => (
+                <td key={ci} className="px-4 py-2.5 text-sm text-ink">
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const Table = defineComponent({
+  name: 'Table',
+  props: tableProps,
+  description: 'Compare 2-4 listings side by side — first column is the row label.',
+  component: TableView,
+});
+
 const stackProps = z.object({
   children: z.array(
-    z.union([z.string(), TextContent.ref, ListingCard.ref, QuoteCard.ref, ImageGrid.ref]),
+    z.union([
+      z.string(),
+      TextContent.ref,
+      ListingCard.ref,
+      QuoteCard.ref,
+      ImageGrid.ref,
+      SectionHeader.ref,
+      ChipRow.ref,
+      DetailList.ref,
+      AmenityChips.ref,
+      QuoteForm.ref,
+      BookingCard.ref,
+      Table.ref,
+    ]),
   ),
   direction: z.enum(['column', 'row']).optional(),
   gap: z.enum(['sm', 'md', 'lg']).optional(),
@@ -259,10 +583,37 @@ const Stack = defineComponent({
 
 export const library = createLibrary({
   root: 'Stack',
-  components: [Stack, TextContent, ListingCard, QuoteCard, ImageGrid],
+  components: [
+    Stack,
+    TextContent,
+    ListingCard,
+    QuoteCard,
+    ImageGrid,
+    SectionHeader,
+    ChipRow,
+    DetailList,
+    AmenityChips,
+    QuoteForm,
+    BookingCard,
+    Table,
+  ],
   componentGroups: [
     { name: 'Layout', components: ['Stack', 'TextContent'] },
-    { name: 'nomai', components: ['ListingCard', 'QuoteCard', 'ImageGrid'] },
+    {
+      name: 'nomai',
+      components: [
+        'ListingCard',
+        'QuoteCard',
+        'ImageGrid',
+        'SectionHeader',
+        'ChipRow',
+        'DetailList',
+        'AmenityChips',
+        'QuoteForm',
+        'BookingCard',
+        'Table',
+      ],
+    },
   ],
 });
 
