@@ -24,6 +24,9 @@ _Avoid_: bot, assistant, Eve
 
 **Lodging**:
 A place an Owner lists for Travelers to book (posada, cabaña, departamento…).
+Priced in its Owner's currency and located in the Owner's country, since every
+Booking settles into the Owner's single-country Ripio account. While it has an
+upcoming Booking it can't be removed or relocated.
 Product Spanish: *alojamiento*.
 _Avoid_: property, listing, hotel
 

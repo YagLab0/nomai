@@ -217,6 +217,7 @@ same theme as the rest of the app.
 |---|---|
 | `/lodgings` | Public explorer: search, kind filters, price currency picker, ticket-style cards |
 | `/owners/[slug]` | Owner storefront (profile + that Owner's Lodgings) |
+| `/lodgings/[id]` | Lodging detail: gallery, address + map, availability calendar (§16) |
 | `/app/lodgings` | Same explorer inside the app shell ("Explorar" in the nav rail and drawer) |
 | `/api/fx` | Display FX rates (Ripio when configured, public feed, static table) |
 
@@ -363,3 +364,33 @@ Cartagena…"), `/app` header and empty-state suggestions ("Playa en
 Florianópolis para 2", "Cartagena en diciembre"), Para dueños (the six
 countries), the footer ("Nacimos en Jujuy. Viajamos por Latinoamérica.") and
 the Owner join town list.
+
+## 16. Lodging detail (`/lodgings/[id]`)
+
+Public page for one Lodging, in the marketing group. Decided with the Owner
+creation flow (owner-views §9, issue #21). Every Lodging card in the explorer
+and on storefronts links here.
+
+- **Content**, top to bottom: gallery (photos, or `LodgingArt` when there are
+  none); name, kind, town, rating or "Nuevo" chip; capacity, bedrooms, baths;
+  blurb; amenities; exact address and a Leaflet/OpenStreetMap map with the pin
+  (only when the Lodging has coordinates; otherwise just the town); the Owner
+  block (name, verified badge, "Cobra directo, sin comisión") linking to the
+  storefront; the availability calendar.
+- **Address is public.** No approximate zone and no reveal after Booking.
+- **Calendar.** Nights taken by Confirmada or En curso Bookings are shown as
+  occupied; with no Bookings every night is free. The Traveler picks
+  check-in and check-out. A range that crosses an occupied night can't be
+  selected. Below it: nights and the estimated total in the Traveler's
+  currency, using the same quote helpers and currency display as the explorer.
+  It's an estimate; Nomito gives the firm quote.
+- **"Reservar con Nomito"** is the single action and works with or without
+  dates. It follows §10's "Pedirle a Nomito" hand-off: inside the app it goes
+  to `/app?ask=<encoded "Quiero reservar <name>, <town>, del <in> al <out>">`;
+  publicly it goes to `/signup?ask=…`, which carries the message into the
+  chat after sign-up. Booking stays Agent-first: no direct checkout here.
+- **Data.** Reads the catalog module (owner-views §9), so Lodgings an Owner
+  just created have a detail page too. Seeded ids are statically generated;
+  created ids render client-side; unknown or deleted ids show not-found.
+- **Copy.** §3 applies: Traveler-local prices, no wallet addresses or crypto
+  vocabulary.
