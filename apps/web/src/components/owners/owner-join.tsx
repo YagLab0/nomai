@@ -40,6 +40,7 @@ const TOWN_GROUPS: { label: string; towns: string[] }[] = [
   { label: 'Chile', towns: ['San Pedro de Atacama', 'Santiago', 'Valparaíso'] },
   { label: 'Colombia', towns: ['Cartagena', 'Bogotá', 'Medellín'] },
   { label: 'México', towns: ['Tulum', 'Ciudad de México', 'Oaxaca'] },
+  { label: 'Perú', towns: ['Cusco', 'Lima', 'Arequipa'] },
   { label: 'Uruguay', towns: ['Colonia del Sacramento', 'Montevideo', 'Punta del Este'] },
 ];
 

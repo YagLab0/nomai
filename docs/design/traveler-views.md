@@ -323,10 +323,11 @@ No Owner-side Agent for now.
 **Scope.** nomai is born in Jujuy and travels wherever Ripio operates, because
 Travelers fund their Agent wallet and Owners get paid through Ripio. Countries
 (registered Ripio entities listed on https://www.ripio.com, checked
-2026-10-23): **Argentina, Brasil, Chile, Colombia, México, Uruguay**. Peru
-appears on ripio.com only as a wPEN stablecoin and a Yape on-ramp, with no
-registered entity, so it is out. `RIPIO_COUNTRIES` in `lib/lodgings.ts` is the
-single list; `Fiat` is exactly their currencies (ARS, BRL, CLP, COP, MXN, UYU).
+2026-10-23): **Argentina, Brasil, Chile, Colombia, México, Uruguay** — plus
+**Perú**, which ripio.com serves only through the wPEN stablecoin (no
+registered entity) but is in on the strength of that rail.
+`RIPIO_COUNTRIES` in `lib/lodgings.ts` is the single list; `Fiat` is exactly
+their currencies (ARS, BRL, CLP, COP, MXN, PEN, UYU).
 
 | Destination (tab) | Country | Lodgings in the catalog |
 |---|---|---|
@@ -335,12 +336,14 @@ single list; `Fiat` is exactly their currencies (ARS, BRL, CLP, COP, MXN, UYU).
 | Cartagena | Colombia | Getsemaní, Centro histórico (Bogotá also in the catalog) |
 | Tulum | México | Tulum |
 | Atacama | Chile | San Pedro de Atacama |
+| Cusco | Perú | San Blas, Centro histórico |
 | Colonia | Uruguay | Barrio Histórico, Rambla |
 
 Mendoza (Argentina) stays in the catalog and explorer. Nomito's mock adapter
 shortlists by destination keywords (floripa, cartagena, tulum, atacama,
-colonia, bogotá, mendoza, country names); Norte keywords win when a message
-names both ("venimos desde Florianópolis… una semana en Salta").
+colonia, cusco/machu picchu, bogotá, mendoza, country names); Norte keywords
+win when a message names both ("venimos desde Florianópolis… una semana en
+Salta").
 
 **Hero.** The first impression is the live chat with Nomito.
 
@@ -348,7 +351,7 @@ names both ("venimos desde Florianópolis… una semana en Salta").
   (left-to-right on desktop, top-to-bottom on phones), rounded bottom corners.
 - Left: pill "Nacimos en Jujuy", `h1` "Viajá por Latinoamérica pagando en tu
   moneda", subcopy, "Hablar con Nomito" (primary → `/signup`) and "Cómo
-  funciona", then "En Argentina, Brasil, Chile, Colombia, México y Uruguay."
+  funciona", then "En Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay."
 - Right: `HeroChat` (the §4 Lucas conversation, looping) with the mascot as a
   large app icon riding its top-left corner. The chat ends in a real composer
   ("Contale a Nomito a dónde querés ir…"): what the Traveler types goes to

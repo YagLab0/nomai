@@ -37,6 +37,7 @@ const BASE = [
   { code: 'CTG', label: 'Cartagena', name: 'Cartagena', country: 'Colombia', photo: 'cartagenaReloj', towns: ['Cartagena'], tagline: 'Murallas, balcones de colores y el Caribe a la vuelta.' },
   { code: 'TUL', label: 'Tulum', name: 'Tulum', country: 'México', photo: 'tulumRuinas', towns: ['Tulum'], tagline: 'Ruinas mayas sobre el mar, cenotes y selva.' },
   { code: 'CJC', label: 'Atacama', name: 'San Pedro de Atacama', country: 'Chile', photo: 'atacamaValle', towns: ['San Pedro de Atacama'], tagline: 'Valle de la Luna, salares y el cielo más limpio del mundo.' },
+  { code: 'CUZ', label: 'Cusco', name: 'Cusco', country: 'Perú', photo: 'cuscoMachuPicchu', towns: ['Cusco'], tagline: 'La capital inca y la puerta a Machu Picchu.' },
   { code: 'CYR', label: 'Colonia', name: 'Colonia del Sacramento', country: 'Uruguay', photo: 'coloniaFaro', towns: ['Colonia del Sacramento'], tagline: 'Calles de piedra, faro y atardeceres sobre el río.' },
 ] as const satisfies readonly Omit<Destination, 'from' | 'lodgings'>[];
 

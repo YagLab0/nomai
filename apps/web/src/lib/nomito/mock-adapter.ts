@@ -27,6 +27,7 @@ const PLACES: { keywords: string[]; cities: string[] }[] = [
   { keywords: ['tulum', 'riviera maya', 'cenote', 'méxico', 'mexico'], cities: ['Tulum'] },
   { keywords: ['atacama', 'san pedro', 'chile'], cities: ['San Pedro de Atacama'] },
   { keywords: ['colonia', 'uruguay'], cities: ['Colonia del Sacramento'] },
+  { keywords: ['cusco', 'cuzco', 'perú', 'peru', 'machu picchu', 'machu pichu'], cities: ['Cusco'] },
   { keywords: ['mendoza'], cities: ['Mendoza'] },
 ];
 

@@ -28,7 +28,7 @@ export function Owners() {
           <p className="text-lg text-agua-soft">Para dueños de alojamientos</p>
           <h2 className="brand-display mt-3 text-5xl font-medium leading-[0.95] sm:text-6xl">Cero comisión. Siempre.</h2>
           <p className="mt-5 max-w-md text-lg leading-relaxed text-paper/70">
-            Si tenés un alojamiento en Argentina, Brasil, Chile, Colombia, México o Uruguay: los viajeros llegan con
+            Si tenés un alojamiento en Argentina, Brasil, Chile, Colombia, México, Perú o Uruguay: los viajeros llegan con
             Nomito, pagan en su moneda y vos cobrás lo que pusiste de precio.
           </p>
           <ul className="mt-10 flex flex-col divide-y divide-paper/15 border-y border-paper/15">
