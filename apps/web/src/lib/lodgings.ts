@@ -892,6 +892,9 @@ export interface Town {
   /** Area label under the Lodging's name, e.g. 'Quebrada de Humahuaca'. */
   region: string;
   countryCode: string;
+  /** Town center: where the wizard's map opens and the pin starts. */
+  lat: number;
+  lng: number;
 }
 
 /**
@@ -900,37 +903,37 @@ export interface Town {
  */
 export const TOWNS: readonly Town[] = [
   // Argentina
-  { name: 'Salta', code: 'SLA', region: 'Valle de Lerma', countryCode: 'AR' },
-  { name: 'Cafayate', code: 'CFY', region: 'Valles Calchaquíes', countryCode: 'AR' },
-  { name: 'Purmamarca', code: 'PMA', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
-  { name: 'Tilcara', code: 'TIL', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
-  { name: 'Humahuaca', code: 'HUM', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
-  { name: 'Cachi', code: 'CAC', region: 'Valles Calchaquíes', countryCode: 'AR' },
-  { name: 'Iruya', code: 'IRU', region: 'Quebrada de Humahuaca', countryCode: 'AR' },
-  { name: 'San Salvador de Jujuy', code: 'JUJ', region: 'San Salvador', countryCode: 'AR' },
-  { name: 'Buenos Aires', code: 'BUE', region: 'Buenos Aires', countryCode: 'AR' },
-  { name: 'Mendoza', code: 'MDZ', region: 'Cuyo', countryCode: 'AR' },
-  { name: 'Bariloche', code: 'BRC', region: 'Patagonia', countryCode: 'AR' },
+  { name: 'Salta', code: 'SLA', region: 'Valle de Lerma', countryCode: 'AR', lat: -24.7883, lng: -65.4106 },
+  { name: 'Cafayate', code: 'CFY', region: 'Valles Calchaquíes', countryCode: 'AR', lat: -26.073, lng: -65.976 },
+  { name: 'Purmamarca', code: 'PMA', region: 'Quebrada de Humahuaca', countryCode: 'AR', lat: -23.7447, lng: -65.4987 },
+  { name: 'Tilcara', code: 'TIL', region: 'Quebrada de Humahuaca', countryCode: 'AR', lat: -23.5776, lng: -65.3966 },
+  { name: 'Humahuaca', code: 'HUM', region: 'Quebrada de Humahuaca', countryCode: 'AR', lat: -23.2054, lng: -65.3505 },
+  { name: 'Cachi', code: 'CAC', region: 'Valles Calchaquíes', countryCode: 'AR', lat: -25.1203, lng: -66.1631 },
+  { name: 'Iruya', code: 'IRU', region: 'Quebrada de Humahuaca', countryCode: 'AR', lat: -22.7889, lng: -65.2153 },
+  { name: 'San Salvador de Jujuy', code: 'JUJ', region: 'San Salvador', countryCode: 'AR', lat: -24.1858, lng: -65.2995 },
+  { name: 'Buenos Aires', code: 'BUE', region: 'Buenos Aires', countryCode: 'AR', lat: -34.6037, lng: -58.3816 },
+  { name: 'Mendoza', code: 'MDZ', region: 'Cuyo', countryCode: 'AR', lat: -32.8895, lng: -68.8458 },
+  { name: 'Bariloche', code: 'BRC', region: 'Patagonia', countryCode: 'AR', lat: -41.1335, lng: -71.3103 },
   // Brasil
-  { name: 'Florianópolis', code: 'FLN', region: 'Santa Catarina', countryCode: 'BR' },
-  { name: 'Río de Janeiro', code: 'RIO', region: 'Costa Verde', countryCode: 'BR' },
-  { name: 'Salvador', code: 'SSA', region: 'Bahía', countryCode: 'BR' },
+  { name: 'Florianópolis', code: 'FLN', region: 'Santa Catarina', countryCode: 'BR', lat: -27.5954, lng: -48.548 },
+  { name: 'Río de Janeiro', code: 'RIO', region: 'Costa Verde', countryCode: 'BR', lat: -22.9068, lng: -43.1729 },
+  { name: 'Salvador', code: 'SSA', region: 'Bahía', countryCode: 'BR', lat: -12.9777, lng: -38.5016 },
   // Chile
-  { name: 'San Pedro de Atacama', code: 'CJC', region: 'Desierto de Atacama', countryCode: 'CL' },
-  { name: 'Santiago', code: 'SCL', region: 'Región Metropolitana', countryCode: 'CL' },
-  { name: 'Valparaíso', code: 'VAP', region: 'Costa central', countryCode: 'CL' },
+  { name: 'San Pedro de Atacama', code: 'CJC', region: 'Desierto de Atacama', countryCode: 'CL', lat: -22.911, lng: -68.2001 },
+  { name: 'Santiago', code: 'SCL', region: 'Región Metropolitana', countryCode: 'CL', lat: -33.4372, lng: -70.6506 },
+  { name: 'Valparaíso', code: 'VAP', region: 'Costa central', countryCode: 'CL', lat: -33.0472, lng: -71.6127 },
   // Colombia
-  { name: 'Cartagena', code: 'CTG', region: 'Caribe colombiano', countryCode: 'CO' },
-  { name: 'Bogotá', code: 'BOG', region: 'Cundinamarca', countryCode: 'CO' },
-  { name: 'Medellín', code: 'MDE', region: 'Antioquia', countryCode: 'CO' },
+  { name: 'Cartagena', code: 'CTG', region: 'Caribe colombiano', countryCode: 'CO', lat: 10.4236, lng: -75.5486 },
+  { name: 'Bogotá', code: 'BOG', region: 'Cundinamarca', countryCode: 'CO', lat: 4.5981, lng: -74.0758 },
+  { name: 'Medellín', code: 'MDE', region: 'Antioquia', countryCode: 'CO', lat: 6.2518, lng: -75.5636 },
   // México
-  { name: 'Tulum', code: 'TUL', region: 'Riviera Maya', countryCode: 'MX' },
-  { name: 'Ciudad de México', code: 'MEX', region: 'CDMX', countryCode: 'MX' },
-  { name: 'Oaxaca', code: 'OAX', region: 'Valles Centrales', countryCode: 'MX' },
+  { name: 'Tulum', code: 'TUL', region: 'Riviera Maya', countryCode: 'MX', lat: 20.2114, lng: -87.4654 },
+  { name: 'Ciudad de México', code: 'MEX', region: 'CDMX', countryCode: 'MX', lat: 19.4326, lng: -99.1332 },
+  { name: 'Oaxaca', code: 'OAX', region: 'Valles Centrales', countryCode: 'MX', lat: 17.061, lng: -96.7253 },
   // Uruguay
-  { name: 'Colonia del Sacramento', code: 'CYR', region: 'Colonia', countryCode: 'UY' },
-  { name: 'Montevideo', code: 'MVD', region: 'Montevideo', countryCode: 'UY' },
-  { name: 'Punta del Este', code: 'PDE', region: 'Maldonado', countryCode: 'UY' },
+  { name: 'Colonia del Sacramento', code: 'CYR', region: 'Colonia', countryCode: 'UY', lat: -34.4717, lng: -57.8442 },
+  { name: 'Montevideo', code: 'MVD', region: 'Montevideo', countryCode: 'UY', lat: -34.9058, lng: -56.1913 },
+  { name: 'Punta del Este', code: 'PDE', region: 'Maldonado', countryCode: 'UY', lat: -34.96, lng: -54.942 },
 ];
 
 export function townByName(name: string): Town | undefined {

@@ -73,6 +73,7 @@ test('a Lodging created in the panel gets its own ficha', async ({ page }) => {
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.getByLabel('Pueblo o ciudad').click();
   await page.getByRole('option', { name: 'Humahuaca' }).click();
+  await page.getByLabel('Dirección').fill('Tucumán 12');
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.getByLabel(/Precio por noche/).fill('60000');
@@ -82,7 +83,7 @@ test('a Lodging created in the panel gets its own ficha', async ({ page }) => {
   await page.goto('/lodgings/la-posada-del-e2e');
   await expect(page.getByRole('heading', { level: 1, name: 'La Posada del E2E' })).toBeVisible();
   await expect(page.getByText('Nuevo', { exact: true })).toBeVisible();
-  await expect(page.getByText('Humahuaca, Quebrada de Humahuaca')).toBeVisible();
+  await expect(page.getByText('Tucumán 12, Humahuaca')).toBeVisible();
 });
 
 test('the ficha is usable on a 390px viewport', async ({ page }) => {

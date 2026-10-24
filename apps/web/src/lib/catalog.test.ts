@@ -22,6 +22,9 @@ const DRAFT: LodgingDraft = {
   pricePerNight: 85_000,
   blurb: 'A una cuadra del Pucará.',
   amenities: ['Patio', 'Desayuno'],
+  address: 'Belgrano 450',
+  lat: -23.5781,
+  lng: -65.3959,
 };
 
 describe('catalog', () => {
@@ -91,9 +94,27 @@ describe('catalog.create', () => {
     ['zero guests', { guests: 0 }],
     ['no price', { pricePerNight: 0 }],
     ['a negative price', { pricePerNight: -50 }],
+    ['no address', { address: '  ' }],
+    ['coordinates that are not numbers', { lat: Number.NaN }],
+    ['coordinates off the globe', { lng: 200 }],
   ])('rejects a draft with %s', (_case, patch) => {
     const c = createCatalog(memoryStorage());
     expect(() => c.create('ramon-guaymas', { ...DRAFT, ...patch })).toThrow();
+  });
+
+  it('rejects a draft without a pin', () => {
+    const c = createCatalog(memoryStorage());
+    const { lat: _lat, lng: _lng, ...noPin } = DRAFT;
+    expect(() => c.create('ramon-guaymas', noPin as LodgingDraft)).toThrow();
+  });
+
+  it('keeps the exact address and the pin, also after a reload', () => {
+    const storage = memoryStorage();
+    const created = createCatalog(storage).create('ramon-guaymas', DRAFT);
+    expect(created).toMatchObject({ address: 'Belgrano 450', lat: -23.5781, lng: -65.3959 });
+
+    const reopened = createCatalog(storage).byId(created.id);
+    expect(reopened).toMatchObject({ address: 'Belgrano 450', lat: -23.5781, lng: -65.3959 });
   });
 
   it('rejects a draft for an unknown Owner', () => {

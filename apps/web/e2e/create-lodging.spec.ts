@@ -16,6 +16,7 @@ test('an Owner publishes a Lodging from the panel and it reaches every surface',
   // 2. Ubicación (towns limited to the Owner's country)
   await page.getByLabel('Pueblo o ciudad').click();
   await page.getByRole('option', { name: 'Tilcara' }).click();
+  await page.getByLabel('Dirección').fill('Belgrano 450');
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
   // 3. Detalles
@@ -43,6 +44,11 @@ test('an Owner publishes a Lodging from the panel and it reaches every surface',
   // Owner storefront.
   await page.goto('/owners/ramon-guaymas');
   await expect(page.getByRole('heading', { name: 'Posada del Molino' })).toBeVisible();
+
+  // Its ficha shows the exact address and the map with the pin.
+  await page.getByRole('link', { name: 'Posada del Molino' }).first().click();
+  await expect(page.getByText('Belgrano 450, Tilcara')).toBeVisible();
+  await expect(page.locator('.leaflet-marker-icon')).toBeVisible();
 });
 
 test('the wizard validates the current step before moving on', async ({ page }) => {

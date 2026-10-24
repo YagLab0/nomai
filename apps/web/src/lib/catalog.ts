@@ -33,6 +33,11 @@ export interface LodgingDraft {
   pricePerNight: number;
   blurb?: string;
   amenities?: string[];
+  /** Street address, free text (no geocoder); public to every Traveler. */
+  address: string;
+  /** The pin the Owner dropped on the map. */
+  lat: number;
+  lng: number;
 }
 
 interface CatalogStorage {
@@ -77,6 +82,10 @@ function buildLodging(owner: Owner, draft: LodgingDraft, taken: Set<string>): Lo
   if (!Number.isFinite(draft.pricePerNight) || draft.pricePerNight <= 0) {
     throw new Error('price must be positive');
   }
+  const address = draft.address?.trim() ?? '';
+  if (!address) throw new Error('address is required');
+  const onGlobe = (n: unknown, max: number) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= max;
+  if (!onGlobe(draft.lat, 90) || !onGlobe(draft.lng, 180)) throw new Error('pin is required');
 
   const currency = ownerFiat(owner);
 
@@ -103,6 +112,9 @@ function buildLodging(owner: Owner, draft: LodgingDraft, taken: Set<string>): Lo
     amenities: draft.amenities?.map((a) => a.trim()).filter(Boolean) ?? [],
     ownerSlug: owner.slug,
     tone: TONES[taken.size % TONES.length],
+    address,
+    lat: draft.lat,
+    lng: draft.lng,
   };
 }
 
