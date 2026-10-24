@@ -1051,6 +1051,8 @@ export function findLodging(text: string): Lodging | undefined {
 export interface QuoteLine {
   label: string;
   value: string;
+  /** Raw number behind `value`, when the line is a formatted amount. */
+  amount?: number;
   kind?: 'fee' | 'total';
 }
 
@@ -1076,7 +1078,7 @@ export function quoteFor(l: Lodging, nights = NIGHTS): BookingQuote {
       { label: `Reserva: ${l.name}, ${l.city} · ${nights} noches`, value: formatAmount(totalLocal, l.currency) },
       { label: `Conversión BRL → ${l.currency} · 1 BRL = ${formatNumber(rate)} ${l.currency}`, value: formatBRL(subtotal) },
       { label: 'Comisión de conversión Nomai', value: formatBRL(fee), kind: 'fee' },
-      { label: 'Total', value: formatBRL(total, { withCode: true }), kind: 'total' },
+      { label: 'Total', value: formatBRL(total, { withCode: true }), amount: total, kind: 'total' },
     ],
   };
 }

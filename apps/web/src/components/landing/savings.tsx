@@ -1,3 +1,5 @@
+import { CountUpBRL } from '@/components/count-up';
+import { Reveal } from '@/components/reveal';
 import { CASA_DE_ADOBE, quoteFor } from '@/lib/lodgings';
 
 const ROWS = [
@@ -26,21 +28,23 @@ export function Savings() {
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-5 lg:py-28">
       <div className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr]">
-        <div>
+        <Reveal>
           <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">Por qué pagás menos</h2>
           <p className="mt-4 text-lg leading-relaxed text-ink-muted">
             Pagás en reales, el dueño cobra en pesos, y nadie en el medio se queda con un pedazo.
           </p>
           <div className="relative mt-8 rounded-card bg-terra p-7 text-paper">
             <p className="text-sm text-paper/80">Un ejemplo: {quote.lodging}, {quote.nights} noches</p>
-            <p className="mt-1 font-mono text-3xl font-semibold">{total.value}</p>
+            <p className="mt-1 font-mono text-3xl font-semibold">
+              {total.amount !== undefined ? <CountUpBRL to={total.amount} /> : total.value}
+            </p>
             <p className="mt-2 text-sm text-paper/80">
               Todo incluido. La comisión de conversión ({fee.value}) figura aparte, sin letra chica.
             </p>
           </div>
-        </div>
+        </Reveal>
 
-        <div className="overflow-x-auto rounded-card bg-white px-6 py-4 sm:px-8">
+        <Reveal delay={140} className="overflow-x-auto rounded-card bg-white px-6 py-4 sm:px-8">
           <table className="w-full min-w-[34rem] border-collapse text-left">
             <caption className="sr-only">Comparación entre pagar con tarjeta y pagar con Nomito</caption>
             <thead>
@@ -63,7 +67,7 @@ export function Savings() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Reveal>
       </div>
     </section>
   );

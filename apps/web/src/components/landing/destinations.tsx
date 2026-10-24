@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from 'react';
 
 import { ArrowUpRightIcon, MapPinIcon, StarIcon } from '@/components/icons';
 import { NomitoArt } from '@/components/nomito-avatar';
+import { Reveal } from '@/components/reveal';
 import { formatLocalPrice, KIND_LABEL, LODGINGS, type Lodging } from '@/lib/lodgings';
 import { buildDestinations, type Destination } from '@/lib/mock/destinations';
 import { PHOTOS } from '@/lib/photos';
@@ -124,11 +125,13 @@ export function Destinations({ lodgings }: { lodgings?: Lodging[] }) {
   return (
     <section id="destinos" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20 sm:px-5 lg:py-28">
       <div className="flex flex-col items-center text-center">
-        <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">De la Quebrada al Caribe</h2>
-        <p className="mt-4 max-w-xl text-lg text-ink-muted">
-          Alojamientos de dueños en los siete países donde funciona Ripio. El precio es el del dueño, en su moneda, y
-          el pago le llega directo.
-        </p>
+        <Reveal>
+          <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">De la Quebrada al Caribe</h2>
+          <p className="mt-4 max-w-xl text-lg text-ink-muted">
+            Alojamientos de dueños en los siete países donde funciona Ripio. El precio es el del dueño, en su moneda, y
+            el pago le llega directo.
+          </p>
+        </Reveal>
 
         <div
           role="tablist"
@@ -165,11 +168,18 @@ export function Destinations({ lodgings }: { lodgings?: Lodging[] }) {
         aria-labelledby={`tab-${town.code}`}
         className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <TownCard town={town} />
-        {town.lodgings.slice(0, 2).map((l) => (
-          <LodgingPhotoCard key={l.id} lodging={l} />
+        {/* Keyed by town so a tab switch replays the staggered entrance. */}
+        <Reveal key={`${town.code}-town`} className="h-full">
+          <TownCard town={town} />
+        </Reveal>
+        {town.lodgings.slice(0, 2).map((l, i) => (
+          <Reveal key={`${town.code}-${l.id}`} delay={(i + 1) * 80} className="h-full">
+            <LodgingPhotoCard lodging={l} />
+          </Reveal>
         ))}
-        <AccentCard town={town} />
+        <Reveal key={`${town.code}-cta`} delay={240} className="h-full">
+          <AccentCard town={town} />
+        </Reveal>
       </div>
 
       <p className="mt-8 text-center">
