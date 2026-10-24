@@ -1,5 +1,10 @@
 import { AMENITY_BY_CODE, AMENITY_BY_ID, CANCELLATION_POLICIES } from "./catalog.js";
-import { buildAvailability, nightsBetween } from "./availability.js";
+import {
+  addDays,
+  buildAvailability,
+  isoDay,
+  nightsBetween,
+} from "./availability.js";
 import { SERVICE_FEE_PCT } from "./types.js";
 import {
   BUSINESSES,
@@ -10,7 +15,15 @@ import {
   PROPERTIES,
   RATE_RULES,
 } from "./inventory.js";
-import type { AvailabilityNight, Booking, Listing } from "./types.js";
+import type {
+  AvailabilityNight,
+  Booking,
+  BookingStatus,
+  ClaimReason,
+  ClaimResolution,
+  EscrowStatus,
+  Listing,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // In-memory store. Everything the HTTP layer touches goes through this repo —
@@ -449,6 +462,8 @@ export interface ListingDetail {
     partial_refund_days: number;
   };
   units_available: number;
+  /** Unavailable nights (YYYY-MM-DD) from today on — blocked or sold out. */
+  occupied: string[];
 }
 
 /** The Owner's wallet for a listing — the x402 `payTo` for a Booking. */
@@ -522,7 +537,21 @@ export function getListingBySlug(slug: string): ListingDetail | null {
     units_available: LISTING_UNITS.filter(
       (u) => u.listing_id === listing.id && u.status === "active"
     ).length,
+    occupied: occupiedNights(listing.id),
   };
+}
+
+function occupiedNights(listingId: string): string[] {
+  const today = isoDay(new Date());
+  return availability
+    .filter(
+      (n) =>
+        n.listing_id === listingId &&
+        n.night >= today &&
+        (n.status !== "open" || n.units_available < 1)
+    )
+    .map((n) => n.night)
+    .sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +589,12 @@ export function bookListing(slug: string, input: BookInput): BookResult {
     total_minor: qr.quote.total_minor,
     status: "confirmed",
     created_at: new Date().toISOString(),
+    // The mock books already-paid: the Escrow is funded on creation and the
+    // Cancellation deadline sits 5 days before check-in (ADR-0006).
+    escrow_status: "funded",
+    cancel_deadline: isoDay(addDays(new Date(`${input.checkin}T00:00:00Z`), -5)),
+    first_release_at: null,
+    final_release_at: null,
   };
   bookings.push(booking);
 
@@ -692,6 +727,7 @@ export function cancelBooking(id: string, input: CancelInput): CancelResult {
   const refund_minor = Math.round((booking.total_minor * pct) / 100);
 
   booking.status = "cancelled";
+  booking.escrow_status = "refunded";
   for (const n of nightsBetween(booking.checkin, booking.checkout)) {
     const row = nightIndex.get(`${booking.listing_id}|${n}`);
     if (!row) continue;
@@ -718,4 +754,188 @@ export function cancelBooking(id: string, input: CancelInput): CancelResult {
       ),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// booking reads + Claims — the Agent's "my bookings" surface (ADR-0006).
+// The view builders are shared with the supabase leg so both emit the exact
+// same shape; only the lookups differ.
+// ---------------------------------------------------------------------------
+
+/** Ownership proof until real auth lands — either must match the booking. */
+export interface BookingOwner {
+  guest_ref?: string;
+  traveler_id?: string;
+}
+
+export interface BookingSummary {
+  booking_id: string;
+  listing_slug: string;
+  status: BookingStatus;
+  escrow_status: EscrowStatus;
+  checkin: string;
+  checkout: string;
+  guests: number;
+  nights_count: number;
+  total_minor: number;
+  total_display: string;
+  currency: string;
+  created_at: string;
+}
+
+export interface BookingDetail extends BookingSummary {
+  cancel_deadline: string | null;
+  first_release_at: string | null;
+  final_release_at: string | null;
+  /** Present only when the booking has (or had) a Claim. */
+  claim_status?: "open" | "resolved";
+  claim_reason?: ClaimReason;
+  claim_resolution?: ClaimResolution;
+}
+
+/** The row-level fields both legs hand to the view builders. */
+export interface BookingRecord {
+  id: string;
+  listing_slug: string;
+  status: BookingStatus;
+  escrow_status: EscrowStatus;
+  checkin: string;
+  checkout: string;
+  guests: number;
+  total_minor: number;
+  currency: string;
+  created_at: string;
+  cancel_deadline: string | null;
+  first_release_at: string | null;
+  final_release_at: string | null;
+  claim_reason: ClaimReason | null;
+  claim_resolution: ClaimResolution | null;
+}
+
+export function toBookingSummary(r: BookingRecord): BookingSummary {
+  return {
+    booking_id: r.id,
+    listing_slug: r.listing_slug,
+    status: r.status,
+    escrow_status: r.escrow_status,
+    checkin: r.checkin,
+    checkout: r.checkout,
+    guests: r.guests,
+    nights_count: nightsBetween(r.checkin, r.checkout).length,
+    total_minor: r.total_minor,
+    total_display: formatMoney(r.total_minor, r.currency),
+    currency: r.currency,
+    created_at: r.created_at,
+  };
+}
+
+export function toBookingDetail(r: BookingRecord): BookingDetail {
+  const claim_status =
+    r.status === "claim_open" ? "open" : r.claim_resolution ? "resolved" : undefined;
+  return {
+    ...toBookingSummary(r),
+    cancel_deadline: r.cancel_deadline,
+    first_release_at: r.first_release_at,
+    final_release_at: r.final_release_at,
+    claim_status,
+    claim_reason: claim_status ? (r.claim_reason ?? undefined) : undefined,
+    claim_resolution: r.claim_resolution ?? undefined,
+  };
+}
+
+export type BookingDetailResult =
+  | { ok: true; booking: BookingDetail }
+  | { ok: false; error: { code: "not_found" | "forbidden"; message: string } };
+
+export type ClaimErrorCode =
+  | "not_found"
+  | "forbidden"
+  | "invalid_state"
+  | "claim_window_closed";
+
+export interface ClaimInput extends BookingOwner {
+  reason: ClaimReason;
+  evidence?: Record<string, unknown> | unknown[];
+}
+
+export type ClaimResult =
+  | { ok: true; claim: { booking_id: string; status: "claim_open" } }
+  | { ok: false; error: { code: ClaimErrorCode; message: string } };
+
+/** Claims close 24 h after check-in (same rule as open_claim() in Postgres). */
+export const CLAIM_WINDOW_MS = 24 * 3_600_000;
+
+function mockRecord(b: Booking): BookingRecord {
+  const listing = LISTINGS.find((l) => l.id === b.listing_id);
+  return {
+    id: b.id,
+    listing_slug: listing?.slug ?? "",
+    status: b.status,
+    escrow_status: b.escrow_status ?? "funded",
+    checkin: b.checkin,
+    checkout: b.checkout,
+    guests: b.guests,
+    total_minor: b.total_minor,
+    currency: listing?.currency ?? "USD",
+    created_at: b.created_at,
+    cancel_deadline: b.cancel_deadline ?? null,
+    first_release_at: b.first_release_at ?? null,
+    final_release_at: b.final_release_at ?? null,
+    claim_reason: b.claim_reason ?? null,
+    claim_resolution: b.claim_resolution ?? null,
+  };
+}
+
+// The mock Booking carries no traveler_id, so only guest_ref can prove it.
+function mockOwns(b: Booking, owner: BookingOwner): boolean {
+  return owner.guest_ref != null && b.guest_ref === owner.guest_ref;
+}
+
+export function listBookings(owner: BookingOwner): BookingSummary[] {
+  if (owner.guest_ref == null) return [];
+  // Newest first; reverse() first so same-millisecond rows keep insert order.
+  return [...bookings]
+    .reverse()
+    .filter((b) => mockOwns(b, owner))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((b) => toBookingSummary(mockRecord(b)));
+}
+
+export function getBookingDetail(
+  id: string,
+  owner?: BookingOwner
+): BookingDetailResult {
+  const b = bookings.find((x) => x.id === id);
+  if (!b)
+    return { ok: false, error: { code: "not_found", message: "booking not found" } };
+  if (owner && (owner.guest_ref != null || owner.traveler_id != null) && !mockOwns(b, owner))
+    return { ok: false, error: { code: "forbidden", message: "not your booking" } };
+  return { ok: true, booking: toBookingDetail(mockRecord(b)) };
+}
+
+export function openClaim(id: string, input: ClaimInput): ClaimResult {
+  const b = bookings.find((x) => x.id === id);
+  if (!b)
+    return { ok: false, error: { code: "not_found", message: "booking not found" } };
+  if (!mockOwns(b, input))
+    return { ok: false, error: { code: "forbidden", message: "not your booking" } };
+  if (b.status !== "confirmed" && b.status !== "in_progress")
+    return {
+      ok: false,
+      error: { code: "invalid_state", message: "claim needs an active booking" },
+    };
+  if (Date.now() > Date.parse(`${b.checkin}T00:00:00Z`) + CLAIM_WINDOW_MS)
+    return {
+      ok: false,
+      error: {
+        code: "claim_window_closed",
+        message: "claims close 24h after check-in",
+      },
+    };
+
+  b.status = "claim_open";
+  b.escrow_status = "claimed";
+  b.claim_reason = input.reason;
+  b.claim_evidence = input.evidence ?? {};
+  return { ok: true, claim: { booking_id: b.id, status: "claim_open" } };
 }

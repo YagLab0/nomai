@@ -6,6 +6,13 @@ export * from "./availability.js";
 export type {
   BookInput,
   BookResult,
+  BookingDetail,
+  BookingDetailResult,
+  BookingOwner,
+  BookingSummary,
+  ClaimErrorCode,
+  ClaimInput,
+  ClaimResult,
   CancelErrorCode,
   CancelInput,
   CancelResult,
@@ -25,6 +32,9 @@ import {
   bookListing as mockBookListing,
   cancelBooking as mockCancelBooking,
   getBookingById as mockGetBookingById,
+  getBookingDetail as mockGetBookingDetail,
+  listBookings as mockListBookings,
+  openClaim as mockOpenClaim,
   getListingBySlug as mockGetListingBySlug,
   getListingPayTo as mockGetListingPayTo,
   quoteStay as mockQuoteStay,
@@ -34,6 +44,9 @@ import {
   bookListing as supabaseBookListing,
   cancelBooking as supabaseCancelBooking,
   getBookingById as supabaseGetBookingById,
+  getBookingDetail as supabaseGetBookingDetail,
+  listBookings as supabaseListBookings,
+  openClaim as supabaseOpenClaim,
   getListingBySlug as supabaseGetListingBySlug,
   getListingPayTo as supabaseGetListingPayTo,
   quoteStay as supabaseQuoteStay,
@@ -64,3 +77,9 @@ export const getListingPayTo =
   dataSource === "supabase" ? supabaseGetListingPayTo : mockGetListingPayTo;
 export const cancelBooking =
   dataSource === "supabase" ? supabaseCancelBooking : mockCancelBooking;
+export const listBookings =
+  dataSource === "supabase" ? supabaseListBookings : mockListBookings;
+export const getBookingDetail =
+  dataSource === "supabase" ? supabaseGetBookingDetail : mockGetBookingDetail;
+export const openClaim =
+  dataSource === "supabase" ? supabaseOpenClaim : mockOpenClaim;

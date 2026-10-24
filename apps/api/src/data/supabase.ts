@@ -19,11 +19,18 @@
 
 import { createSupabaseAdmin } from "../supabase.js";
 import { AMENITY_BY_CODE, AMENITY_BY_ID } from "./catalog.js";
-import { nightsBetween } from "./availability.js";
-import { formatMoney } from "./repo.js";
+import { isoDay, nightsBetween } from "./availability.js";
+import { formatMoney, toBookingDetail, toBookingSummary } from "./repo.js";
 import type {
   BookInput,
   BookResult,
+  BookingDetailResult,
+  BookingOwner,
+  BookingRecord,
+  BookingSummary,
+  ClaimErrorCode,
+  ClaimInput,
+  ClaimResult,
   CancelErrorCode,
   CancelInput,
   CancelResult,
@@ -44,7 +51,7 @@ import type {
   Property,
   RateRule,
 } from "./types.js";
-import type { Database } from "../database.types.js";
+import type { Database, Json } from "../database.types.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
@@ -343,6 +350,19 @@ async function fetchUnitsAvailable(listingId: string): Promise<number> {
   return rows.length;
 }
 
+/** Unavailable nights from today on — blocked, booked or out of units. */
+async function fetchOccupiedNights(listingId: string): Promise<string[]> {
+  const { data, error } = await client()
+    .from("availability_nights")
+    .select("night")
+    .eq("listing_id", listingId)
+    .gte("night", isoDay(new Date()))
+    .or("status.neq.open,units_available.lt.1")
+    .order("night", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => r.night);
+}
+
 /** ADR-0006: one global rule — full refund until 5 days before check-in, 50% after. */
 const GLOBAL_POLICY = {
   name: "nomai-global-5d",
@@ -506,6 +526,7 @@ export async function getListingBySlug(slug: string): Promise<ListingDetail | nu
     (m) => m.get(listing.id) ?? []
   ));
   const unitsAvailable = await fetchUnitsAvailable(listing.id);
+  const occupied = await fetchOccupiedNights(listing.id);
 
   return {
     slug: listing.slug,
@@ -556,6 +577,7 @@ export async function getListingBySlug(slug: string): Promise<ListingDetail | nu
         }
       : undefined,
     units_available: unitsAvailable,
+    occupied,
   };
 }
 
@@ -870,6 +892,121 @@ export async function cancelBooking(
       refund_payment_id: r.refund_payment_id ?? undefined,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// booking reads + Claims (ADR-0006). Reads are plain selects joined to the
+// listing slug; the Claim goes through open_claim(), with ownership checked
+// here first — the original open_claim's `guest_ref <> x and traveler_id::text
+// <> x` let NULLs through (fixed in 20261024150000); the API keeps its own
+// null-safe check so a stale DB function can't be exploited.
+// ---------------------------------------------------------------------------
+
+type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
+type BookingWithSlug = BookingRow & { listings: { slug: string } | null };
+
+const BOOKING_SELECT = "*, listings(slug)";
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toRecord(row: BookingWithSlug): BookingRecord {
+  return {
+    id: row.id,
+    listing_slug: row.listings?.slug ?? "",
+    status: row.status,
+    escrow_status: row.escrow_status,
+    checkin: row.checkin,
+    checkout: row.checkout,
+    guests: row.guests,
+    total_minor: row.total_minor,
+    currency: row.currency,
+    created_at: row.created_at,
+    cancel_deadline: row.cancel_deadline,
+    first_release_at: row.first_release_at,
+    final_release_at: row.final_release_at,
+    claim_reason: row.claim_reason,
+    claim_resolution: row.claim_resolution,
+  };
+}
+
+function owns(row: BookingRow, owner: BookingOwner): boolean {
+  return (
+    (owner.guest_ref != null && row.guest_ref === owner.guest_ref) ||
+    (owner.traveler_id != null && row.traveler_id === owner.traveler_id)
+  );
+}
+
+async function fetchBookingRow(id: string): Promise<BookingWithSlug | null> {
+  const { data, error } = await client()
+    .from("bookings")
+    .select(BOOKING_SELECT)
+    .eq("id", id)
+    .limit(1);
+  if (error) throw error;
+  return ((data ?? [])[0] as unknown as BookingWithSlug | undefined) ?? null;
+}
+
+export async function listBookings(
+  owner: BookingOwner
+): Promise<BookingSummary[]> {
+  // traveler_id is a uuid column — a malformed one would be a 22P02, not a miss.
+  if (owner.traveler_id != null && !UUID_RE.test(owner.traveler_id)) return [];
+  if (owner.guest_ref == null && owner.traveler_id == null) return [];
+  let q = client()
+    .from("bookings")
+    .select(BOOKING_SELECT)
+    .order("created_at", { ascending: false });
+  if (owner.guest_ref != null) q = q.eq("guest_ref", owner.guest_ref);
+  if (owner.traveler_id != null) q = q.eq("traveler_id", owner.traveler_id);
+  const { data, error } = await q;
+  if (error) throw error;
+  return ((data ?? []) as unknown as BookingWithSlug[]).map((r) =>
+    toBookingSummary(toRecord(r))
+  );
+}
+
+export async function getBookingDetail(
+  id: string,
+  owner?: BookingOwner
+): Promise<BookingDetailResult> {
+  const row = await fetchBookingRow(id);
+  if (!row)
+    return { ok: false, error: { code: "not_found", message: "booking not found" } };
+  if (owner && (owner.guest_ref != null || owner.traveler_id != null) && !owns(row, owner))
+    return { ok: false, error: { code: "forbidden", message: "not your booking" } };
+  return { ok: true, booking: toBookingDetail(toRecord(row)) };
+}
+
+type OpenClaimPayload =
+  | { ok: true; booking_id: string; status: "claim_open" }
+  | { ok: false; error: { code: ClaimErrorCode; message: string } };
+
+export async function openClaim(
+  id: string,
+  input: ClaimInput
+): Promise<ClaimResult> {
+  const row = await fetchBookingRow(id);
+  if (!row)
+    return { ok: false, error: { code: "not_found", message: "booking not found" } };
+  if (!owns(row, input))
+    return { ok: false, error: { code: "forbidden", message: "not your booking" } };
+
+  // open_claim takes one ref and matches it against guest_ref OR traveler_id —
+  // hand it whichever credential actually matched above.
+  const ref =
+    input.guest_ref != null && row.guest_ref === input.guest_ref
+      ? input.guest_ref
+      : (input.traveler_id as string);
+  const { data, error } = await client().rpc("open_claim", {
+    p_booking_id: id,
+    p_guest_ref: ref,
+    p_reason: input.reason,
+    p_evidence: (input.evidence ?? {}) as Json,
+  });
+  if (error) throw error;
+  const r = data as unknown as OpenClaimPayload;
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, claim: { booking_id: r.booking_id, status: "claim_open" } };
 }
 
 // ---------------------------------------------------------------------------
