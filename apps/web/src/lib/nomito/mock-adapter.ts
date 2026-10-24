@@ -8,11 +8,18 @@ import {
 } from '@/lib/lodgings';
 import { apiCardToLodging } from '@/lib/api-mapping';
 import type { ApiListingCard, ApiQuote } from '@/lib/api';
-import { MONEDAS_SPENT_KEY, SEARCH_COST_MONEDAS } from '@/lib/nomito/tools';
+import { creditFailureMessage, spendCredits } from '@/lib/nomito/credits';
+import { MONEDAS_SPENT_KEY } from '@/lib/nomito/tools';
 
 /**
  * Mock Nomito chat adapter: streams responses with OpenUI Lang programs.
  * Calls real `/api/listings` and `/api/listings/:slug/quote` endpoints.
+ *
+ * Credits (issue #17): every turn posts a `conversation` spend, and a turn
+ * that touches real /listings data posts `live_query` BEFORE the fetch — the
+ * ADR-0002 ceilings are meant to gate the query, not to bill it after the
+ * fact. A 402/429 refusal ends the run with a `credits:*` error the message
+ * UI translates.
  */
 
 const TOKEN_DELAY_MS = 28;
@@ -60,20 +67,10 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
   return '';
 }
 
-/** Post a Credit spend to the ledger via the session-authenticated proxy. Fire-and-forget. */
-function postSpend(amount: number, stage: 'conversation' | 'cached_inventory' | 'live_query') {
-  void fetch('/api/credits', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount, stage }),
-  }).catch(() => {});
-}
-
 async function fetchCatalog(): Promise<Lodging[]> {
   try {
     const res = await fetch('/api/listings');
     if (!res.ok) return [];
-    postSpend(1, 'cached_inventory');
     const body = (await res.json()) as { results?: ApiListingCard[] };
     return (body?.results ?? []).map(apiCardToLodging);
   } catch {
@@ -86,7 +83,6 @@ async function fetchQuoteApi(slug: string, checkin: string, checkout: string, gu
     const qs = new URLSearchParams({ checkin, checkout, guests: String(guests) });
     const res = await fetch(`/api/listings/${encodeURIComponent(slug)}/quote?${qs.toString()}`);
     if (!res.ok) return null;
-    postSpend(SEARCH_COST_MONEDAS, 'live_query');
     return (await res.json()) as ApiQuote;
   } catch {
     return null;
@@ -153,16 +149,32 @@ function langBlock(program: string): string {
   return `\n\n\`\`\`openui-lang\n${program}\n\`\`\``;
 }
 
-type Plan = { text: string; monedasSpent?: number };
-
-async function plan(text: string, isFirstTurn: boolean): Promise<Plan> {
-  const t = text.toLowerCase();
-  const mentionsTown = NORTE_KEYWORDS.some((x) => t.includes(x)) || placeIn(t) !== null;
+/**
+ * Does this turn need real /listings data (a live_query spend) or is it just
+ * conversation? The fetch stays inside plan() — this predicate is the
+ * pre-flight check that gates the charge before any catalog call.
+ */
+function needsLiveQuery(t: string): boolean {
   const wantsBooking = /reserv|confirm|elegir|quiero esa|quiero ese|me quedo/.test(t);
+  const wantsSearch =
+    NORTE_KEYWORDS.some((x) => t.includes(x)) ||
+    placeIn(t) !== null ||
+    /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje|playa|viaj/.test(t);
+  return wantsBooking || wantsSearch;
+}
+
+async function plan(text: string, isFirstTurn: boolean): Promise<string> {
+  const t = text.toLowerCase();
+
+  if (!needsLiveQuery(t)) {
+    return isFirstTurn
+      ? '¡Hola, Lucas! Contame un poco más: ¿a dónde te tienta ir, cuántas noches y cuántas personas van? Con eso te busco opciones.'
+      : 'Tomé nota. ¿Te busco algo en el Norte argentino, Florianópolis, Cartagena, Tulum, Atacama o Colonia? Decime fechas y cuántos son.';
+  }
 
   const inventory = await fetchCatalog();
 
-  if (wantsBooking) {
+  if (/reserv|confirm|elegir|quiero esa|quiero ese|me quedo/.test(t)) {
     const lodging = inventory.find((l) => t.includes(l.name.toLowerCase()) || t.includes(l.id)) ?? inventory[0];
     if (lodging) {
       // Default to stay starting 7 days ahead for 3 nights
@@ -174,32 +186,53 @@ async function plan(text: string, isFirstTurn: boolean): Promise<Plan> {
       const checkout = outDate.toISOString().slice(0, 10);
 
       const quote = await fetchQuoteApi(lodging.id, checkin, checkout, lodging.guests || 2);
-      return {
-        text: `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle; el pago va directo al dueño y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging, quote, 3))}`,
-      };
+      return `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle; el pago va directo al dueño y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging, quote, 3))}`;
     }
   }
 
-  if (mentionsTown || /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje|playa|viaj/.test(t)) {
-    const options = shortlistFor(text, inventory);
-    return {
-      text: `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.${langBlock(shortlistProgram(options))}`,
-      monedasSpent: SEARCH_COST_MONEDAS,
-    };
-  }
+  const options = shortlistFor(text, inventory);
+  return `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.${langBlock(shortlistProgram(options))}`;
+}
 
+/** End the run with a credits error the message UI translates. */
+function refused(code: 'no-credits' | 'daily-cap', spent: number) {
   return {
-    text: isFirstTurn
-      ? '¡Hola, Lucas! Contame un poco más: ¿a dónde te tienta ir, cuántas noches y cuántas personas van? Con eso te busco opciones.'
-      : 'Tomé nota. ¿Te busco algo en el Norte argentino, Florianópolis, Cartagena, Tulum, Atacama o Colonia? Decime fechas y cuántos son.',
-  };
+    status: {
+      type: 'incomplete',
+      reason: 'error',
+      error: creditFailureMessage(code),
+    },
+    ...(spent > 0 ? { metadata: { custom: { [MONEDAS_SPENT_KEY]: spent } } } : {}),
+  } as const;
 }
 
 export const mockAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const userText = lastUserText(messages);
     const isFirstTurn = messages.filter((m) => m.role === 'user').length <= 1;
-    const { text, monedasSpent } = await plan(userText, isFirstTurn);
+    let spent = 0;
+
+    // Conversation cover — same contract as eveAdapter.
+    const cover = await spendCredits('conversation');
+    if (cover.ok) {
+      spent += cover.amount;
+    } else if (cover.code === 'no-credits' || cover.code === 'daily-cap') {
+      yield refused(cover.code, spent);
+      return;
+    }
+
+    // Live stage paid before touching /listings (ADR-0002).
+    if (needsLiveQuery(userText.toLowerCase())) {
+      const live = await spendCredits('live_query', { adapter: 'mock' });
+      if (live.ok) {
+        spent += live.amount;
+      } else if (live.code === 'no-credits' || live.code === 'daily-cap') {
+        yield refused(live.code, spent);
+        return;
+      }
+    }
+
+    const text = await plan(userText, isFirstTurn);
 
     await sleep(500, abortSignal);
 
@@ -211,10 +244,10 @@ export const mockAdapter: ChatModelAdapter = {
       await sleep(TOKEN_DELAY_MS, abortSignal);
     }
 
-    if (monedasSpent && !abortSignal.aborted) {
+    if (spent > 0 && !abortSignal.aborted) {
       yield {
         content: [{ type: 'text', text: acc }],
-        metadata: { custom: { [MONEDAS_SPENT_KEY]: monedasSpent } },
+        metadata: { custom: { [MONEDAS_SPENT_KEY]: spent } },
       };
     }
   },

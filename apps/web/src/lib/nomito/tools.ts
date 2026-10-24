@@ -10,6 +10,5 @@ export interface ShortlistArgs {
 
 export type BookingQuoteArgs = BookingQuote;
 
-/** Metadata key on an assistant message that ran a search. */
+/** Metadata key carrying the monedas an assistant message actually spent. */
 export const MONEDAS_SPENT_KEY = 'monedasSpent';
-export const SEARCH_COST_MONEDAS = 3;
