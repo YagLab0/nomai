@@ -17,8 +17,17 @@ import { serve } from "@hono/node-server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { Hono } from "hono";
-import { getAddress } from "viem";
-import { CAIP2, CONFIG, NETWORK, PAY_TO, PRICE, facilitator } from "./x402.js";
+import { getAddress, parseUnits } from "viem";
+import {
+  ACCEPTED_TOKENS,
+  CAIP2,
+  CONFIG,
+  NEEDS_PERMIT2_SPONSORING,
+  NETWORK,
+  PAY_TO,
+  PRICE,
+  facilitator,
+} from "./x402.js";
 
 const app = new Hono();
 
@@ -30,29 +39,48 @@ app.get("/free", (c) =>
 if (PAY_TO) {
   const server = new x402ResourceServer(facilitator);
   server.register("eip155:*", new ExactEvmScheme());
+  const payTo = getAddress(PAY_TO);
 
   app.use(
     "*",
     paymentMiddleware(
       {
         "POST /paid": {
-          accepts: [
-            {
-              scheme: "exact",
-              network: CAIP2,
-              payTo: getAddress(PAY_TO),
-              price: {
-                amount: PRICE,
-                asset: CONFIG.usdc,
-                // The EIP-712 domain the token signs with, taken from the same
-                // per-network entry as the address above so the two cannot desync.
-                extra: CONFIG.domain,
+          // One entry per accepted asset — the buyer pays in whichever it holds.
+          // For permit2 assets (the Ripio wFIAT tokens) the EIP-712 domain rides
+          // in `extra` and the route advertises eip2612GasSponsoring so the
+          // client signs the sponsored permit instead of an EIP-3009 auth.
+          accepts: ACCEPTED_TOKENS.map((token) => ({
+            scheme: "exact",
+            network: CAIP2,
+            payTo,
+            price: {
+              amount: parseUnits(PRICE, token.decimals).toString(),
+              asset: token.address,
+              extra: {
+                ...token.domain,
+                ...(token.transferMethod === "permit2"
+                  ? { assetTransferMethod: "permit2" }
+                  : {}),
               },
             },
-          ],
+          })),
           // What the caller is buying. This is shown to the paying agent, so it
           // should describe the resource, not the project.
-          description: "One call to the nomai paid API",
+          description: `One call to the nomai paid API — ${PRICE} ${ACCEPTED_TOKENS.map((t) => t.symbol.toUpperCase()).join("/")} on ${NETWORK}`,
+          ...(NEEDS_PERMIT2_SPONSORING
+            ? {
+                extensions: {
+                  eip2612GasSponsoring: {
+                    info: {
+                      description:
+                        "The facilitator sponsors the EIP-2612 permit to Permit2.",
+                      version: "1",
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       },
       server
@@ -86,4 +114,6 @@ serve({ fetch: app.fetch, port });
 console.log(`nomai x402 seller listening on http://localhost:${port}`);
 console.log(`  network:     ${NETWORK} (${CAIP2})`);
 console.log(`  facilitator: ${CONFIG.facilitator}`);
-console.log(`  price:       ${PRICE} raw units of USDC`);
+console.log(
+  `  price:       ${PRICE} in ${ACCEPTED_TOKENS.map((t) => t.symbol.toUpperCase()).join(", ")}`
+);
