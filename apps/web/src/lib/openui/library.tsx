@@ -27,6 +27,8 @@ import {
 } from '@openuidev/react-lang';
 import { z } from 'zod/v4';
 
+import { ProseText } from '@/components/app/chat/prose-text';
+
 const GAP_CLASS = { sm: 'gap-2', md: 'gap-3', lg: 'gap-5' } as const;
 
 const SIZE_CLASS = {
@@ -41,7 +43,9 @@ const textContentProps = z.object({
 });
 
 function TextContentView({ props }: ComponentRenderProps<z.infer<typeof textContentProps>>) {
-  return <p className={SIZE_CLASS[props.size ?? 'body']}>{props.text}</p>;
+  const size = props.size ?? 'body';
+  if (size === 'body') return <ProseText text={props.text} />;
+  return <p className={SIZE_CLASS[size]}>{props.text}</p>;
 }
 
 const TextContent = defineComponent({
