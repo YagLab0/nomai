@@ -62,6 +62,40 @@ head = SectionHeader("Compará tus opciones", "Cafayate")
 table = Table(["", "Posada Los Cardones", "Cabaña El Molino"], [["Precio por noche", "US$ 60", "US$ 74"], ["Huéspedes máx.", "4", "6"], ["Mínimo de noches", "2", "1"]])`,
   },
   {
+    name: "listing detail with map + calendar (SectionHeader + ImageGrid + DetailList + AmenityChips + MapCard + AvailabilityPicker)",
+    code: `root = Stack([head, photos, details, amenities, map, calendar])
+head = SectionHeader("Posada Los Cardones", "Cafayate")
+photos = ImageGrid(["https://ejemplo.com/cover.jpg", "https://ejemplo.com/2.jpg"], "Posada Los Cardones")
+details = DetailList([{label: "Check-in", value: "15:00"}, {label: "Check-out", value: "11:00"}, {label: "Huéspedes máx.", value: "4"}])
+amenities = AmenityChips(["Wi-Fi", "Piscina"])
+map = MapCard(-26.0735, -65.9775, "Posada Los Cardones, Cafayate", 14)
+calendar = AvailabilityPicker(["2026-11-03", "2026-11-04", "2026-11-12"], @ToAssistant("Cotizá Posada Los Cardones con estas fechas"))`,
+  },
+  {
+    name: "quote with Service fee (QuoteCard serviceFee)",
+    code: `root = Stack([quote])
+quote = QuoteCard("Posada Los Cardones · 3 noches", [{label: "3 noches", value: "US$ 180"}, {label: "Limpieza", value: "US$ 15"}, {label: "Total", value: "US$ 201", kind: "total"}], @ToAssistant("Sí, confirmo la reserva"), "US$ 6")`,
+  },
+  {
+    name: "booking status (BookingCard status + cancel, Stepper)",
+    code: `root = Stack([ticket, steps])
+ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Check-out", value: "2026-03-15"}, {label: "Total", value: "US$ 201"}], "confirmed", @ToAssistant("Quiero cancelar la reserva bkg_12"))
+steps = Stepper([{label: "Pago", status: "done"}, {label: "Confirmada", status: "current"}, {label: "Estadía", status: "next"}, {label: "Finalizada", status: "next"}])`,
+  },
+  {
+    name: "claim (SectionHeader + StatusBadge + ClaimCard)",
+    code: `root = Stack([head, badge, claim])
+head = SectionHeader("Reclamo", "Posada Los Cardones · bkg_12")
+badge = StatusBadge("En curso", "terra")
+claim = ClaimCard("bkg_12", @ToAssistant("Abrí un reclamo para la reserva bkg_12"))`,
+  },
+  {
+    name: "trip summary (MetricRow + StatusBadge)",
+    code: `root = Stack([head, metrics, Stack([StatusBadge("Reembolsada", "neutral"), StatusBadge("Pago pendiente", "amber")], "row", "sm")])
+head = SectionHeader("Tus viajes")
+metrics = MetricRow([{label: "Pagado", value: "US$ 402", note: "2 reservas"}, {label: "Noches", value: "6"}, {label: "Service fee", value: "US$ 12"}])`,
+  },
+  {
     name: "bare Stack (single inline TextContent child)",
     code: `root = Stack([TextContent("Solo una nota corta")])`,
   },
@@ -80,6 +114,12 @@ nope = NopeCard("x")`,
     name: "wrong arg type (number for string prop)",
     code: `root = Stack([h])
 h = SectionHeader(42)`,
+    expectCode: "type-mismatch",
+  },
+  {
+    name: "enum value outside the contract (StatusBadge tone)",
+    code: `root = Stack([b])
+b = StatusBadge("Confirmada", "green")`,
     expectCode: "type-mismatch",
   },
 ];
