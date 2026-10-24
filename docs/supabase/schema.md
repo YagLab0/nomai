@@ -1,112 +1,112 @@
 # Schema
 
-Tables in `public`, all behind Row Level Security. Domain terms follow
-`GLOSSARY.md`; shaping decisions are in `docs/adr/0001–0004`.
+Two halves living in `public`, all behind Row Level Security:
+
+1. **The publications model** — `businesses` → `properties` → `listings` plus
+   the inventory satellites. Field-for-field mirror of
+   `apps/api/src/data/types.ts` (the modelo-datos-publicaciones spec; see
+   `docs/informe-mock-listings.md` §6). Text PKs equal the mock ids, so the
+   seed is a straight row copy. Money is always `*_minor` bigint.
+2. **The platform tables** — `travelers`, `agent_wallets`, `credit_ledger`:
+   nomai concepts (`GLOSSARY.md`) that the publications model doesn't cover.
 
 ```
-auth.users
-   │ 1:1                    ┌──────────────┐
-   ▼                        │    owners    │◄──────────────┐
-┌────────────┐   1:1        └──────┬───────┘               │ owner_id
-│ travelers  │──────────┐          │ 1:N                   │
-└─────┬──────┘          │          ▼                       │
-      │ 1:N             │   ┌────────────┐                 │
-      ▼                 │   │  lodgings  │─────────────────┘
-┌───────────────┐       │   └─────┬──────┘
-│ agent_wallets │       │         │ 1:N
-└───────────────┘       │         ▼
-      │ 1:N             │   ┌──────────┐        ┌───────────────┐
-      └─────────────────┴──►│ bookings │◄───────│ credit_ledger │ (booking_id, optional)
-                            └──────────┘  1:N   └───────────────┘
+businesses ──1:N── properties ──1:N── listings ──1:N── availability_nights
+    │                                     │          ├─ listing_amenities ──N── amenities
+    └──1:N── cancellation_policies        │          ├─ listing_photos
+          (business_id null = default)    │          ├─ listing_units
+                                          │          └─ rate_rules
+auth.users ──1:1── travelers              └─1:N── bookings ──1:N── payments
+    │               │ 1:N                        ▲              (x402 receipt)
+    │               ▼                            │
+    └──1:1── agent_wallets            credit_ledger (booking_id, optional)
 ```
 
-## `travelers`
+## Publications
 
-The Traveler — one row per `auth.users`, created by the app at signup.
+### `businesses`
 
-| Column | Notes |
+The Operator (the domain's **Owner**). `payout_address` is the x402 `payTo`
+of every Booking — money settles straight to the Owner (ADR-0001).
+Platform addition not in the model: `user_id` links to `auth.users` for the
+owner dashboard. `status`: `pending`/`active`/`suspended`.
+
+### `properties`
+
+The physical place — `property_type` (`hotel`…`posada`…`otro`), address,
+lat/lng, `country_code`, and `timezone` which defines what a "night" is.
+`checkin_time`/`checkout_time` live here.
+
+### `listings`
+
+The sellable publication — the unit the Agent searches, quotes and books.
+`kind` is `entire_place`/`room` (the property type moved to `properties`).
+`slug` (citext) is the public identifier agents quote. `base_price_minor`,
+`cleaning_fee_minor`, `min_nights`/`max_nights`, `max_guests`, `rating`,
+`reviews`, `instant_book`, house-rule flags, `status`
+(`draft`/`published`/`paused`/`archived`) — **only `published` is visible**
+to agents and the public (enforced by RLS).
+
+### Satellites
+
+| Table | Purpose |
 |---|---|
-| `id` | PK → `auth.users(id)`, cascade |
-| `full_name`, `phone`, `country_code` | Profile basics |
-| `phone_verified_at` | Tier 1 of verification (ADR-0002): small free grant |
-| `funded_at` | Tier 2a: first Ripio funding — reuses Ripio's KYC |
-| `self_verified_at` | Tier 2b alternative: Self proof-of-human |
-| `gov_id_verified_at` | Tier 3: government ID, only at Booking time |
+| `amenities` | Canonical catalog; `code` is the search filter key, `category` groups it |
+| `listing_amenities` | N:M with optional `detail`; PK `(listing_id, amenity_id)` |
+| `listing_photos` | `url`, `alt_text`, `position`, `is_cover` |
+| `listing_units` | Rentable units of a listing (hotel rooms); `status` active/maintenance/inactive |
+| `rate_rules` | Seasonal `nightly_price_minor` over a date range; `priority` breaks overlaps |
+| `availability_nights` | PK `(listing_id, night)` — `open`/`blocked`/`booked`, `units_available`, `price_minor` override (null → rate_rule → base_price) |
+| `cancellation_policies` | `full_refund_days`, `partial_refund_pct`, `partial_refund_days`; `business_id` null = platform default |
 
-## `agent_wallets`
+### `bookings`
 
-One per Traveler (unique on `traveler_id`, ADR-0003). The address the
-Traveler's Agent pays Bookings from; the Traveler never operates it.
+Mock shape plus two platform columns: `traveler_id` (→ `travelers`, for RLS
+and dashboards) and `currency` (snapshot of the listing's, so `total_minor`
+stays interpretable). `guest_ref` is the caller-supplied reference the agent
+passes. `status`: `pending_payment` → `confirmed` → `cancelled`/`completed`/
+`refunded`.
 
-| Column | Notes |
-|---|---|
-| `address` | `0x…` check, unique |
-| `network` | Default `celo-sepolia` |
-| `erc8004_agent_id` | Verifiable Agent identity, when registered |
+### `payments`
 
-Signing-key custody is an open question (ADR-0003) — **no keys are stored
-here, ever.**
+The x402 settlement receipt — `payer` (the Traveler's Agent wallet),
+`pay_to` (`businesses.payout_address`), `amount_minor`, `asset`, `network`,
+`tx_hash`, `facilitator_ref` (the payment-identifier extension for
+reconciling the ledger).
 
-## `owners`
+## Platform
 
-The lodging host. `user_id` links to `auth.users` for the owner dashboard
-(`/app/owner`); nullable while the Owner hasn't claimed an account.
+### `travelers`
 
-| Column | Notes |
-|---|---|
-| `slug` | Public URL part (`/owners/[slug]`), unique |
-| `wallet` | Settlement address — every Booking's x402 `pay_to` (ADR-0001) |
-| `verified`, `response_time`, `bio`, `since` | Card/dashboard fields |
+One row per `auth.users`. Verification tiers as timestamps (ADR-0002):
+`phone_verified_at` → `funded_at`/`self_verified_at` → `gov_id_verified_at`
+(government ID only at Booking time).
 
-## `lodgings`
+### `agent_wallets`
 
-Marketplace inventory. Mirrors `apps/web/src/lib/lodgings.ts`; `photo_key`
-and `tone` feed the existing PhotoKey/ArtTone artwork system.
+One per Traveler (unique `traveler_id`, ADR-0003): `address`, `network`,
+`erc8004_agent_id`. No keys — custody is an open question.
 
-| Column | Notes |
-|---|---|
-| `kind` | `posada` `cabana` `departamento` `casa` `hostal` `hotel-boutique` |
-| `currency` | Ripio fiats only: `ARS BRL CLP COP MXN UYU` |
-| `price_per_night` | In `currency`; the Traveler never sees USD (ADR-0001) |
-| `rating`, `reviews` | Denormalized aggregates (added in migration 2) |
-| `amenities` | `text[]` |
+### `credit_ledger`
 
-## `bookings`
+Credits (*monedas Nomai*) as a signed ledger: `amount` +/−, `kind`
+(`purchase`/`free_grant`/`spend`/`refund`/`adjustment`), `stage`
+(`conversation`/`cached_inventory`/`live_query`), optional `booking_id`,
+`reference`, `meta`. Balance = `sum(amount)`; grants are non-withdrawable —
+no transfer kind exists.
 
-A paid reservation settled by x402 in wFIAT, direct to the Owner's wallet.
-
-| Column | Notes |
-|---|---|
-| `status` | `pending → settled`, or `cancelled → refunded` |
-| `subtotal`, `fx_fee`, `total`, `currency` | Captured at quote time; `fx_fee` is the platform's conversion fee, shown as its own line (ADR-0001), null for same-currency Bookings |
-| `quote` | `jsonb` — the `BookingQuote` lines shown at confirmation |
-| `pay_to` | The Owner's wallet, snapshotted at Booking time |
-| `agent_wallet_id`, `tx_hash`, `network` | Settlement trail on Celo |
-| `cancelled_at`, `refund_amount` | Traveler-initiated only; full refund until 7 days before check-in, 50% after (ADR-0004) — enforced in app code |
-
-## `credit_ledger`
-
-Credits (*monedas Nomai*) — a signed ledger, not a balance.
-
-| Column | Notes |
-|---|---|
-| `amount` | `+` purchase/grant, `−` spend; balance = `sum(amount)` per Traveler |
-| `kind` | `purchase` `free_grant` `spend` `refund` `adjustment` |
-| `stage` | Which search stage spent: `conversation` `cached_inventory` `live_query` (ADR-0002 staged costs) |
-| `reference`, `meta` | External refs (Ripio transfer, LLM run id) |
-
-Grants are non-transferable and non-withdrawable — there is intentionally
-no "withdraw" or "transfer" kind.
-
-## RLS policies
+## RLS
 
 | Table | Read | Write |
 |---|---|---|
-| `owners`, `lodgings` | Public (marketplace) | Owner on their own rows (`owners.user_id = auth.uid()`) |
-| `travelers`, `agent_wallets`, `credit_ledger` | Own rows only | Own profile only (`travelers`); rest via api |
-| `bookings` | Traveler's own; Owner sees bookings of their lodgings | api only |
+| `businesses`, `properties`, `cancellation_policies`, `amenities`, `listing_amenities`, `listing_photos`, `listing_units`, `rate_rules`, `availability_nights` | Public | Owner via `owns_business(business_id)` on `businesses`/`properties`/`listings`; rest api-only |
+| `listings` | `status='published'`, or the owner | Owner via property→business chain |
+| `travelers`, `agent_wallets`, `credit_ledger` | Own rows | Own profile only (`travelers`); rest api-only |
+| `bookings`, `payments` | Traveler's own; owner of the listing | api only |
 
-Anything the platform writes — posting Credits, settling Bookings, minting
-Agent wallets — goes through `apps/api` with the secret key, which bypasses
-RLS. That is why most tables have no insert/update policies: if the browser
-should never do it, there is no policy for it.
+Two `security definer` helpers — `owns_business(text)` and
+`owns_listing(text)` — encapsulate the owner chain and keep policies
+readable. Everything the platform writes (posting Credits, settling
+Bookings, flipping nights to `booked`) goes through `apps/api` with the
+secret key, which bypasses RLS — that's why most tables carry no
+insert/update policies.

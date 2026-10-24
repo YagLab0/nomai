@@ -35,16 +35,18 @@ Rules:
 
 ## Seed
 
-`supabase/seed.sql` is **generated** from the marketplace mock — the mock
-stays the single source of truth while the UI still renders it:
+`supabase/seed.sql` is **generated** from the publications mock in
+`apps/api/src/data` — the same arrays the `/listings` endpoints serve, so
+the DB is a straight row copy of the mock:
 
 ```bash
-cd apps/web && ../api/node_modules/.bin/tsx scripts/gen-seed.ts > ../../supabase/seed.sql
+cd apps/api && ./node_modules/.bin/tsx scripts/gen-seed.ts > ../../supabase/seed.sql
 supabase db query --linked --file supabase/seed.sql   # apply to linked DB
 ```
 
-The inserts are idempotent (`on conflict (slug) do nothing`) — re-running
-is safe.
+The inserts are idempotent (`on conflict do nothing`) — re-running is
+safe. Availability covers ~90 days from generation time; regenerate when
+the bookable window goes stale.
 
 ## Types
 
