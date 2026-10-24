@@ -5,7 +5,7 @@ import {
   isoDay,
   nightsBetween,
 } from "./availability.js";
-import { SERVICE_FEE_PCT } from "./types.js";
+import { GLOBAL_CANCELLATION_POLICY, SERVICE_FEE_PCT } from "./types.js";
 import {
   BUSINESSES,
   LISTING_AMENITIES,
@@ -451,6 +451,8 @@ export interface ListingDetail {
     timezone: string;
     checkin_time: string;
     checkout_time: string;
+    latitude: number | null;
+    longitude: number | null;
   };
   business: { name: string; slug: string };
   amenities: { code: string; name: string; detail?: string }[];
@@ -480,8 +482,6 @@ export function getListingBySlug(slug: string): ListingDetail | null {
   if (!listing || listing.status !== "published") return null;
   const property = PROPERTY_BY_ID.get(listing.property_id);
   const business = property && BUSINESS_BY_ID.get(property.business_id);
-  const policy =
-    listing.cancel_policy_id && POLICY_BY_ID.get(listing.cancel_policy_id);
   if (!property || !business) return null;
 
   return {
@@ -520,20 +520,15 @@ export function getListingBySlug(slug: string): ListingDetail | null {
       timezone: property.timezone,
       checkin_time: property.checkin_time,
       checkout_time: property.checkout_time,
+      latitude: property.latitude ?? null,
+      longitude: property.longitude ?? null,
     },
     business: { name: business.name, slug: business.slug },
     amenities: amenitiesOf(listing.id),
     photos: LISTING_PHOTOS.filter((p) => p.listing_id === listing.id)
       .sort((a, b) => a.position - b.position)
       .map((p) => ({ url: p.url, alt: p.alt_text, is_cover: p.is_cover })),
-    cancellation_policy: policy
-      ? {
-          name: policy.name,
-          full_refund_days: policy.full_refund_days,
-          partial_refund_pct: policy.partial_refund_pct,
-          partial_refund_days: policy.partial_refund_days,
-        }
-      : undefined,
+    cancellation_policy: { ...GLOBAL_CANCELLATION_POLICY },
     units_available: LISTING_UNITS.filter(
       (u) => u.listing_id === listing.id && u.status === "active"
     ).length,
