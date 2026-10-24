@@ -121,7 +121,7 @@ function shortlistProgram(options: Lodging[]): string {
   const cards = options
     .map(
       (l, i) =>
-        `c${i} = ListingCard("${esc(l.name)}", "${esc(l.city)}", "${esc(formatLocalPrice(l))} / noche", "directo con el dueño", @ToAssistant("Quiero reservar ${esc(l.name)}, ${esc(l.city)}"), "${esc(l.blurb)}", "${esc(l.code)}")`,
+        `c${i} = ListingCard("${esc(l.name)}", "${esc(l.city)}", "${esc(formatLocalPrice(l))} / noche", "directo con el dueño", @ToAssistant("Quiero reservar ${esc(l.name)}, ${esc(l.city)}"), "${esc(l.blurb)}", "${esc(l.code ?? l.city)}")`,
     )
     .join('\n');
   return `root = Stack([${refs}])\n${cards}`;

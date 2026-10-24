@@ -29,7 +29,7 @@ function TicketCard({ lodging }: { lodging: Lodging }) {
       <div className="relative flex w-32 shrink-0 flex-col items-center justify-between gap-2 border-l-2 border-dashed border-sand p-3 text-center sm:w-36">
         <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
         <span aria-hidden="true" className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-paper" />
-        <span className="font-mono text-xs tracking-widest text-ink-muted">{lodging.code}</span>
+        <span className="font-mono text-xs tracking-widest text-ink-muted">{lodging.code ?? lodging.city}</span>
         <div>
           <p className="font-mono text-sm font-semibold text-ink">{formatLocalPrice(lodging)}</p>
           <p className="font-mono text-xs text-ink-muted">≈ {formatBRL(nightlyBRL(lodging))} / noche</p>

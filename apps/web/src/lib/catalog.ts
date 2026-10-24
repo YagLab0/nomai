@@ -1,13 +1,16 @@
 import {
   KIND_LABEL,
   LODGINGS,
+  nearestTown,
   ownerBySlug,
   ownerFiat,
   townByName,
+  townsInCountry,
   type ArtTone,
   type Lodging,
   type LodgingKind,
   type Owner,
+  type Town,
 } from '@/lib/lodgings';
 import { nightsOf } from '@/lib/dates';
 import { ownerBookings, type OwnerBooking } from '@/lib/mock/owner';
@@ -27,8 +30,19 @@ import { ownerBookings, type OwnerBooking } from '@/lib/mock/owner';
 export interface LodgingDraft {
   name: string;
   kind: LodgingKind;
-  /** Town name from TOWNS, in the Owner's country. */
-  town: string;
+  /**
+   * Where the Lodging sits: the place the Owner found with the geocoder, in
+   * their own country. Any real place can be the town — when it coincides
+   * with a listed Town the catalog backfills its data (sigla included).
+   */
+  place: {
+    name: string;
+    region?: string;
+    countryCode: string;
+    /** The searched place's center; resolves a listed Town by proximity. */
+    lat?: number;
+    lng?: number;
+  };
   guests: number;
   bedrooms: number;
   baths: number;
@@ -103,15 +117,43 @@ function slugify(name: string): string {
   return slug || 'alojamiento';
 }
 
+/** Roughly 15 km: searched places this close to a listed Town are that Town. */
+const SAME_PLACE_DEG = 0.15;
+
+/**
+ * The listed Town a searched place actually is, when they coincide: same name,
+ * or its center sits within ~15 km of one in the Owner's country.
+ */
+function listedTown(p: LodgingDraft['place'], owner: Owner): Town | null {
+  const byName = townByName(p.name);
+  if (byName && byName.countryCode === owner.countryCode) return byName;
+  if (typeof p.lat === 'number' && typeof p.lng === 'number') {
+    const near = nearestTown(p.lat, p.lng, townsInCountry(owner.countryCode));
+    if (Math.abs(near.lat - p.lat) <= SAME_PLACE_DEG && Math.abs(near.lng - p.lng) <= SAME_PLACE_DEG) {
+      return near;
+    }
+  }
+  return null;
+}
+
 /** Validates a draft for an Owner; returns the normalized fields every write stores. */
 function validate(owner: Owner, draft: LodgingDraft) {
   const name = draft.name?.trim() ?? '';
   if (name.length < 3) throw new Error('name is required');
   if (!(draft.kind in KIND_LABEL)) throw new Error('unknown kind');
-  const town = townByName(draft.town);
-  if (!town || town.countryCode !== owner.countryCode) {
+  const p = draft.place;
+  const placeName = p?.name?.trim() ?? '';
+  if (!placeName) throw new Error('town is required');
+  if (p.countryCode !== owner.countryCode) {
     throw new Error("town is not in the owner's country");
   }
+  const listed = listedTown(p, owner);
+  const town = {
+    name: listed?.name ?? placeName,
+    region: listed?.region ?? p.region ?? '',
+    countryCode: p.countryCode,
+    code: listed?.code as string | undefined,
+  };
   if (!Number.isInteger(draft.guests) || draft.guests < 1) {
     throw new Error('capacity must be at least 1');
   }
@@ -150,7 +192,7 @@ export function draftOf(l: Lodging): LodgingDraft {
   return {
     name: l.name,
     kind: l.kind,
-    town: l.city,
+    place: { name: l.city, region: l.region, countryCode: l.countryCode, lat: l.lat, lng: l.lng },
     guests: l.guests,
     bedrooms: l.bedrooms,
     baths: l.baths,
@@ -303,7 +345,7 @@ export function createCatalog(storage?: CatalogStorage, bookings: readonly Booki
     const existing = find(id);
     const draft = { ...draftOf(existing), ...patch };
     const relocating =
-      draft.town !== existing.city ||
+      draft.place?.name !== existing.city ||
       (draft.address?.trim() ?? '') !== (existing.address ?? '') ||
       draft.lat !== existing.lat ||
       draft.lng !== existing.lng;

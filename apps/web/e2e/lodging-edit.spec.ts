@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
-import { pickOption } from './helpers';
+import { pinOnMap } from './helpers';
 
 const card = (page: Page, name: string) =>
   page.locator('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
@@ -16,7 +16,7 @@ async function createLodging(page: Page, name: string) {
   await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
   await page.getByLabel('Nombre del alojamiento').fill(name);
   await next(page, 'Ubicación');
-  await pickOption(page, 'Pueblo o ciudad', 'Tilcara');
+  await pinOnMap(page);
   await page.getByLabel('Dirección').fill('Belgrano 450');
   await next(page, 'Detalles');
   await next(page, 'Fotos y precio');
@@ -41,7 +41,7 @@ test('Casa de Adobe has Upcoming Bookings: location locked, delete disabled, pri
   ).toBeVisible();
   await expect(dialog.getByText('Nuestra Señora del Rosario 165')).toBeVisible();
   await expect(page.getByLabel('Dirección')).toHaveCount(0);
-  await expect(page.getByLabel('Pueblo o ciudad')).toHaveCount(0);
+  await expect(dialog.getByText(/Tocá el mapa para marcar/)).toHaveCount(0);
   await expect(dialog.locator('.leaflet-marker-draggable')).toHaveCount(0);
 
   await next(page, 'Detalles');

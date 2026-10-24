@@ -57,6 +57,9 @@ Booking, Service fee, Escrow, Claim, FX fee) in issues, specs and code comments.
 
 ## Agent skills
 
+- When asking the user to pick between options, use the interactive
+  multiple-choice question tool instead of numbered plain-text questions.
+
 ### Issue tracker
 
 Issues and specs live as GitHub issues on `YagLab0/nomai`; use the `gh` CLI. See `docs/agents/issue-tracker.md`.

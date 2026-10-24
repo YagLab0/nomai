@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { pickOption } from './helpers';
+import { pickOption, pinOnMap } from './helpers';
 
 test('an Owner publishes a Lodging from the panel and it reaches every surface', async ({ page }) => {
   await page.goto('/app/owner');
@@ -14,8 +14,8 @@ test('an Owner publishes a Lodging from the panel and it reaches every surface',
   await pickOption(page, 'Tipo', 'Cabaña');
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
-  // 2. Ubicación (towns limited to the Owner's country)
-  await pickOption(page, 'Pueblo o ciudad', 'Tilcara');
+  // 2. Ubicación (the pin picks the nearest town in the Owner's country)
+  const town = await pinOnMap(page);
   await page.getByLabel('Dirección').fill('Belgrano 450');
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
@@ -49,7 +49,7 @@ test('an Owner publishes a Lodging from the panel and it reaches every surface',
 
   // Its ficha shows the exact address and the map with the pin.
   await page.getByRole('link', { name: 'Posada del Molino' }).first().click();
-  await expect(page.getByText('Belgrano 450, Tilcara')).toBeVisible();
+  await expect(page.getByText(`Belgrano 450, ${town}`)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.leaflet-marker-icon')).toBeVisible();
 });
 

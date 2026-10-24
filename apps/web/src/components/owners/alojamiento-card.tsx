@@ -199,7 +199,8 @@ export function AlojamientoCard({
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-center justify-between gap-2">
           <p className="font-mono text-xs tracking-widest text-ink-muted">
-            {lodging.code} · {lodging.city}
+            {lodging.code ? `${lodging.code} · ` : ''}
+            {lodging.city}
           </p>
         </div>
 

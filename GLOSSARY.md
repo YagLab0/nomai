@@ -26,8 +26,11 @@ _Avoid_: bot, assistant, Eve
 
 **Lodging**:
 A place an Owner lists for Travelers to book (posada, cabaña, departamento…),
-priced in the Owner's currency and located in the Owner's country. While it has
-an Upcoming Booking it can't be removed or relocated.
+priced in the Owner's currency and located in the Owner's country. Its town is
+whatever place the Owner finds in the map search — any real place, not a preset
+list — while the pin marks the exact spot. A sigla (CFY, TIL…) exists only for
+the listed towns; a searched place carries its geocoded name and region instead.
+While it has an Upcoming Booking it can't be removed or relocated.
 Product Spanish: *alojamiento*.
 _Avoid_: property, listing, hotel
 

@@ -13,10 +13,13 @@ function memoryStorage() {
   };
 }
 
+/** The Tilcara a geocoder would return — the wizard's pick. */
+const TILCARA = { name: 'Tilcara', region: 'Quebrada de Humahuaca', countryCode: 'AR', lat: -23.5776, lng: -65.3966 };
+
 const DRAFT: LodgingDraft = {
   name: 'Posada del Molino',
   kind: 'posada',
-  town: 'Tilcara',
+  place: TILCARA,
   guests: 4,
   bedrooms: 2,
   baths: 1,
@@ -77,6 +80,30 @@ describe('catalog.create', () => {
     expect(created.id).toBeTruthy();
   });
 
+  it('accepts an unlisted geocoded place: same fields, no sigla', () => {
+    const c = createCatalog(memoryStorage());
+    const created = c.create('ramon-guaymas', {
+      ...DRAFT,
+      place: { name: 'Villa Traful', region: 'Neuquén', countryCode: 'AR', lat: -40.65, lng: -71.4 },
+    });
+    expect(created.city).toBe('Villa Traful');
+    expect(created.region).toBe('Neuquén');
+    expect(created.countryCode).toBe('AR');
+    expect(created.code).toBeUndefined();
+  });
+
+  it('a searched place that sits on a listed Town backfills its data', () => {
+    const c = createCatalog(memoryStorage());
+    const created = c.create('ramon-guaymas', {
+      ...DRAFT,
+      // The geocoder's spelling differs but the point is Tilcara.
+      place: { name: 'Tilcara centro', countryCode: 'AR', lat: -23.578, lng: -65.397 },
+    });
+    expect(created.city).toBe('Tilcara');
+    expect(created.region).toBe('Quebrada de Humahuaca');
+    expect(created.code).toBe('TIL');
+  });
+
   it('shows the new Lodging in every read query', () => {
     const c = createCatalog(memoryStorage());
     const before = c.all().length;
@@ -90,8 +117,8 @@ describe('catalog.create', () => {
 
   it.each([
     ['no name', { name: '  ' }],
-    ['an unknown town', { town: 'Narnia' }],
-    ['a town outside the Owner\u2019s country', { town: 'Florianópolis' }],
+    ['a blank place name', { place: { name: ' ', countryCode: 'AR' } }],
+    ['a place outside the Owner\u2019s country', { place: { name: 'Florianópolis', countryCode: 'BR' } }],
     ['zero guests', { guests: 0 }],
     ['no price', { pricePerNight: 0 }],
     ['a negative price', { pricePerNight: -50 }],
@@ -153,7 +180,9 @@ describe('catalog.create', () => {
   it('leaves the catalog untouched when a draft is rejected', () => {
     const c = createCatalog(memoryStorage());
     const before = c.all();
-    expect(() => c.create('ramon-guaymas', { ...DRAFT, town: 'Bogotá' })).toThrow();
+    expect(() =>
+      c.create('ramon-guaymas', { ...DRAFT, place: { name: 'Bogotá', countryCode: 'CO' } }),
+    ).toThrow();
     expect(c.all()).toEqual(before);
     expect(c.byOwner('ramon-guaymas')).toHaveLength(2);
   });
@@ -246,7 +275,7 @@ describe('catalog.update', () => {
   });
 
   it.each([
-    ['the town', { town: 'Salta' }],
+    ['the town', { place: { name: 'Salta', countryCode: 'AR' } }],
     ['the address', { address: 'San Martín 10' }],
     ['the pin', { lat: -26.08 }],
   ])('rejects changing %s while an Upcoming Booking exists', (_case, patch) => {
@@ -260,7 +289,7 @@ describe('catalog.update', () => {
     const c = createCatalog(memoryStorage());
     const l = c.byId('casa-de-adobe')!;
     const updated = c.update('casa-de-adobe', {
-      town: l.city,
+      place: { name: l.city, region: l.region, countryCode: l.countryCode, lat: l.lat, lng: l.lng },
       address: l.address,
       lat: l.lat,
       lng: l.lng,
@@ -272,7 +301,12 @@ describe('catalog.update', () => {
   it('relocates a Lodging without Upcoming Bookings, deriving the town data again', () => {
     const c = createCatalog(memoryStorage());
     const created = c.create('ramon-guaymas', DRAFT);
-    const moved = c.update(created.id, { town: 'Humahuaca', address: 'Tucumán 12', lat: -23.2, lng: -65.35 });
+    const moved = c.update(created.id, {
+      place: { name: 'Humahuaca', countryCode: 'AR' },
+      address: 'Tucumán 12',
+      lat: -23.2,
+      lng: -65.35,
+    });
     expect(moved).toMatchObject({ city: 'Humahuaca', code: 'HUM', address: 'Tucumán 12', lat: -23.2 });
     expect(c.byTown('Humahuaca').map((l) => l.id)).toContain(created.id);
     expect(c.byTown('Tilcara').map((l) => l.id)).not.toContain(created.id);
@@ -282,7 +316,7 @@ describe('catalog.update', () => {
     ['an empty name', { name: ' ' }],
     ['a zero price', { pricePerNight: 0 }],
     ['six photos', { photos: Array.from({ length: 6 }, (_, i) => `data:image/jpeg;base64,${i}`) }],
-    ['a town abroad', { town: 'Tulum' }],
+    ['a place abroad', { place: { name: 'Tulum', countryCode: 'MX' } }],
   ])('validates the edited Lodging: rejects %s', (_case, patch) => {
     const c = createCatalog(memoryStorage(), []);
     expect(() => c.update('casa-de-adobe', patch)).toThrow();

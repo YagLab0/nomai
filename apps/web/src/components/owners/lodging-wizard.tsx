@@ -17,15 +17,15 @@ import {
 
 import { CheckIcon, MapPinIcon, MinusIcon, PlusIcon } from '@/components/icons';
 import { PhotoPicker } from '@/components/owners/photo-picker';
+import { PlaceSearch } from '@/components/owners/place-search';
 import type { Pin } from '@/components/owners/pin-picker-map';
-import { catalog, CatalogFullError } from '@/lib/catalog';
+import { catalog, CatalogFullError, type LodgingDraft } from '@/lib/catalog';
+import { type Place } from '@/lib/geocode';
 import {
   FIAT_META,
   KIND_LABEL,
   LODGING_KINDS,
   ownerFiat,
-  townByName,
-  townsInCountry,
   type Lodging,
   type LodgingKind,
   type Owner,
@@ -48,9 +48,12 @@ const STEP_LABELS = ['Básico', 'Ubicación', 'Detalles', 'Fotos y precio'] as c
 interface Draft {
   name: string;
   kind: LodgingKind;
+  /** Display name of the picked place — what the search field shows. */
   town: string;
+  /** The geocoded pick: unlocks the map and carries name/region/country. */
+  place: LodgingDraft['place'] | null;
   address: string;
-  /** Starts at the town center when a town is chosen; the Owner moves it. */
+  /** Where the Owner marked it on the map — the exact spot, not the town. */
   pin: Pin | null;
   guests: number;
   bedrooms: number;
@@ -67,6 +70,7 @@ const EMPTY: Draft = {
   name: '',
   kind: 'posada',
   town: '',
+  place: null,
   address: '',
   pin: null,
   guests: 2,
@@ -134,17 +138,20 @@ function CountField({
 }) {
   const labelId = useId();
   return (
-    <div>
-      <p id={labelId} className="text-sm font-medium text-ink">
-        {label}
-        {required && (
-          <span aria-hidden="true" className="text-terra">
-            {' '}
-            *
-          </span>
-        )}
-      </p>
-      <div role="group" aria-labelledby={labelId} className="mt-2 flex items-center gap-3">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p id={labelId} className="whitespace-nowrap text-sm font-medium text-ink">
+          {label}
+          {required && (
+            <span aria-hidden="true" className="text-terra">
+              {' '}
+              *
+            </span>
+          )}
+        </p>
+        <p className="mt-0.5 text-xs text-ink-muted">{format(value)}</p>
+      </div>
+      <div role="group" aria-labelledby={labelId} className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           aria-label={`${label}: uno menos`}
@@ -154,8 +161,8 @@ function CountField({
         >
           <MinusIcon className="h-4 w-4" />
         </button>
-        <output aria-live="polite" className="min-w-[7rem] text-center text-ink">
-          {format(value)}
+        <output aria-live="polite" className="min-w-8 text-center text-sm font-medium text-ink">
+          {value}
         </output>
         <button
           type="button"
@@ -176,6 +183,7 @@ function prefill(l: Lodging): Draft {
     name: l.name,
     kind: l.kind,
     town: l.city,
+    place: { name: l.city, region: l.region, countryCode: l.countryCode, lat: l.lat, lng: l.lng },
     address: l.address ?? '',
     pin: l.lat !== undefined && l.lng !== undefined ? { lat: l.lat, lng: l.lng } : null,
     guests: l.guests,
@@ -212,7 +220,6 @@ export function LodgingWizard({
   const firstRender = useRef(true);
 
   const fiat = ownerFiat(owner);
-  const towns = townsInCountry(owner.countryCode);
   const last = STEP_LABELS.length - 1;
 
   const hints = [
@@ -232,16 +239,19 @@ export function LodgingWizard({
   }, [step]);
 
   const nameInvalid = draft.name.trim().length < 3;
-  const town = towns.find((t) => t.name === draft.town);
-  const townInvalid = !town;
   const addressInvalid = !draft.address.trim();
   const parsedPrice = Number(draft.price.replace(/\./g, '').replace(',', '.'));
   const priceInvalid = !Number.isFinite(parsedPrice) || parsedPrice <= 0;
-  const invalid = [nameInvalid, townInvalid || addressInvalid || !draft.pin, false, priceInvalid][step];
+  const invalid = [nameInvalid, !draft.place || addressInvalid || !draft.pin, false, priceInvalid][step];
 
-  function chooseTown(name: string) {
-    const t = townByName(name);
-    setDraft({ ...draft, town: name, pin: t ? { lat: t.lat, lng: t.lng } : null });
+  /** Picking a place flies the map there and waits for a fresh pin on it. */
+  function pickPlace(place: Place) {
+    setDraft((d) => ({ ...d, town: place.name, place, pin: null }));
+  }
+
+  /** Click, drag or arrows on the map: the pin is the exact spot, the town stays the searched place. */
+  function pickPin(pin: Pin) {
+    setDraft((d) => ({ ...d, pin }));
   }
 
   function next() {
@@ -260,10 +270,10 @@ export function LodgingWizard({
   function save() {
     setTouched(true);
     if (priceInvalid || !draft.pin) return;
-    const fields = {
+    const fields: LodgingDraft = {
       name: draft.name,
       kind: draft.kind,
-      town: draft.town,
+      place: draft.place!,
       address: draft.address,
       lat: draft.pin.lat,
       lng: draft.pin.lng,
@@ -356,7 +366,7 @@ export function LodgingWizard({
                       </Select.Popover>
                     </Select>
 
-                    <div className="grid gap-5 sm:grid-cols-3">
+                    <div className="flex flex-col gap-4">
                       <CountField
                         label="Capacidad"
                         required
@@ -411,41 +421,19 @@ export function LodgingWizard({
 
                 {step === 1 && !locationLocked && (
                   <div className="mt-5 flex flex-col gap-5">
-                    <Select
-                      isRequired
-                      placeholder="Elegí el pueblo"
-                      selectedKey={draft.town || null}
-                      onSelectionChange={(k) => chooseTown(k ? String(k) : '')}
-                      isInvalid={touched && townInvalid}
-                    >
-                      <Label>Pueblo o ciudad</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          {towns.map((t) => (
-                            <ListBox.Item key={t.name} id={t.name} textValue={t.name}>
-                              {t.name}
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          ))}
-                        </ListBox>
-                      </Select.Popover>
-                      <FieldError>Elegí el pueblo donde está.</FieldError>
-                    </Select>
-
-                    <TextField
-                      isRequired
-                      value={draft.address}
-                      onChange={(address) => setDraft({ ...draft, address })}
-                      isInvalid={touched && addressInvalid}
-                    >
-                      <Label>Dirección</Label>
-                      <Input fullWidth placeholder="Nuestra Señora del Rosario 165" />
-                      <FieldError>Escribí la dirección, con calle y número.</FieldError>
-                    </TextField>
+                    <div>
+                      <PlaceSearch
+                        countryCode={owner.countryCode}
+                        initialValue={draft.town}
+                        onPick={pickPlace}
+                        onClear={() => setDraft((d) => ({ ...d, place: null }))}
+                      />
+                      {touched && !draft.place && (
+                        <p className="mt-1.5 text-xs font-medium text-terra">
+                          Buscá y elegí el lugar donde está.
+                        </p>
+                      )}
+                    </div>
 
                     <div>
                       <p className="text-sm font-medium text-ink">
@@ -455,40 +443,65 @@ export function LodgingWizard({
                           *
                         </span>
                       </p>
-                      {town && draft.pin ? (
-                        <>
-                          <p className="mt-1 text-xs text-ink-muted">
-                            Arrastrá el pin hasta la puerta. Con teclado: enfocá el pin y movelo con las flechas.
+                      <p className="mt-1 text-xs text-ink-muted">
+                        {draft.place
+                          ? 'Tocá el mapa para marcar dónde está y arrastrá el pin hasta la puerta.'
+                          : 'El mapa se desbloquea cuando elegís el lugar.'}
+                      </p>
+                      <div className="mt-2 h-56 overflow-hidden rounded-card border border-sand sm:h-64">
+                        <PinPickerMap
+                          pin={draft.pin}
+                          focus={
+                            draft.place?.lat != null && draft.place?.lng != null
+                              ? { lat: draft.place.lat, lng: draft.place.lng }
+                              : null
+                          }
+                          interactive={!!draft.place}
+                          onPick={pickPin}
+                          onChange={pickPin}
+                        />
+                      </div>
+                      {draft.place && draft.pin && (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
+                          <p className="flex items-center gap-1.5">
+                            <MapPinIcon className="h-3.5 w-3.5 text-terra" />
+                            <span data-testid="pin-town" className="font-medium text-ink">
+                              {draft.town}
+                            </span>
+                            <output aria-live="polite" data-testid="pin-coords" className="font-mono">
+                              {draft.pin.lat.toFixed(4)}, {draft.pin.lng.toFixed(4)}
+                            </output>
                           </p>
-                          <div className="mt-2 h-56 overflow-hidden rounded-card border border-sand sm:h-64">
-                            <PinPickerMap
-                              center={town}
-                              pin={draft.pin}
-                              onChange={(pin) => setDraft((d) => ({ ...d, pin }))}
-                            />
-                          </div>
-                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
-                            <p className="flex items-center gap-1.5">
-                              <MapPinIcon className="h-3.5 w-3.5 text-terra" />
-                              <output aria-live="polite" data-testid="pin-coords" className="font-mono">
-                                {draft.pin.lat.toFixed(4)}, {draft.pin.lng.toFixed(4)}
-                              </output>
-                            </p>
+                          {typeof draft.place.lat === 'number' && typeof draft.place.lng === 'number' && (
                             <Button
                               variant="tertiary"
                               size="sm"
-                              onPress={() => setDraft({ ...draft, pin: { lat: town.lat, lng: town.lng } })}
+                              onPress={() => pickPin({ lat: draft.place!.lat!, lng: draft.place!.lng! })}
                             >
-                              Volver al centro del pueblo
+                              Volver al centro del lugar
                             </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="mt-2 flex h-24 items-center justify-center rounded-card border border-dashed border-sand text-center text-sm text-ink-muted">
-                          Elegí el pueblo y el mapa se centra ahí.
+                          )}
                         </div>
                       )}
+                      {touched && draft.place && !draft.pin && (
+                        <p className="mt-2 text-xs font-medium text-terra">
+                          Tocá el mapa para marcar el alojamiento.
+                        </p>
+                      )}
                     </div>
+
+                    {draft.place && (
+                      <TextField
+                        isRequired
+                        value={draft.address}
+                        onChange={(address) => setDraft({ ...draft, address })}
+                        isInvalid={touched && addressInvalid}
+                      >
+                        <Label>Dirección</Label>
+                        <Input fullWidth placeholder="Nuestra Señora del Rosario 165" />
+                        <FieldError>Escribí la dirección, con calle y número.</FieldError>
+                      </TextField>
+                    )}
                   </div>
                 )}
 

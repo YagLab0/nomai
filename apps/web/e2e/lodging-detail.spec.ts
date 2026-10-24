@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { pickOption } from './helpers';
+import { pinOnMap } from './helpers';
 
 test('the ficha shows gallery, facts, blurb, amenities, address, map and the Owner block', async ({ page }) => {
   await page.goto('/lodgings/casa-de-adobe');
@@ -73,7 +73,7 @@ test('a Lodging created in the panel gets its own ficha', async ({ page }) => {
   await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
   await page.getByLabel('Nombre del alojamiento').fill('La Posada del E2E');
   await page.getByRole('button', { name: 'Siguiente' }).click();
-  await pickOption(page, 'Pueblo o ciudad', 'Humahuaca');
+  const town = await pinOnMap(page);
   await page.getByLabel('Dirección').fill('Tucumán 12');
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByRole('heading', { name: 'Detalles' })).toBeVisible();
@@ -86,7 +86,7 @@ test('a Lodging created in the panel gets its own ficha', async ({ page }) => {
   await page.goto('/lodgings/la-posada-del-e2e');
   await expect(page.getByRole('heading', { level: 1, name: 'La Posada del E2E' })).toBeVisible();
   await expect(page.getByText('Nuevo', { exact: true })).toBeVisible();
-  await expect(page.getByText('Tucumán 12, Humahuaca')).toBeVisible();
+  await expect(page.getByText(`Tucumán 12, ${town}`)).toBeVisible();
 });
 
 test('the ficha is usable on a 390px viewport', async ({ page }) => {

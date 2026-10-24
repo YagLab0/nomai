@@ -149,12 +149,12 @@ export interface Lodging {
   id: string;
   name: string;
   kind: LodgingKind;
-  /** Town, e.g. Cafayate. */
+  /** Town — any place the Owner searched, listed or not. */
   city: string;
   region: string;
   countryCode: string;
-  /** Three-letter ticket code, e.g. CFY. */
-  code: string;
+  /** Three-letter ticket code, e.g. CFY; only listed towns have one. */
+  code?: string;
   /** Price per night in `currency`. */
   pricePerNight: number;
   currency: Fiat;
@@ -1062,6 +1062,20 @@ export const TOWNS: readonly Town[] = [
 
 export function townByName(name: string): Town | undefined {
   return TOWNS.find((t) => t.name === name);
+}
+
+/** The listed Town closest to a point — the wizard's pin defines the town this way. */
+export function nearestTown(lat: number, lng: number, towns: readonly Town[] = TOWNS): Town {
+  let best = towns[0];
+  let bestDist = Infinity;
+  for (const t of towns) {
+    const d = (t.lat - lat) ** 2 + (t.lng - lng) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = t;
+    }
+  }
+  return best;
 }
 
 /** Towns an Owner with that country can list in — the wizard's town list. */

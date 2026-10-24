@@ -309,7 +309,8 @@ export function LodgingDetail({ id }: { id: string }) {
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_19rem]">
         <div>
           <p className="font-mono text-xs tracking-widest text-ink-muted">
-            {lodging.code} · {lodging.city}
+            {lodging.code ? `${lodging.code} · ` : ''}
+            {lodging.city}
           </p>
           <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
             <h1 className="brand-display text-4xl font-medium leading-tight text-ink sm:text-5xl">

@@ -220,7 +220,9 @@ export function HeroChat({
             <div className="relative flex w-28 flex-col items-center justify-center gap-0.5 border-l-2 border-dashed border-sand p-3 text-center">
               <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
               <span aria-hidden="true" className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-paper" />
-              <span className="font-mono text-[11px] tracking-widest text-ink-muted">FLN → {lodging.code}</span>
+              <span className="font-mono text-[11px] tracking-widest text-ink-muted">
+                FLN → {lodging.code ?? lodging.city}
+              </span>
               <span className="font-mono text-sm font-semibold text-ink">{formatLocalPrice(lodging)}</span>
               <span className="font-mono text-[11px] text-ink-muted">≈ {formatBRL(nightlyBRL(lodging))} / noche</span>
             </div>
