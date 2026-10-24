@@ -448,7 +448,7 @@ export function LodgingWizard({
                           ? 'Tocá el mapa para marcar dónde está y arrastrá el pin hasta la puerta.'
                           : 'El mapa se desbloquea cuando elegís el lugar.'}
                       </p>
-                      <div className="mt-2 h-56 overflow-hidden rounded-card border border-sand sm:h-64">
+                      <div className="isolate mt-2 h-56 overflow-hidden rounded-card border border-sand sm:h-64">
                         <PinPickerMap
                           pin={draft.pin}
                           focus={
