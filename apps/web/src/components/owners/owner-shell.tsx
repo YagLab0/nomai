@@ -1,11 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Toast } from '@heroui/react';
 
 import { Logo } from '@/components/app/nav-list';
 import { CheckBadgeIcon } from '@/components/icons';
-import { currentOwner } from '@/lib/mock/owner';
+import { createClient } from '@/lib/supabase/client';
+import { initialsFor } from '@/lib/api-mapping';
+
+interface OwnerProfile {
+  name: string;
+  initials: string;
+  city?: string;
+}
 
 /**
  * The Owner's chrome: a slim top bar, no Nomito runtime — ADR-0001 has no
@@ -13,21 +21,64 @@ import { currentOwner } from '@/lib/mock/owner';
  * toggles back to "Modo viajero".
  */
 function OwnerChip() {
+  const [profile, setProfile] = useState<OwnerProfile>({
+    name: 'Dueño nomai',
+    initials: 'DN',
+  });
+
+  useEffect(() => {
+    const supabase = createClient();
+    async function load() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: bus } = await supabase
+        .from('businesses')
+        .select('name, slug, properties(city)')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (bus?.name) {
+        const properties = bus.properties as Array<{ city?: string }> | null;
+        const city = properties?.[0]?.city || '';
+        setProfile({
+          name: bus.name,
+          initials: initialsFor(bus.name),
+          city,
+        });
+      } else {
+        const name =
+          user.user_metadata?.full_name ||
+          user.email?.split('@')[0] ||
+          'Dueño';
+        setProfile({
+          name,
+          initials: initialsFor(name),
+        });
+      }
+    }
+    load();
+  }, []);
+
   return (
     <div className="flex items-center gap-3">
       <span
         aria-hidden="true"
         className="flex h-9 w-9 items-center justify-center rounded-full bg-terra-soft text-sm font-semibold text-terra-deep"
       >
-        {currentOwner.initials}
+        {profile.initials}
       </span>
       <span className="hidden min-w-0 text-sm leading-tight sm:block">
         <span className="flex items-center gap-1 truncate font-medium text-ink">
-          {currentOwner.name}
-          {currentOwner.verified && <CheckBadgeIcon className="h-3.5 w-3.5 shrink-0 text-agua" />}
-          {currentOwner.verified && <span className="sr-only">(dueño verificado)</span>}
+          {profile.name}
+          <CheckBadgeIcon className="h-3.5 w-3.5 shrink-0 text-agua" />
+          <span className="sr-only">(dueño verificado)</span>
         </span>
-        <span className="block truncate text-xs text-ink-muted">{currentOwner.city}</span>
+        {profile.city && (
+          <span className="block truncate text-xs text-ink-muted">{profile.city}</span>
+        )}
       </span>
     </div>
   );

@@ -7,10 +7,43 @@ import { NomitoAvatar } from '@/components/nomito-avatar';
 import { ASK_PARAM } from '@/lib/nomito/ask';
 import { cn } from '@/lib/utils';
 import { formatBRL } from '@/lib/format';
-import { CASA_DE_ADOBE, formatLocalPrice, nightlyBRL, quoteFor } from '@/lib/lodgings';
+import { formatLocalPrice, nightlyBRL, type Lodging } from '@/lib/lodgings';
 
-const lodging = CASA_DE_ADOBE;
-const quote = quoteFor(lodging);
+const lodging: Lodging = {
+  id: 'casa-de-adobe',
+  name: 'Casa de Adobe',
+  kind: 'casa',
+  city: 'Cafayate',
+  region: 'Valles Calchaquíes',
+  countryCode: 'AR',
+  code: 'CFY',
+  pricePerNight: 95_000,
+  currency: 'ARS',
+  blurb: 'Patio con parral, a dos cuadras de la plaza.',
+  rating: 4.9,
+  reviews: 118,
+  guests: 4,
+  bedrooms: 2,
+  baths: 1,
+  amenities: ['Patio con parral', 'Desayuno', 'Cerca de bodegas'],
+  featured: true,
+  ownerSlug: 'ramon-guaymas',
+  tone: 'terra',
+  photo: 'cafayateHabitacion',
+  pinned: { subtotalBRL: 1461.55, feeBRL: 14.6 },
+};
+
+const quote = {
+  lodging: lodging.name,
+  town: lodging.city,
+  nights: 3,
+  lines: [
+    { label: `Reserva: ${lodging.name}, ${lodging.city} · 3 noches`, value: '$ 285.000 ARS' },
+    { label: 'Conversión BRL → ARS · 1 BRL = 195 ARS', value: 'R$ 1.461,55' },
+    { label: 'Comisión de conversión Nomai', value: 'R$ 14,60', kind: 'fee' as const },
+    { label: 'Total', value: 'R$ 1.476,15 BRL', kind: 'total' as const },
+  ],
+};
 
 const ASK = 'Hola Nomito. Somos 2, venimos desde Florianópolis. Queremos una semana en Salta y Cafayate.';
 const PICK = 'Esa. Reservala por 3 noches.';

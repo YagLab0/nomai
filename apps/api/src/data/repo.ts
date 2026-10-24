@@ -442,6 +442,15 @@ export interface ListingDetail {
   units_available: number;
 }
 
+/** The Owner's wallet for a listing — the x402 `payTo` for a Booking. */
+export function getListingPayTo(slug: string): string | null {
+  const listing = LISTING_BY_SLUG.get(slug);
+  if (!listing || listing.status !== "published") return null;
+  const property = PROPERTY_BY_ID.get(listing.property_id);
+  const business = property && BUSINESS_BY_ID.get(property.business_id);
+  return business?.payout_address ?? null;
+}
+
 export function getListingBySlug(slug: string): ListingDetail | null {
   const listing = LISTING_BY_SLUG.get(slug);
   if (!listing || listing.status !== "published") return null;
@@ -560,4 +569,144 @@ export function bookListing(slug: string, input: BookInput): BookResult {
 
 export function getBookingById(id: string): Booking | undefined {
   return bookings.find((b) => b.id === id);
+}
+
+// ---------------------------------------------------------------------------
+// cancellation — Traveler-initiated (issue #18, ADR-0004). The supabase leg
+// runs the same logic inside the cancel_booking() Postgres function and
+// additionally records the refund intent in `payments`; the mock has no
+// payments table, so it only mirrors state + math.
+// ---------------------------------------------------------------------------
+
+export interface CancelInput {
+  /** Proof of ownership until real auth lands — must equal booking.guest_ref. */
+  guest_ref?: string;
+  /** Traveler id (supabase leg only — the mock Booking carries no traveler_id). */
+  traveler_id?: string;
+}
+
+export type CancelErrorCode =
+  | "not_found"
+  | "forbidden"
+  | "not_cancellable"
+  | "no_policy";
+
+export interface Cancellation {
+  booking_id: string;
+  status: "cancelled";
+  checkin: string;
+  checkout: string;
+  currency: string;
+  total_minor: number;
+  days_until_checkin: number;
+  policy_name: string;
+  refund_pct: number;
+  refund_minor: number;
+  refund_display: string;
+  /** payments row recording the refund intent — supabase leg only. */
+  refund_payment_id?: string;
+}
+
+export type CancelResult =
+  | { ok: true; cancellation: Cancellation }
+  | { ok: false; error: { code: CancelErrorCode; message: string } };
+
+// The platform default when a listing carries no cancel_policy_id: the
+// Moderada platform policy (business_id null), closest to ADR-0004's original
+// global rule. Same resolution order as cancel_booking() in Postgres.
+function platformDefaultPolicy() {
+  return (
+    POLICY_BY_ID.get("cpol_moderada") ??
+    CANCELLATION_POLICIES.find((p) => p.business_id === null)
+  );
+}
+
+export function cancelBooking(id: string, input: CancelInput): CancelResult {
+  const booking = bookings.find((b) => b.id === id);
+  if (!booking)
+    return {
+      ok: false,
+      error: { code: "not_found", message: "booking not found" },
+    };
+
+  // Ownership hook: the mock Booking has no traveler_id, so guest_ref is the
+  // only proof. A booking without one can never be cancelled here.
+  if (booking.guest_ref == null || booking.guest_ref !== input.guest_ref)
+    return {
+      ok: false,
+      error: {
+        code: "forbidden",
+        message: "only the traveler on this booking can cancel it",
+      },
+    };
+
+  if (booking.status !== "confirmed")
+    return {
+      ok: false,
+      error: {
+        code: "not_cancellable",
+        message: `booking is ${booking.status} — only confirmed bookings can be cancelled`,
+      },
+    };
+
+  const listing = LISTINGS.find((l) => l.id === booking.listing_id);
+  const policy =
+    (listing?.cancel_policy_id &&
+      POLICY_BY_ID.get(listing.cancel_policy_id)) ||
+    platformDefaultPolicy();
+  if (!policy)
+    return {
+      ok: false,
+      error: {
+        code: "no_policy",
+        message: "no cancellation policy resolved for this booking",
+      },
+    };
+
+  // Days until check-in. The Postgres leg uses the property's timezone; the
+  // mock approximates with UTC — same rule otherwise: >= full → 100%,
+  // >= partial → partial_refund_pct, below → 0.
+  const today = Date.UTC(
+    new Date().getUTCFullYear(),
+    new Date().getUTCMonth(),
+    new Date().getUTCDate()
+  );
+  const days = Math.round(
+    (Date.parse(booking.checkin) - today) / 86_400_000
+  );
+  const pct =
+    days >= policy.full_refund_days
+      ? 100
+      : days >= policy.partial_refund_days
+        ? policy.partial_refund_pct
+        : 0;
+  const refund_minor = Math.round((booking.total_minor * pct) / 100);
+
+  booking.status = "cancelled";
+  for (const n of nightsBetween(booking.checkin, booking.checkout)) {
+    const row = nightIndex.get(`${booking.listing_id}|${n}`);
+    if (!row) continue;
+    row.units_available += 1;
+    if (row.status === "booked") row.status = "open";
+  }
+
+  return {
+    ok: true,
+    cancellation: {
+      booking_id: booking.id,
+      status: "cancelled",
+      checkin: booking.checkin,
+      checkout: booking.checkout,
+      currency: listing?.currency ?? "USD",
+      total_minor: booking.total_minor,
+      days_until_checkin: days,
+      policy_name: policy.name,
+      refund_pct: pct,
+      refund_minor,
+      refund_display: formatMoney(
+        refund_minor,
+        listing?.currency ?? "USD"
+      ),
+    },
+  };
 }

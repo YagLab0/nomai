@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { toast } from '@heroui/react';
 
 import { NomitoAvatar } from '@/components/nomito-avatar';
 import { traveler } from '@/lib/mock/traveler';
+import { createClient } from '@/lib/supabase/client';
 
 const ITEMS = [
   { label: 'Inicio', href: '/app' },
@@ -61,6 +63,45 @@ export function NavList() {
 }
 
 export function UserChip() {
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ name: string; subtitle: string; initials: string } | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const metadata = user.user_metadata || {};
+        const name = (metadata.full_name as string) || (metadata.name as string) || user.email?.split('@')[0] || 'Viajero';
+        const subtitle = user.email || (metadata.phone as string) || '';
+        const initials = name
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase() ?? '')
+          .join('') || name.slice(0, 2).toUpperCase();
+        setUserProfile({ name, subtitle, initials });
+      }
+    });
+  }, []);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/login');
+      router.refresh();
+    } catch {
+      toast('Error al cerrar sesión');
+      setSigningOut(false);
+    }
+  }
+
+  const name = userProfile?.name ?? traveler.name;
+  const subtitle = userProfile?.subtitle ?? traveler.from;
+  const initials = userProfile?.initials ?? traveler.initials;
+
   return (
     <div>
       <div className="flex items-center gap-3">
@@ -68,20 +109,29 @@ export function UserChip() {
           aria-hidden="true"
           className="flex h-9 w-9 items-center justify-center rounded-full bg-agua-soft text-sm font-semibold text-agua"
         >
-          {traveler.initials}
+          {initials}
         </span>
         <span className="min-w-0 text-sm leading-tight">
-          <span className="block truncate font-medium text-ink">{traveler.name}</span>
-          <span className="block truncate text-xs text-ink-muted">{traveler.from}</span>
+          <span className="block truncate font-medium text-ink">{name}</span>
+          <span className="block truncate text-xs text-ink-muted">{subtitle}</span>
         </span>
       </div>
-      {/* One account is both Traveler and Owner — the panel is a mode, not a login. */}
-      <Link
-        href="/app/owner"
-        className="mt-3 inline-block rounded-lg text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
-      >
-        Modo dueño
-      </Link>
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <Link
+          href="/app/owner"
+          className="rounded-lg font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
+        >
+          Modo dueño
+        </Link>
+        <button
+          type="button"
+          disabled={signingOut}
+          onClick={handleSignOut}
+          className="rounded-lg font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra disabled:opacity-50"
+        >
+          {signingOut ? 'Saliendo…' : 'Cerrar sesión'}
+        </button>
+      </div>
     </div>
   );
 }

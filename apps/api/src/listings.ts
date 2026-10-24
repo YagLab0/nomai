@@ -29,7 +29,7 @@ function errorStatus(code: DomainErrorCode): 400 | 404 | 409 {
 
 // GET /listings/search?city=&country=&checkin=&checkout=&guests=&type=
 //                      &amenities=wifi,piscina&max_price_minor=
-listings.get("/search", (c) => {
+listings.get("/search", async (c) => {
   const q = c.req.query();
   const amenities = c.req
     .queries("amenities")
@@ -50,8 +50,10 @@ listings.get("/search", (c) => {
   if ((checkin && !checkout) || (!checkin && checkout))
     return c.json({ error: "checkin and checkout must be provided together" }, 400);
 
+  // The backend may be the in-memory mock (sync) or Supabase (async) — the
+  // data-source switch lives in src/data/index.ts, issue #12.
   return c.json({
-    results: searchListings({
+    results: await searchListings({
       city: q.city,
       country: q.country,
       checkin,
@@ -65,14 +67,14 @@ listings.get("/search", (c) => {
 });
 
 // GET /listings/:slug — full detail.
-listings.get("/:slug", (c) => {
-  const detail = getListingBySlug(c.req.param("slug"));
+listings.get("/:slug", async (c) => {
+  const detail = await getListingBySlug(c.req.param("slug"));
   if (!detail) return c.json({ error: "listing not found" }, 404);
   return c.json(detail);
 });
 
 // GET /listings/:slug/quote?checkin=&checkout=&guests= — night-by-night price.
-listings.get("/:slug/quote", (c) => {
+listings.get("/:slug/quote", async (c) => {
   const { checkin, checkout, guests } = c.req.query();
   if (!checkin || !checkout)
     return c.json({ error: "checkin and checkout are required" }, 400);
@@ -80,7 +82,7 @@ listings.get("/:slug/quote", (c) => {
   if (!Number.isInteger(g) || g < 1)
     return c.json({ error: "guests must be a positive integer" }, 400);
 
-  const r = quoteStay(c.req.param("slug"), checkin, checkout, g);
+  const r = await quoteStay(c.req.param("slug"), checkin, checkout, g);
   if (!r.ok)
     return c.json(
       { error: r.error.message, code: r.error.code },
@@ -106,7 +108,7 @@ listings.post("/:slug/book", async (c) => {
   if (!Number.isInteger(body.guests) || body.guests < 1)
     return c.json({ error: "guests must be a positive integer" }, 400);
 
-  const r = bookListing(c.req.param("slug"), {
+  const r = await bookListing(c.req.param("slug"), {
     checkin: body.checkin,
     checkout: body.checkout,
     guests: body.guests,

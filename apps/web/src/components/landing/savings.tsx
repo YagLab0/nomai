@@ -1,5 +1,3 @@
-import { CASA_DE_ADOBE, quoteFor } from '@/lib/lodgings';
-
 const ROWS = [
   {
     label: 'Cambio de moneda',
@@ -18,8 +16,19 @@ const ROWS = [
   },
 ];
 
+const SCENARIO_QUOTE = {
+  lodging: 'Casa de Adobe',
+  nights: 3,
+  lines: [
+    { label: 'Reserva: Casa de Adobe, Cafayate · 3 noches', value: '$ 285.000 ARS' },
+    { label: 'Conversión BRL → ARS · 1 BRL = 195 ARS', value: 'R$ 1.461,55' },
+    { label: 'Comisión de conversión Nomai', value: 'R$ 14,60', kind: 'fee' as const },
+    { label: 'Total', value: 'R$ 1.476,15 BRL', kind: 'total' as const },
+  ],
+};
+
 export function Savings() {
-  const quote = quoteFor(CASA_DE_ADOBE);
+  const quote = SCENARIO_QUOTE;
   const total = quote.lines.find((l) => l.kind === 'total')!;
   const fee = quote.lines.find((l) => l.kind === 'fee')!;
 

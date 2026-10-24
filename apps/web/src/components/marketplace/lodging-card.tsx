@@ -7,7 +7,6 @@ import { initialsFor } from '@/lib/api-mapping';
 import {
   formatNightPrice,
   KIND_LABEL,
-  ownerBySlug,
   type Fiat,
   type FxRates,
   type Lodging,
@@ -31,14 +30,11 @@ export function LodgingCard({
   /** Where "Pedirle a Nomito" goes: /signup publicly, /app?ask=... inside the app. */
   askHref: string;
 }) {
-  // API-driven listings can name Owners outside the curated list — fall back
-  // to the name the API carried instead of throwing.
-  const known = ownerBySlug(lodging.ownerSlug);
   const owner = {
     slug: lodging.ownerSlug,
-    name: known?.name ?? lodging.ownerName ?? 'Dueño nomai',
-    initials: known?.initials ?? initialsFor(lodging.ownerName ?? 'N'),
-    verified: known?.verified,
+    name: lodging.ownerName ?? 'Dueño nomai',
+    initials: initialsFor(lodging.ownerName ?? 'N'),
+    verified: undefined,
   };
   const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
 

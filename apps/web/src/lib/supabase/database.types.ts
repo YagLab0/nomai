@@ -720,8 +720,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      book_stay: {
+        Args: {
+          p_checkin: string
+          p_checkout: string
+          p_guest_ref?: string
+          p_guests: number
+          p_listing_slug: string
+          p_traveler_id?: string
+        }
+        Returns: Json
+      }
+      cancel_booking: {
+        Args: {
+          p_booking_id: string
+          p_guest_ref?: string
+          p_traveler_id?: string
+        }
+        Returns: Json
+      }
+      confirm_booking_payment: {
+        Args: {
+          p_amount_minor?: number
+          p_asset?: string
+          p_booking_id: string
+          p_network?: string
+          p_pay_to?: string
+          p_payer?: string
+          p_tx_hash?: string
+        }
+        Returns: Json
+      }
       owns_business: { Args: { p_business_id: string }; Returns: boolean }
       owns_listing: { Args: { p_listing_id: string }; Returns: boolean }
+      release_booking: { Args: { p_booking_id: string }; Returns: Json }
     }
     Enums: {
       amenity_category:

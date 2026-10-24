@@ -1,4 +1,4 @@
-import { formatAmount, LODGINGS, NORTE_TOWNS, type Lodging } from '@/lib/lodgings';
+import { formatAmount, NORTE_TOWNS, type Lodging } from '@/lib/lodgings';
 import type { PhotoKey } from '@/lib/photos';
 
 /**
@@ -58,4 +58,4 @@ export function buildDestinations(lodgings: Lodging[]): Destination[] {
 }
 
 /** Static-catalog version, kept for consumers without API access. */
-export const DESTINATIONS: readonly Destination[] = buildDestinations(LODGINGS);
+export const DESTINATIONS: readonly Destination[] = buildDestinations([]);

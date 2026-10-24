@@ -9,8 +9,6 @@
 
 import {
   FIAT_META,
-  lodgingById,
-  ownerBySlug,
   RIPIO_COUNTRIES,
   type ArtTone,
   type Fiat,
@@ -18,6 +16,8 @@ import {
   type LodgingKind,
   type Owner,
 } from '@/lib/lodgings';
+import { formatMoney } from '@/lib/format';
+import type { PhotoKey } from '@/lib/photos';
 import type { ApiListingCard, ApiListingDetail } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
@@ -60,6 +60,91 @@ function apiFiat(currency: string | undefined): Fiat {
   const c = currency?.toUpperCase();
   return c && c in FIAT_META ? (c as Fiat) : 'USD';
 }
+
+// ---------------------------------------------------------------------------
+// amenities — codes to human-readable labels in Spanish
+// ---------------------------------------------------------------------------
+
+export const AMENITY_LABELS: Record<string, string> = {
+  wifi: 'WiFi',
+  wifi_rapido: 'WiFi de alta velocidad',
+  workspace: 'Espacio de trabajo',
+  aire_acondicionado: 'Aire acondicionado',
+  calefaccion: 'Calefacción',
+  tv: 'TV',
+  desayuno: 'Desayuno incluido',
+  recepcion_24h: 'Recepción 24h',
+  lavanderia: 'Lavandería',
+  cocina: 'Cocina equipada',
+  nevera: 'Nevera',
+  microondas: 'Microondas',
+  cafetera: 'Cafetera',
+  bano_privado: 'Baño privado',
+  jacuzzi: 'Jacuzzi',
+  piscina: 'Piscina',
+  parrilla: 'Parrilla / BBQ',
+  terraza: 'Terraza / balcón',
+  jardin: 'Jardín',
+  estacionamiento: 'Estacionamiento',
+  seguridad_24h: 'Seguridad 24h',
+  detector_humo: 'Detector de humo',
+  extintor: 'Extintor',
+  accesible_silla: 'Accesible en silla de ruedas',
+  patio: 'Patio',
+  chimenea: 'Chimenea',
+  vista_al_cerro: 'Vista al cerro',
+  vista_al_cordon: 'Vista al cordón',
+  cerca_de_bodegas: 'Cerca de bodegas',
+  entre_vinedos: 'Entre viñedos',
+  vinedo_propio: 'Viñedo propio',
+  cena_casera: 'Cena casera',
+  mapa_de_senderos: 'Mapa de senderos',
+  cerca_de_la_feria: 'Cerca de la feria',
+  a_una_cuadra_de_la_playa: 'A una cuadra de la playa',
+  tablas_de_surf: 'Tablas de surf',
+  cielo_para_mirar_estrellas: 'Cielo para mirar estrellas',
+  salidas_al_amanecer: 'Salidas al amanecer',
+  bicis: 'Bicis',
+  cerca_del_rio: 'Cerca del río',
+  kayaks: 'Kayaks',
+  cenote_privado: 'Cenote privado',
+  rooftop: 'Rooftop',
+  biblioteca: 'Biblioteca',
+  pet_friendly: 'Pet-friendly',
+};
+
+export function amenityLabel(code: string): string {
+  if (AMENITY_LABELS[code]) return AMENITY_LABELS[code];
+  return code.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ---------------------------------------------------------------------------
+// photos — fallback map by slug when the API returns no photos
+// ---------------------------------------------------------------------------
+
+export const FALLBACK_PHOTOS_BY_SLUG: Partial<Record<string, PhotoKey>> = {
+  'casa-de-adobe': 'cafayateHabitacion',
+  'posada-el-algarrobo': 'saltaCatedral',
+  'cabanas-siete-colores': 'purmamarcaAdobe',
+  'hostel-la-quebrada': 'tilcaraRuinas',
+  'casona-guemes': 'saltaTeleferico',
+  'cabana-vinas-del-sol': 'cafayateVinedos',
+  'posada-quebrada-alta': 'humahuacaValle',
+  'casa-los-colorados': 'purmamarcaFeria',
+  'posada-el-patio': 'tilcaraPatio',
+  'cabanas-hornocal': 'humahuacaCerros',
+  'posada-marina': 'floripaBrava',
+  'casa-duna': 'floripaIngleses',
+  'casa-getsemani': 'cartagenaBalcon',
+  'casa-de-los-almendros': 'cartagenaCasas',
+  'hostal-licancabur': 'atacamaLejia',
+  'casa-del-salar': 'atacamaBaltinache',
+  'posada-del-porton': 'coloniaPortal',
+  'casa-la-rambla': 'coloniaCafe',
+  'casa-cenote': 'tulumPalapa',
+  'cabana-los-alamos': 'tulumPalapa',
+  'depto-aldea-zama': 'tulumBici',
+};
 
 // ---------------------------------------------------------------------------
 // Deterministic derivations — same slug always produces the same presentation.
@@ -157,10 +242,14 @@ function countryName(code: string | undefined): string {
  * Search card → Lodging. `bedrooms`/`baths` are detail-only fields, so cards
  * carry 0 — nothing in card UIs renders them.
  *
- * When the API slug matches a legacy mock id, its curated local photo wins
- * over the picsum cover; `cover_photo` is still kept in `photoUrl`.
+ * Remote photos from API (seed/picsum) are served directly. Curated local artwork
+ * acts as fallback by slug when no photo is available from the API.
  */
 export function apiCardToLodging(card: ApiListingCard): Lodging {
+  const photoUrl = card.cover_photo || undefined;
+  const photo = photoUrl ? undefined : FALLBACK_PHOTOS_BY_SLUG[card.slug];
+  const priceDisplay = card.nightly_display ?? formatMoney(card.nightly_minor, card.currency);
+
   return {
     id: card.slug,
     name: card.title,
@@ -170,6 +259,7 @@ export function apiCardToLodging(card: ApiListingCard): Lodging {
     countryCode: card.country_code ?? '',
     code: apiCityCode(card.city, card.slug),
     pricePerNight: (card.nightly_minor ?? 0) / MINOR_PER_UNIT,
+    priceDisplay,
     currency: apiFiat(card.currency),
     blurb: card.summary ?? '',
     rating: card.rating ?? 0,
@@ -177,13 +267,13 @@ export function apiCardToLodging(card: ApiListingCard): Lodging {
     guests: card.max_guests ?? 1,
     bedrooms: 0,
     baths: 0,
-    amenities: card.amenities ?? [],
+    amenities: (card.amenities ?? []).map(amenityLabel),
     featured: FEATURED_SLUGS.has(card.slug) || undefined,
     ownerSlug: card.owner_slug ?? slugify(card.owner_name ?? ''),
     ownerName: card.owner_name,
     tone: apiTone(card.slug),
-    photo: lodgingById(card.slug)?.photo,
-    photoUrl: card.cover_photo,
+    photo,
+    photoUrl,
   };
 }
 
@@ -194,6 +284,11 @@ export function apiCardToLodging(card: ApiListingCard): Lodging {
 export function apiDetailToLodging(detail: ApiListingDetail): Lodging {
   const slug = detail.slug;
   const ownerName = detail.owner_name ?? detail.business?.name;
+  const coverUrl = detail.photos?.find((p) => p.is_cover)?.url ?? detail.photos?.[0]?.url;
+  const photoUrl = coverUrl || undefined;
+  const photo = photoUrl ? undefined : FALLBACK_PHOTOS_BY_SLUG[slug];
+  const priceDisplay = detail.base_price_display ?? formatMoney(detail.base_price_minor, detail.currency);
+
   return {
     id: slug,
     name: detail.title,
@@ -203,6 +298,7 @@ export function apiDetailToLodging(detail: ApiListingDetail): Lodging {
     countryCode: detail.property?.country_code ?? '',
     code: apiCityCode(detail.property?.city, slug),
     pricePerNight: (detail.base_price_minor ?? 0) / MINOR_PER_UNIT,
+    priceDisplay,
     currency: apiFiat(detail.currency),
     blurb: detail.summary ?? detail.description ?? '',
     rating: detail.rating ?? 0,
@@ -210,26 +306,21 @@ export function apiDetailToLodging(detail: ApiListingDetail): Lodging {
     guests: detail.max_guests ?? 1,
     bedrooms: detail.bedrooms ?? 0,
     baths: detail.bathrooms ?? 0,
-    amenities: (detail.amenities ?? []).map((a) => a.name ?? a.code),
+    amenities: (detail.amenities ?? []).map((a) => a.name ?? amenityLabel(a.code)),
     featured: FEATURED_SLUGS.has(slug) || undefined,
     ownerSlug: detail.owner_slug ?? detail.business?.slug ?? slugify(ownerName ?? ''),
     ownerName,
     tone: apiTone(slug),
-    photo: lodgingById(slug)?.photo,
-    photoUrl: detail.photos?.find((p) => p.is_cover)?.url ?? detail.photos?.[0]?.url,
+    photo,
+    photoUrl,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Owner — storefront pages get the best profile available: curated copy when
-// the slug is one of the known OWNERS, else a minimal one built from the
-// listing's owner fields.
+// Owner — built directly from listing owner fields.
 // ---------------------------------------------------------------------------
 
 export function apiOwner(slug: string, cards: ApiListingCard[]): Owner | null {
-  const known = ownerBySlug(slug);
-  if (known) return known;
-
   const card = cards.find((c) => c.owner_slug === slug);
   if (!card) return null;
 
@@ -241,7 +332,5 @@ export function apiOwner(slug: string, cards: ApiListingCard[]): Owner | null {
     city: card.city ?? '',
     country: countryName(card.country_code),
     countryCode: card.country_code ?? '',
-    // since/verified/responseTime/bio: the API doesn't report them — left
-    // undefined so the profile renders no invented facts.
   };
 }

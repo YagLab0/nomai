@@ -20,3 +20,12 @@ Traveler, never pooled in a platform wallet.
 - Who holds the signing key of each Agent wallet (platform-managed key, MPC, smart
   account with Traveler-held recovery) is still open, and it decides how
   non-custodial this really is. Resolve before any mainnet Booking.
+
+### Testnet Custody (GitHub issue #16)
+
+For testnet (`celo-sepolia`), each Traveler's Agent wallet address is derived deterministically from the platform secret `AGENT_WALLET_MASTER_SECRET` combined with the `traveler_id`:
+`privateKey = keccak256(AGENT_WALLET_MASTER_SECRET + ":" + traveler_id)`
+`address = privateKeyToAccount(privateKey).address`
+
+**Security Rule:** No private key material is ever stored in the database. The database stores only the public `address`, `network`, and `traveler_id` in `public.agent_wallets`. A conceptual `key_ref` (`env:AGENT_WALLET_MASTER_SECRET#<traveler_id>`) identifies how the server-side signer reconstructs the key when signing Booking transactions.
+

@@ -4,6 +4,35 @@ const brl = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 });
 
+const CURRENCY_DISPLAY: Record<string, { symbol: string; decimals: number; locale: string }> = {
+  USD: { symbol: 'US$', decimals: 2, locale: 'en-US' },
+  ARS: { symbol: '$', decimals: 0, locale: 'es-AR' },
+  BRL: { symbol: 'R$', decimals: 2, locale: 'pt-BR' },
+  CLP: { symbol: 'CLP$', decimals: 0, locale: 'es-CL' },
+  COP: { symbol: 'COL$', decimals: 0, locale: 'es-CO' },
+  MXN: { symbol: 'MX$', decimals: 0, locale: 'es-MX' },
+  UYU: { symbol: '$U', decimals: 0, locale: 'es-AR' },
+};
+
+/**
+ * Format an amount in minor units (10^-6 of currency) to display string.
+ * e.g. 70_000_000, 'USD' -> "US$ 70.00"
+ */
+export function formatMoney(minor: number, currency: string): string {
+  const amount = minor / 1_000_000;
+  const display = CURRENCY_DISPLAY[currency];
+  if (!display) {
+    return `${currency} ${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  return `${display.symbol} ${amount.toLocaleString(display.locale, {
+    minimumFractionDigits: display.decimals,
+    maximumFractionDigits: display.decimals,
+  })}`;
+}
+
 /** `$ 285.000 ARS` */
 export function formatARS(amount: number): string {
   return `$ ${ars.format(amount)} ARS`;

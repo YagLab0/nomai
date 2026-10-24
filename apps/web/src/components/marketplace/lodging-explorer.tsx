@@ -21,7 +21,6 @@ import {
   FIAT_OPTIONS,
   KIND_LABEL,
   LODGING_KINDS,
-  ownerBySlug,
   type Fiat,
   type FxRates,
   type Lodging,
@@ -35,7 +34,7 @@ function matches(lodging: Lodging, query: string): boolean {
     lodging.city,
     lodging.region,
     KIND_LABEL[lodging.kind],
-    lodging.ownerName ?? ownerBySlug(lodging.ownerSlug)?.name ?? '',
+    lodging.ownerName ?? '',
   ]
     .join(' ')
     .toLowerCase();

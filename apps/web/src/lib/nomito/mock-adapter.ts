@@ -1,20 +1,18 @@
 import type { ChatModelAdapter } from '@assistant-ui/react';
 
 import {
-  CASA_DE_ADOBE,
-  findLodging,
+  formatAmount,
   formatLocalPrice,
   isNorte,
-  LODGINGS,
-  quoteFor,
   type Lodging,
 } from '@/lib/lodgings';
+import { apiCardToLodging } from '@/lib/api-mapping';
+import type { ApiListingCard, ApiQuote } from '@/lib/api';
 import { MONEDAS_SPENT_KEY, SEARCH_COST_MONEDAS } from '@/lib/nomito/tools';
 
 /**
- * The ONLY place that knows Nomito's replies are fake. A real backend replaces
- * this adapter with one that streams the same shape: normal prose plus fenced
- * ```openui-lang programs that the OpenUI renderer turns into UI.
+ * Mock Nomito chat adapter: streams responses with OpenUI Lang programs.
+ * Calls real `/api/listings` and `/api/listings/:slug/quote` endpoints.
  */
 
 const TOKEN_DELAY_MS = 28;
@@ -61,12 +59,45 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
   return '';
 }
 
-function shortlistFor(text: string): Lodging[] {
+/** Post a Credit spend to the ledger via the session-authenticated proxy. Fire-and-forget. */
+function postSpend(amount: number, stage: 'conversation' | 'cached_inventory' | 'live_query') {
+  void fetch('/api/credits', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, stage }),
+  }).catch(() => {});
+}
+
+async function fetchCatalog(): Promise<Lodging[]> {
+  try {
+    const res = await fetch('/api/listings');
+    if (!res.ok) return [];
+    postSpend(1, 'cached_inventory');
+    const body = (await res.json()) as { results?: ApiListingCard[] };
+    return (body?.results ?? []).map(apiCardToLodging);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchQuoteApi(slug: string, checkin: string, checkout: string, guests = 2): Promise<ApiQuote | null> {
+  try {
+    const qs = new URLSearchParams({ checkin, checkout, guests: String(guests) });
+    const res = await fetch(`/api/listings/${encodeURIComponent(slug)}/quote?${qs.toString()}`);
+    if (!res.ok) return null;
+    postSpend(SEARCH_COST_MONEDAS, 'live_query');
+    return (await res.json()) as ApiQuote;
+  } catch {
+    return null;
+  }
+}
+
+function shortlistFor(text: string, inventory: Lodging[]): Lodging[] {
   const t = text.toLowerCase();
   // "Venimos desde Florianópolis… una semana en Salta": the Norte wins.
   const cities = NORTE_KEYWORDS.some((k) => t.includes(k)) ? null : placeIn(t);
-  if (cities) return LODGINGS.filter((l) => cities.includes(l.city)).slice(0, 3);
-  const norte = LODGINGS.filter(isNorte);
+  if (cities) return inventory.filter((l) => cities.includes(l.city)).slice(0, 3);
+  const norte = inventory.filter(isNorte);
   if (t.includes('hostel')) return norte.filter((l) => l.kind === 'hostal' || l.city === 'Tilcara').slice(0, 3);
   const byTown = norte.filter((l) => t.includes(l.city.toLowerCase()));
   if (byTown.length >= 2) return byTown.slice(0, 3);
@@ -97,15 +128,24 @@ function shortlistProgram(options: Lodging[]): string {
   return `root = Stack([${refs}])\n${cards}`;
 }
 
-function quoteProgram(lodging: Lodging): string {
-  const quote = quoteFor(lodging);
-  const lines = quote.lines
-    .map(
-      (line) =>
-        `{label: "${esc(line.label)}", value: "${esc(line.value)}"${line.kind ? `, kind: "${line.kind}"` : ''}}`,
-    )
-    .join(', ');
-  return `root = Stack([quote])\nquote = QuoteCard("${esc(quote.lodging)} · ${quote.nights} noches", [${lines}], @ToAssistant("Sí, confirmo la reserva"))`;
+function quoteProgram(lodging: Lodging, quote: ApiQuote | null, nights = 3): string {
+  if (quote) {
+    const lines = [
+      `{label: "Reserva: ${esc(lodging.name)}, ${esc(lodging.city)} · ${quote.nights_count} noches", value: "${esc(quote.nights_display)}"}`,
+      ...(quote.cleaning_minor > 0
+        ? [`{label: "Limpieza", value: "${esc(quote.cleaning_display)}"}`]
+        : []),
+      `{label: "Total", value: "${esc(quote.total_display)}", kind: "total"}`,
+    ].join(', ');
+    return `root = Stack([quote])\nquote = QuoteCard("${esc(lodging.name)} · ${quote.nights_count} noches", [${lines}], @ToAssistant("Sí, confirmo la reserva"))`;
+  }
+
+  const totalLocal = lodging.pricePerNight * nights;
+  const lines = [
+    `{label: "Reserva: ${esc(lodging.name)}, ${esc(lodging.city)} · ${nights} noches", value: "${esc(formatAmount(totalLocal, lodging.currency))}"}`,
+    `{label: "Total", value: "${esc(formatAmount(totalLocal, lodging.currency))}", kind: "total"}`,
+  ].join(', ');
+  return `root = Stack([quote])\nquote = QuoteCard("${esc(lodging.name)} · ${nights} noches", [${lines}], @ToAssistant("Sí, confirmo la reserva"))`;
 }
 
 function langBlock(program: string): string {
@@ -114,20 +154,33 @@ function langBlock(program: string): string {
 
 type Plan = { text: string; monedasSpent?: number };
 
-function plan(text: string, isFirstTurn: boolean): Plan {
+async function plan(text: string, isFirstTurn: boolean): Promise<Plan> {
   const t = text.toLowerCase();
   const mentionsTown = NORTE_KEYWORDS.some((x) => t.includes(x)) || placeIn(t) !== null;
   const wantsBooking = /reserv|confirm|elegir|quiero esa|quiero ese|me quedo/.test(t);
 
+  const inventory = await fetchCatalog();
+
   if (wantsBooking) {
-    const lodging = findLodging(text) ?? CASA_DE_ADOBE;
-    return {
-      text: `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle en reales; el pago va directo al dueño y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging))}`,
-    };
+    const lodging = inventory.find((l) => t.includes(l.name.toLowerCase()) || t.includes(l.id)) ?? inventory[0];
+    if (lodging) {
+      // Default to stay starting 7 days ahead for 3 nights
+      const inDate = new Date();
+      inDate.setDate(inDate.getDate() + 7);
+      const outDate = new Date(inDate);
+      outDate.setDate(outDate.getDate() + 3);
+      const checkin = inDate.toISOString().slice(0, 10);
+      const checkout = outDate.toISOString().slice(0, 10);
+
+      const quote = await fetchQuoteApi(lodging.id, checkin, checkout, lodging.guests || 2);
+      return {
+        text: `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle; el pago va directo al dueño y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging, quote, 3))}`,
+      };
+    }
   }
 
   if (mentionsTown || /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje|playa|viaj/.test(t)) {
-    const options = shortlistFor(text);
+    const options = shortlistFor(text, inventory);
     return {
       text: `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.${langBlock(shortlistProgram(options))}`,
       monedasSpent: SEARCH_COST_MONEDAS,
@@ -145,7 +198,7 @@ export const mockAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const userText = lastUserText(messages);
     const isFirstTurn = messages.filter((m) => m.role === 'user').length <= 1;
-    const { text, monedasSpent } = plan(userText, isFirstTurn);
+    const { text, monedasSpent } = await plan(userText, isFirstTurn);
 
     await sleep(500, abortSignal);
 

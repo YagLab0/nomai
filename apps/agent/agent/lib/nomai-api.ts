@@ -5,6 +5,18 @@
 const BASE = () =>
   (process.env.NOMAI_API_URL ?? "http://localhost:3001").replace(/\/+$/, "");
 
+// The Traveler's Supabase access token, sent as `Authorization: Bearer` on
+// user-scoped routes (/credits/* — the API verifies it with the Auth server
+// and the verified user id IS the traveler id). Nothing forwards that token
+// to the Agent today: the eve channel authenticates the Agent's own caller
+// (vercelOidc/localDev) and the web adapter never passes a session token, so
+// until the real-auth ticket lands, NOMAI_TRAVELER_TOKEN is the dev escape
+// hatch. Returns null when unset — the API answers 401 either way.
+export const travelerAuthHeaders = (): Record<string, string> | null => {
+  const token = process.env.NOMAI_TRAVELER_TOKEN;
+  return token ? { authorization: `Bearer ${token}` } : null;
+};
+
 export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; status: number; error: string; code?: string };
@@ -46,8 +58,9 @@ async function request<T>(
 
 export const apiGet = <T>(
   path: string,
-  params?: Record<string, string | number | string[] | undefined>
-) => request<T>(path, undefined, params);
+  params?: Record<string, string | number | string[] | undefined>,
+  headers?: Record<string, string>
+) => request<T>(path, headers ? { headers } : undefined, params);
 
 export const apiPost = <T>(path: string, body: unknown) =>
   request<T>(path, {

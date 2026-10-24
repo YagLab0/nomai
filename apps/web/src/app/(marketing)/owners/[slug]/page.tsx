@@ -8,16 +8,18 @@ import { LodgingCard } from '@/components/marketplace/lodging-card';
 import { OwnerProfile } from '@/components/marketplace/owner-profile';
 import { fetchListings } from '@/lib/api';
 import { apiCardToLodging, apiOwner } from '@/lib/api-mapping';
-import { lodgingsByOwner, ownerBySlug, OWNERS } from '@/lib/lodgings';
 import { PHOTOS } from '@/lib/photos';
 
-export function generateStaticParams() {
-  return OWNERS.map((owner) => ({ slug: owner.slug }));
+export async function generateStaticParams() {
+  const cards = await fetchListings().catch(() => []);
+  const slugs = Array.from(new Set(cards.map((c) => c.owner_slug).filter(Boolean)));
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const owner = ownerBySlug(slug);
+  const cards = await fetchListings().catch(() => []);
+  const owner = apiOwner(slug, cards);
   return {
     title: owner ? `Alojamientos de ${owner.name} · nomai` : 'Alojamientos · nomai',
     description: owner
@@ -30,16 +32,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function OwnerPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  // Real inventory when the API answers; the static catalog stands in when it
-  // doesn't so an api outage never 404s a storefront.
   const cards = await fetchListings().catch(() => null);
-
-  const owner = cards ? apiOwner(slug, cards) : ownerBySlug(slug);
+  const owner = cards ? apiOwner(slug, cards) : null;
   if (!owner) notFound();
 
   const lodgings = cards
     ? cards.filter((c) => c.owner_slug === slug).map(apiCardToLodging)
-    : lodgingsByOwner(slug);
+    : [];
 
   const avgRating = lodgings.length ? lodgings.reduce((sum, l) => sum + l.rating, 0) / lodgings.length : 0;
   const totalReviews = lodgings.reduce((sum, l) => sum + l.reviews, 0);

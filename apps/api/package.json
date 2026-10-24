@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "buy": "tsx src/buyer.ts",
     "smoke:listings": "tsx scripts/smoke-listings.ts",
+    "smoke:credits": "tsx scripts/smoke-credits.ts",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit"
   },

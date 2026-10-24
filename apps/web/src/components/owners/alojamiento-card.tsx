@@ -9,6 +9,7 @@ import {
   Input,
   Label,
   Modal,
+  Spinner,
   TextArea,
   TextField,
 } from '@heroui/react';
@@ -26,6 +27,13 @@ export interface AlojamientoDraft {
   amenities: string[];
 }
 
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  published: { label: 'Publicado', className: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
+  paused: { label: 'Pausado', className: 'bg-amber-100 text-amber-800 border border-amber-300' },
+  draft: { label: 'Borrador', className: 'bg-stone-100 text-stone-700 border border-stone-300' },
+  archived: { label: 'Archivado', className: 'bg-stone-100 text-stone-500 border border-stone-300' },
+};
+
 function EditModal({
   lodging,
   isOpen,
@@ -35,31 +43,37 @@ function EditModal({
   lodging: Lodging;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (draft: AlojamientoDraft) => void;
+  onSave: (draft: AlojamientoDraft) => Promise<void> | void;
 }) {
   const [name, setName] = useState(lodging.name);
   const [price, setPrice] = useState(String(lodging.pricePerNight));
   const [blurb, setBlurb] = useState(lodging.blurb);
   const [amenities, setAmenities] = useState(lodging.amenities.join('\n'));
   const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const parsedPrice = Number(price.replace(/\./g, '').replace(',', '.'));
   const nameInvalid = name.trim().length < 3;
   const priceInvalid = !Number.isFinite(parsedPrice) || parsedPrice <= 0;
 
-  function save() {
+  async function save() {
     setTouched(true);
-    if (nameInvalid || priceInvalid) return;
-    onSave({
-      name: name.trim(),
-      pricePerNight: Math.round(parsedPrice),
-      blurb: blurb.trim(),
-      amenities: amenities
-        .split('\n')
-        .map((a) => a.trim())
-        .filter(Boolean),
-    });
-    onOpenChange(false);
+    if (nameInvalid || priceInvalid || saving) return;
+    setSaving(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        pricePerNight: Math.round(parsedPrice),
+        blurb: blurb.trim(),
+        amenities: amenities
+          .split('\n')
+          .map((a) => a.trim())
+          .filter(Boolean),
+      });
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -107,8 +121,13 @@ function EditModal({
               </TextField>
             </Modal.Body>
             <Modal.Footer>
-              <Button fullWidth onPress={save}>
-                Guardar
+              <Button fullWidth isPending={saving} onPress={save}>
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    {isPending ? 'Guardando…' : 'Guardar'}
+                  </>
+                )}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -118,21 +137,44 @@ function EditModal({
   );
 }
 
-/** A Lodging the Owner manages, with the edit modal. Mock saves via onSave. */
+/** A Lodging the Owner manages, with live status toggle and edit modal. */
 export function AlojamientoCard({
   lodging,
   onSave,
+  onToggleStatus,
 }: {
   lodging: Lodging;
-  onSave: (draft: AlojamientoDraft) => void;
+  onSave: (draft: AlojamientoDraft) => Promise<void> | void;
+  onToggleStatus?: (status: 'published' | 'paused') => Promise<void> | void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
+  const status = lodging.status || 'published';
+  const badge = STATUS_BADGE[status] || STATUS_BADGE.published;
+  const isPublished = status === 'published';
+
+  async function handleToggle() {
+    if (!onToggleStatus || toggling) return;
+    setToggling(true);
+    try {
+      await onToggleStatus(isPublished ? 'paused' : 'published');
+    } finally {
+      setToggling(false);
+    }
+  }
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-card bg-white">
-      <div className="relative h-40 overflow-hidden">
-        {photo ? (
+    <article className="flex h-full flex-col overflow-hidden rounded-card bg-white border border-sand">
+      <div className="relative h-44 overflow-hidden">
+        {lodging.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={lodging.photoUrl}
+            alt={lodging.name}
+            className="h-full w-full object-cover"
+          />
+        ) : photo ? (
           <Image
             src={photo.src}
             alt={photo.alt}
@@ -143,49 +185,95 @@ export function AlojamientoCard({
         ) : (
           <LodgingArt lodging={lodging} className="h-full w-full" />
         )}
+
+        <div className="absolute top-3 right-3">
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold backdrop-blur-sm ${badge.className}`}>
+            {badge.label}
+          </span>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <p className="font-mono text-xs tracking-widest text-ink-muted">
-          {lodging.code} · {lodging.city}
-        </p>
-        <h3 className="mt-0.5 font-brand text-xl font-medium leading-snug text-ink">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-xs tracking-widest text-ink-muted">
+            {lodging.code} · {lodging.city}
+          </p>
+        </div>
+
+        <h3 className="mt-1 font-brand text-xl font-medium leading-snug text-ink">
           {lodging.name}
         </h3>
-        <p className="mt-1 flex items-center gap-2 text-sm text-ink-muted">
-          {KIND_LABEL[lodging.kind]}
-          <span className="inline-flex items-center gap-1 text-ink">
-            <StarIcon className="h-3.5 w-3.5 text-terra" />
-            {lodging.rating.toFixed(1)}
-          </span>
-        </p>
-        <p className="mt-2 text-sm leading-snug text-ink">{lodging.blurb}</p>
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Servicios">
-          {lodging.amenities.map((a) => (
-            <li key={a} className="rounded-full bg-sand/50 px-2.5 py-0.5 text-xs text-ink">
-              {a}
-            </li>
-          ))}
-        </ul>
 
-        <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+        <p className="mt-1 flex items-center gap-2 text-sm text-ink-muted">
+          {KIND_LABEL[lodging.kind] || 'Alojamiento'}
+          {lodging.rating > 0 && (
+            <span className="inline-flex items-center gap-1 text-ink">
+              <StarIcon className="h-3.5 w-3.5 text-terra" />
+              {lodging.rating.toFixed(1)}
+              {lodging.reviews > 0 && (
+                <span className="text-xs text-ink-muted">({lodging.reviews})</span>
+              )}
+            </span>
+          )}
+        </p>
+
+        <p className="mt-2 text-sm leading-snug text-ink line-clamp-2">
+          {lodging.blurb || 'Sin descripción ingresada aún.'}
+        </p>
+
+        {lodging.amenities.length > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Servicios">
+            {lodging.amenities.slice(0, 4).map((a) => (
+              <li key={a} className="rounded-full bg-sand/50 px-2.5 py-0.5 text-xs text-ink">
+                {a}
+              </li>
+            ))}
+            {lodging.amenities.length > 4 && (
+              <li className="rounded-full bg-sand/30 px-2 py-0.5 text-xs text-ink-muted">
+                +{lodging.amenities.length - 4} más
+              </li>
+            )}
+          </ul>
+        )}
+
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-5 border-t border-sand/50">
           <p className="font-mono text-base font-semibold text-ink">
-            {formatLocalPrice(lodging)}
+            {lodging.priceDisplay || formatLocalPrice(lodging)}
             <span className="font-sans text-sm font-normal text-ink-muted">
               {' '}
               {lodging.currency} / noche
             </span>
           </p>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/lodgings"
-              className="text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
-            >
-              Ver en el catálogo
-            </Link>
+
+          <div className="flex items-center gap-2">
+            {onToggleStatus && (
+              <Button
+                variant={isPublished ? 'secondary' : 'primary'}
+                size="sm"
+                isPending={toggling}
+                onPress={handleToggle}
+              >
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    {isPublished ? 'Pausar' : 'Publicar'}
+                  </>
+                )}
+              </Button>
+            )}
+
             <Button variant="secondary" size="sm" onPress={() => setEditing(true)}>
               Editar
             </Button>
+
+            {isPublished && lodging.ownerSlug && (
+              <Link
+                href={`/owners/${lodging.ownerSlug}`}
+                className="text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
+              >
+                Escaparate
+              </Link>
+            )}
           </div>
         </div>
       </div>

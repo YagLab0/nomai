@@ -138,3 +138,41 @@ export async function fetchListing(slug: string): Promise<ApiListingDetail | nul
   if (!res.ok) throw new Error(`listing detail failed: ${res.status}`);
   return (await res.json()) as ApiListingDetail;
 }
+
+export interface ApiQuoteNight {
+  night: string;
+  price_minor: number;
+  price_display: string;
+  source: string;
+}
+
+export interface ApiQuote {
+  listing_slug: string;
+  checkin: string;
+  checkout: string;
+  guests: number;
+  nights_count: number;
+  nights: ApiQuoteNight[];
+  nights_minor: number;
+  cleaning_minor: number;
+  total_minor: number;
+  nights_display: string;
+  cleaning_display: string;
+  total_display: string;
+  currency: string;
+}
+
+/** Night-by-night quote for a stay; null on error or 404. */
+export async function fetchQuote(
+  slug: string,
+  checkin: string,
+  checkout: string,
+  guests = 1,
+): Promise<ApiQuote | null> {
+  const qs = new URLSearchParams({ checkin, checkout, guests: String(guests) });
+  const res = await fetch(`${API_URL}/listings/${encodeURIComponent(slug)}/quote?${qs.toString()}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as ApiQuote;
+}

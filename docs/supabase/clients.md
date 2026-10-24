@@ -59,6 +59,19 @@ platform writes the browser must never perform: posting Credits, settling
 Bookings, creating Agent wallets. `persistSession`/`autoRefreshToken` are
 off — there is no user session server-side.
 
+User-scoped API routes (`GET /credits/balance`, `POST /credits/spend`,
+`POST /credits/grant`) still use the admin client: the caller's Supabase
+access token arrives as `Authorization: Bearer` (the web server forwards
+`session.access_token` from @supabase/ssr — the chunked SSR cookie is never
+parsed upstream) and is verified by passing it to the Auth server,
+`admin.auth.getUser(token)` — a deliberate passthrough instead of local JWKS
+verification: no extra dependency and it holds whatever signing algorithm
+the project uses. The verified `user.id` IS the traveler id
+(`travelers.id = auth.users.id`); caller-supplied ids are never trusted.
+Caveat: `getUser(jwt)` with an explicit token does not mutate the client,
+but `signInWithPassword` would — never sign a user in on the admin client,
+or later queries silently run under that user's RLS.
+
 ## Patterns to keep
 
 - **Reads the Traveler/Owner can do themselves** (their bookings, their

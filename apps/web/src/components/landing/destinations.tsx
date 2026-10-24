@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from 'react';
 
 import { ArrowUpRightIcon, MapPinIcon, StarIcon } from '@/components/icons';
 import { NomitoArt } from '@/components/nomito-avatar';
-import { formatLocalPrice, KIND_LABEL, LODGINGS, type Lodging } from '@/lib/lodgings';
+import { formatLocalPrice, KIND_LABEL, type Lodging } from '@/lib/lodgings';
 import { buildDestinations, type Destination } from '@/lib/mock/destinations';
 import { PHOTOS } from '@/lib/photos';
 
@@ -102,7 +102,7 @@ export function Destinations({ lodgings }: { lodgings?: Lodging[] }) {
   const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const destinations = useMemo(
-    () => buildDestinations(lodgings?.length ? lodgings : LODGINGS),
+    () => buildDestinations(lodgings ?? []),
     [lodgings],
   );
   const town = destinations[active];
