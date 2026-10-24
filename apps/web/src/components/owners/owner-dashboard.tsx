@@ -5,15 +5,15 @@ import { toast } from '@heroui/react';
 
 import { AlojamientoCard, type AlojamientoDraft } from '@/components/owners/alojamiento-card';
 import { ReservaCard } from '@/components/owners/reserva-card';
+import { catalog } from '@/lib/catalog';
 import { formatNumber, formatShortDate } from '@/lib/format';
-import { lodgingById, lodgingsByOwner } from '@/lib/lodgings';
 import { currentOwner, monthNetARS, ownerBookings } from '@/lib/mock/owner';
 
 /** The Owner's panel: Resumen → Reservas → Tus alojamientos (owner-views §3). */
 export function OwnerDashboard() {
   const nextArrival = ownerBookings.find((b) => b.status === 'confirmada');
-  const nextLodging = nextArrival && lodgingById(nextArrival.lodgingId);
-  const [lodgings, setLodgings] = useState(() => lodgingsByOwner(currentOwner.slug));
+  const nextLodging = nextArrival && catalog.byId(nextArrival.lodgingId);
+  const [lodgings, setLodgings] = useState(() => catalog.byOwner(currentOwner.slug));
 
   function saveAlojamiento(id: string, draft: AlojamientoDraft) {
     setLodgings((ls) => ls.map((l) => (l.id === id ? { ...l, ...draft } : l)));

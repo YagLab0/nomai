@@ -16,6 +16,8 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 - `pnpm api:dev` — run only the api (`tsx watch`, port 3001)
 - `pnpm api:buy` — run the x402 buyer script
 - `pnpm build` / `pnpm lint` / `pnpm type-check` — turbo pipelines
+- `pnpm --filter web test` — Vitest unit tests (`src/**/*.test.ts`)
+- `pnpm --filter web test:e2e` — Playwright E2E (`e2e/`); reuses a dev server on :3000 or starts one
 
 `apps/api` requires `.env` (see `apps/api/.env.template`): `X402_API_KEY`, `X402_PAY_TO`, `BUYER_PRIVATE_KEY`. Defaults to Celo Sepolia testnet.
 

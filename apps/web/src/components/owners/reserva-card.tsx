@@ -3,8 +3,8 @@
 import { toast } from '@heroui/react';
 
 import { CheckBadgeIcon } from '@/components/icons';
+import { catalog } from '@/lib/catalog';
 import { formatNumber, formatShortDate, formatStayRange } from '@/lib/format';
-import { lodgingById } from '@/lib/lodgings';
 import type { OwnerBooking, OwnerBookingStatus } from '@/lib/mock/owner';
 
 const STATUS: Record<OwnerBookingStatus, { label: string; className: string }> = {
@@ -16,7 +16,7 @@ const STATUS: Record<OwnerBookingStatus, { label: string; className: string }> =
 
 /** A Booking as the Owner sees it: already settled, ticket-style card. */
 export function ReservaCard({ booking }: { booking: OwnerBooking }) {
-  const lodging = lodgingById(booking.lodgingId);
+  const lodging = catalog.byId(booking.lodgingId);
   const status = STATUS[booking.status];
   const canceled = booking.status === 'cancelada';
 

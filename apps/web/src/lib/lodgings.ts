@@ -1,6 +1,7 @@
 /**
- * Single lodging catalog: the mock inventory behind the marketplace, Nomito's
- * shortlists, the landing and the hero chat.
+ * The seed inventory behind the marketplace, Nomito's shortlists, the landing
+ * and the hero chat, plus the display and quote helpers around it. Surfaces
+ * never read `LODGINGS` directly: they go through `@/lib/catalog`.
  *
  * Domain terms (see GLOSSARY.md): an Owner lists Lodgings; a Traveler pays a
  * Booking straight to the Owner, so nomai never holds funds. `Owner.wallet` is
@@ -120,6 +121,13 @@ export interface Lodging {
   tone: ArtTone;
   /** Photo from lib/photos.ts; Lodgings without one fall back to LodgingArt. */
   photo?: PhotoKey;
+  /** Exact street address, public to every Traveler (owner-views §9). */
+  address?: string;
+  /** Pin coordinates; absent when the Owner never dropped the pin. */
+  lat?: number;
+  lng?: number;
+  /** The Lodging's own photos, ordered; the first is the cover. */
+  photos?: string[];
   /** Pinned quote figures so the headline scenario matches the spec exactly. */
   pinned?: { subtotalBRL: number; feeBRL: number };
 }
@@ -333,6 +341,9 @@ export const LODGINGS: Lodging[] = [
     ownerSlug: 'ramon-guaymas',
     tone: 'terra',
     photo: 'cafayateHabitacion',
+    address: 'Nuestra Señora del Rosario 165',
+    lat: -26.0735,
+    lng: -65.9775,
     pinned: { subtotalBRL: 1461.55, feeBRL: 14.6 },
   },
   {
@@ -440,6 +451,9 @@ export const LODGINGS: Lodging[] = [
     ownerSlug: 'ramon-guaymas',
     tone: 'agua',
     photo: 'cafayateVinedos',
+    address: 'Ruta Nacional 40 km 4',
+    lat: -26.1018,
+    lng: -65.9627,
   },
   {
     id: 'posada-quebrada-alta',
@@ -852,28 +866,11 @@ export function ownerOf(lodging: Lodging): Owner {
   return owner;
 }
 
-export function lodgingsByOwner(ownerSlug: string): Lodging[] {
-  return LODGINGS.filter((l) => l.ownerSlug === ownerSlug);
-}
-
-
-export function lodgingById(id: string): Lodging | undefined {
-  return LODGINGS.find((l) => l.id === id);
-}
-
-/** The headline scenario: Casa de Adobe, Cafayate. */
-export const CASA_DE_ADOBE = lodgingById('casa-de-adobe')!;
-
 export const NORTE_TOWNS = ['Salta', 'Cafayate', 'Purmamarca', 'Tilcara', 'Humahuaca'];
 
 /** Lodging in the Argentine Norte, where Nomito launches. */
 export function isNorte(l: Lodging): boolean {
   return NORTE_TOWNS.includes(l.city);
-}
-
-export function lodgingsInTown(town: string): Lodging[] {
-  const t = town.toLowerCase();
-  return LODGINGS.filter((l) => l.city.toLowerCase() === t);
 }
 
 // --- Money ------------------------------------------------------------------
@@ -930,11 +927,6 @@ export function formatNightPrice(lodging: Lodging, to?: Fiat, rates?: FxRates): 
     return `≈ ${to} ${formatNumber(convertNightPrice(lodging, to, rates))}`;
   }
   return formatLocalPrice(lodging);
-}
-
-export function findLodging(text: string): Lodging | undefined {
-  const t = text.toLowerCase();
-  return LODGINGS.find((l) => t.includes(l.name.toLowerCase()) || t.includes(l.id));
 }
 
 export interface QuoteLine {

@@ -1,6 +1,7 @@
 import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
 
-import { CASA_DE_ADOBE, findLodging, isNorte, LODGINGS, quoteFor, type Lodging } from '@/lib/lodgings';
+import { CASA_DE_ADOBE, catalog } from '@/lib/catalog';
+import { isNorte, quoteFor, type Lodging } from '@/lib/lodgings';
 import {
   BOOKING_QUOTE_TOOL,
   MONEDAS_SPENT_KEY,
@@ -60,12 +61,17 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
   return '';
 }
 
+function findLodging(text: string): Lodging | undefined {
+  const t = text.toLowerCase();
+  return catalog.all().find((l) => t.includes(l.name.toLowerCase()) || t.includes(l.id));
+}
+
 function shortlistFor(text: string): Lodging[] {
   const t = text.toLowerCase();
   // "Venimos desde Florianópolis… una semana en Salta": the Norte wins.
   const cities = NORTE_KEYWORDS.some((k) => t.includes(k)) ? null : placeIn(t);
-  if (cities) return LODGINGS.filter((l) => cities.includes(l.city)).slice(0, 3);
-  const norte = LODGINGS.filter(isNorte);
+  if (cities) return catalog.all().filter((l) => cities.includes(l.city)).slice(0, 3);
+  const norte = catalog.all().filter(isNorte);
   if (t.includes('hostel')) return norte.filter((l) => l.kind === 'hostal' || l.city === 'Tilcara').slice(0, 3);
   const byTown = norte.filter((l) => t.includes(l.city.toLowerCase()));
   if (byTown.length >= 2) return byTown.slice(0, 3);

@@ -1,4 +1,5 @@
-import { formatAmount, LODGINGS, NORTE_TOWNS, type Lodging } from '@/lib/lodgings';
+import { catalog } from '@/lib/catalog';
+import { formatAmount, NORTE_TOWNS, type Lodging } from '@/lib/lodgings';
 import type { PhotoKey } from '@/lib/photos';
 
 /**
@@ -41,7 +42,7 @@ const BASE = [
 ] as const satisfies readonly Omit<Destination, 'from' | 'lodgings'>[];
 
 export const DESTINATIONS: readonly Destination[] = BASE.map((d) => {
-  const all = LODGINGS.filter((l) => (d.towns as readonly string[]).includes(l.city));
+  const all = catalog.all().filter((l) => (d.towns as readonly string[]).includes(l.city));
   const cheapest = all.reduce((a, b) => (b.pricePerNight < a.pricePerNight ? b : a));
   const lodgings = [...all.filter((l) => l.featured), ...all.filter((l) => !l.featured)].slice(0, 2);
   return { ...d, lodgings, from: `desde ${formatAmount(cheapest.pricePerNight, cheapest.currency)}` };

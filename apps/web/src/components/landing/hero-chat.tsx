@@ -7,7 +7,8 @@ import { NomitoAvatar } from '@/components/nomito-avatar';
 import { ASK_PARAM } from '@/lib/nomito/ask';
 import { cn } from '@/lib/utils';
 import { formatBRL } from '@/lib/format';
-import { CASA_DE_ADOBE, formatLocalPrice, nightlyBRL, quoteFor } from '@/lib/lodgings';
+import { CASA_DE_ADOBE } from '@/lib/catalog';
+import { formatLocalPrice, nightlyBRL, quoteFor } from '@/lib/lodgings';
 
 const lodging = CASA_DE_ADOBE;
 const quote = quoteFor(lodging);

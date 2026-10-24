@@ -6,7 +6,8 @@ import { notFound } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
 import { LodgingCard } from '@/components/marketplace/lodging-card';
 import { OwnerProfile } from '@/components/marketplace/owner-profile';
-import { lodgingsByOwner, ownerBySlug, OWNERS } from '@/lib/lodgings';
+import { catalog } from '@/lib/catalog';
+import { ownerBySlug, OWNERS } from '@/lib/lodgings';
 import { PHOTOS } from '@/lib/photos';
 
 export function generateStaticParams() {
@@ -30,7 +31,7 @@ export default async function OwnerPage({ params }: { params: Promise<{ slug: st
   const owner = ownerBySlug(slug);
   if (!owner) notFound();
 
-  const lodgings = lodgingsByOwner(owner.slug);
+  const lodgings = catalog.byOwner(owner.slug);
   const avgRating = lodgings.reduce((sum, l) => sum + l.rating, 0) / lodgings.length;
   const totalReviews = lodgings.reduce((sum, l) => sum + l.reviews, 0);
   const coverKey = lodgings.find((l) => l.photo)?.photo;

@@ -98,3 +98,7 @@ Thumbs.db
 
 # Turbo
 .turbo
+
+# Test artifacts
+test-results/
+playwright-report/

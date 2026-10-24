@@ -1,4 +1,5 @@
-import { CASA_DE_ADOBE, quoteFor } from '@/lib/lodgings';
+import { CASA_DE_ADOBE } from '@/lib/catalog';
+import { quoteFor } from '@/lib/lodgings';
 
 const ROWS = [
   {

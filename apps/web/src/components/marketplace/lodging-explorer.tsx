@@ -14,12 +14,12 @@ import {
 
 import { SearchIcon } from '@/components/icons';
 import { LodgingCard } from '@/components/marketplace/lodging-card';
+import { catalog } from '@/lib/catalog';
 import {
   FALLBACK_USD_RATES,
   FIAT_OPTIONS,
   KIND_LABEL,
   LODGING_KINDS,
-  LODGINGS,
   ownerBySlug,
   type Fiat,
   type FxRates,
@@ -69,7 +69,7 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
   }, []);
 
   const results = useMemo(
-    () => LODGINGS.filter((l) => (selected.size === 0 || selected.has(l.kind)) && matches(l, query)),
+    () => catalog.all().filter((l) => (selected.size === 0 || selected.has(l.kind)) && matches(l, query)),
     [selected, query],
   );
 
