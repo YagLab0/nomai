@@ -1,13 +1,16 @@
 /**
  * Live tool progress for the in-flight assistant message. The eve adapter
  * folds `actions.requested` / `action.result` into this list and ships it
- * through `metadata.custom[TOOL_STATUS_KEY]`; the chat renders it only while
- * the turn runs. Labels are Traveler-facing — raw tool names never reach the UI.
+ * through `metadata.custom[TOOL_STATUS_KEY]`; the chat renders it as tool
+ * chips. Labels are Traveler-facing — raw tool names never reach the UI
+ * (`name` stays in metadata for glyph mapping only).
  */
 export const TOOL_STATUS_KEY = 'nomitoTools';
 
 export type ToolStatusEntry = {
   callId: string;
+  /** Raw tool name — metadata only, used to pick a chip glyph. Never rendered. */
+  name?: string;
   label: string;
   done: boolean;
 };

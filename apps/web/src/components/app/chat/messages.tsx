@@ -3,7 +3,9 @@
 import { MessagePrimitive, useAuiState } from '@assistant-ui/react';
 
 import { OpenUIText } from '@/components/app/chat/openui-text';
-import { ToolStatus } from '@/components/app/chat/tool-status';
+import { ThinkingTrace } from '@/components/app/chat/thinking-trace';
+import { ToolRunChips } from '@/components/app/chat/tool-chips';
+import { WaitingState } from '@/components/app/chat/waiting-state';
 import { NomitoAvatar } from '@/components/nomito-avatar';
 
 /** A failed turn's Traveler-facing notice. */
@@ -35,8 +37,10 @@ export function AssistantMessage() {
     <MessagePrimitive.Root className="flex items-start gap-3">
       <NomitoAvatar size="sm" className="mt-1" />
       <div className="flex min-w-0 max-w-[90%] flex-1 flex-col items-start gap-2">
+        <WaitingState />
+        <ThinkingTrace />
+        <ToolRunChips />
         <MessagePrimitive.Parts components={{ Text: OpenUIText }} />
-        <ToolStatus />
         <MessageError />
       </div>
     </MessagePrimitive.Root>
