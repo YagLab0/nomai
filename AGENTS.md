@@ -17,7 +17,9 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 - `pnpm api:buy` — run the x402 buyer script
 - `pnpm build` / `pnpm lint` / `pnpm type-check` — turbo pipelines
 - `pnpm --filter web test` — Vitest unit tests (`src/**/*.test.ts`)
-- `pnpm --filter web test:e2e` — Playwright E2E (`e2e/`); reuses a dev server on :3000 or starts one
+- `pnpm --filter web test:e2e` — Playwright E2E (`e2e/`); reuses a dev server on :3000 or starts one (`E2E_PORT` overrides)
+  - `next build` and `next dev` share `apps/web/.next`: stop the dev server before building, and restart it after `pnpm install` (stale chunks blank every page)
+  - Pick HeroUI Select options with `pickOption` (`e2e/helpers.ts`) and wait for each wizard step's heading before the next click; clicks during popover/step transitions get swallowed
 
 `apps/api` requires `.env` (see `apps/api/.env.template`): `X402_API_KEY`, `X402_PAY_TO`, `BUYER_PRIVATE_KEY`. Defaults to Celo Sepolia testnet.
 
