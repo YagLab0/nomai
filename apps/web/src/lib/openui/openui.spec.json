@@ -2,7 +2,7 @@
   "root": "Stack",
   "components": {
     "Stack": {
-      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
+      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow | ApprovalCard | TaskRows | RecommendationCard)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
       "description": "Root layout container every program starts with: stacks children vertically (default) or horizontally with a gap."
     },
     "TextContent": {
@@ -72,6 +72,18 @@
     "MetricRow": {
       "signature": "MetricRow(items: {label: string, value: string, note?: string}[])",
       "description": "Row of small stat tiles; the first tile is terra-filled as the headline metric. Every value must come verbatim from a tool result (totals, nights, counts) — never compute or invent figures. note = optional short caption under the value."
+    },
+    "ApprovalCard": {
+      "signature": "ApprovalCard(question: string, options: {label: string, value?: string, tone?: \"default\" | \"danger\"}[], submit: ActionExpression, description?: string, dismiss?: ActionExpression)",
+      "description": "Human-in-the-loop confirm: one question, 2-4 radio options, a \"Confirmar\" button and an optional \"Ahora no\" dismiss. The pick reaches you as form values {choice: <label>, value: <value>}. Use it for destructive or money-moving decisions (cancel a Booking, confirm before paying) — never to ask for data a tool already returned."
+    },
+    "TaskRows": {
+      "signature": "TaskRows(rows: {label: string, status: \"done\" | \"running\" | \"failed\" | \"pending\", detail?: string}[])",
+      "description": "Live status list — one row per stage of a Booking lifecycle (Reservada → Pagada → Check-in → Estadía → Fondos liberados) or of in-flight work. status: done = finished, running = in flight right now, failed = ended badly (cancelled, payment failed), pending = still ahead. detail = a date/amount/count from tool data, verbatim."
+    },
+    "RecommendationCard": {
+      "signature": "RecommendationCard(title: string, description: string, confidence: number, accept: ActionExpression, alternatives?: {label: string, action: ActionExpression}[])",
+      "description": "One top pick after a search: title + why, a 0-100 confidence meter, an \"Elegir\" CTA and an \"Alternativas\" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented."
     }
   },
   "componentGroups": [
@@ -100,7 +112,10 @@
         "Stepper",
         "AvailabilityPicker",
         "ClaimCard",
-        "MetricRow"
+        "MetricRow",
+        "ApprovalCard",
+        "TaskRows",
+        "RecommendationCard"
       ]
     }
   ],
@@ -161,6 +176,15 @@
       },
       "MetricRow": {
         "$ref": "#/$defs/MetricRow"
+      },
+      "ApprovalCard": {
+        "$ref": "#/$defs/ApprovalCard"
+      },
+      "TaskRows": {
+        "$ref": "#/$defs/TaskRows"
+      },
+      "RecommendationCard": {
+        "$ref": "#/$defs/RecommendationCard"
       }
     },
     "required": [
@@ -181,7 +205,10 @@
       "Stepper",
       "AvailabilityPicker",
       "ClaimCard",
-      "MetricRow"
+      "MetricRow",
+      "ApprovalCard",
+      "TaskRows",
+      "RecommendationCard"
     ],
     "additionalProperties": false,
     "$defs": {
@@ -245,6 +272,15 @@
                 },
                 {
                   "$ref": "#/$defs/MetricRow"
+                },
+                {
+                  "$ref": "#/$defs/ApprovalCard"
+                },
+                {
+                  "$ref": "#/$defs/TaskRows"
+                },
+                {
+                  "$ref": "#/$defs/RecommendationCard"
                 }
               ]
             }
@@ -783,6 +819,139 @@
         ],
         "additionalProperties": false,
         "description": "Row of small stat tiles; the first tile is terra-filled as the headline metric. Every value must come verbatim from a tool result (totals, nights, counts) — never compute or invent figures. note = optional short caption under the value."
+      },
+      "ApprovalCard": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "tone": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "danger"
+                  ]
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "submit": {
+            "$ref": "#/$defs/ActionExpression"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dismiss": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        "required": [
+          "question",
+          "options",
+          "submit"
+        ],
+        "additionalProperties": false,
+        "description": "Human-in-the-loop confirm: one question, 2-4 radio options, a \"Confirmar\" button and an optional \"Ahora no\" dismiss. The pick reaches you as form values {choice: <label>, value: <value>}. Use it for destructive or money-moving decisions (cancel a Booking, confirm before paying) — never to ask for data a tool already returned."
+      },
+      "TaskRows": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "running",
+                    "failed",
+                    "pending"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "Live status list — one row per stage of a Booking lifecycle (Reservada → Pagada → Check-in → Estadía → Fondos liberados) or of in-flight work. status: done = finished, running = in flight right now, failed = ended badly (cancelled, payment failed), pending = still ahead. detail = a date/amount/count from tool data, verbatim."
+      },
+      "RecommendationCard": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "accept": {
+            "$ref": "#/$defs/ActionExpression"
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "action": {
+                  "$ref": "#/$defs/ActionExpression"
+                }
+              },
+              "required": [
+                "label",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "confidence",
+          "accept"
+        ],
+        "additionalProperties": false,
+        "description": "One top pick after a search: title + why, a 0-100 confidence meter, an \"Elegir\" CTA and an \"Alternativas\" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented."
       }
     }
   },

@@ -78,13 +78,15 @@ LATAM y ejecutás Bookings contra la API de publicaciones.
   listing): reembolso del 100% del alojamiento antes del deadline de
   cancelación (check-in − 5 días) y del 50% después; el Service fee nunca se
   reembolsa. Antes de llamar `cancel_booking`: (1) explicá esa política con
-  las fechas de esta reserva y (2) pedí confirmación explícita del Traveler.
-  Un mensaje "cancelar reserva {booking_id}" (del botón cancelar de un
-  BookingCard) es el pedido de cancelación: respondé con la política y pedí
-  confirmación antes de ejecutarla. Pasá el mismo `guest_ref` de la
-  reserva — es la prueba de titularidad. Después informá `policy_name` y
-  `refund_display` de la respuesta; un 409 `not_cancellable` significa que la
-  reserva ya no está confirmada — explicáselo, no reintentes.
+  las fechas de esta reserva y (2) pedí confirmación explícita con un
+  ApprovalCard (la respuesta llega como Form values — "confirm" ejecuta,
+  "keep" no hace nada). Un mensaje "cancelar reserva {booking_id}" (del
+  botón cancelar de un BookingCard) es el pedido de cancelación: respondé
+  con la política y la ApprovalCard, no ejecutes directo. Pasá el mismo
+  `guest_ref` de la reserva — es la prueba de titularidad. Después informá
+  `policy_name` y `refund_display` de la respuesta; un 409 `not_cancellable`
+  significa que la reserva ya no está confirmada — explicáselo, no
+  reintentes.
 - Claims (ADR-0006): si el Traveler reporta un problema con la estadía
   dentro de las 24 h posteriores al check-in, ofrecé abrir un Claim con
   `open_claim` (`reason`: `no_access`, `not_as_described` u

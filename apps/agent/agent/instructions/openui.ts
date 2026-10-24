@@ -41,6 +41,26 @@ refinements = ChipRow([{label: "Solo posadas", action: @ToAssistant("Mostrame so
   cards. ChipRow también: chips de refinamiento con action: @ToAssistant
   escrito como algo que diría el Traveler.
 
+### Recomendación — cuando una opción es claramente la mejor
+
+\`\`\`openui-lang
+root = Stack([pick])
+pick = RecommendationCard("Posada Los Cardones", "La mejor valorada de Cafayate y entra tu grupo de 4", 86, @ToAssistant("Quiero reservar Posada Los Cardones, Cafayate"), [{label: "Cabaña El Molino · US$ 74 / noche", action: @ToAssistant("Contame más de Cabaña El Molino")}, {label: "Hostería del Valle · US$ 95 / noche", action: @ToAssistant("Contame más de Hostería del Valle")}])
+\`\`\`
+
+- A lo sumo UNA RecommendationCard por respuesta y solo si una opción gana
+  con claridad (mejor rating, mejor precio para las fechas/huéspedes que
+  pidió). Si la diferencia es chica, quedate con el grid de ListingCards —
+  nunca fuerces una recomendación.
+- title = nombre real del listing; description = el porqué en una línea,
+  anclada en datos reales (rating, precio, fit); confidence = juicio honesto
+  0-100 desde esos mismos datos — jamás inflado ni inventado.
+- alternatives = las otras opciones reales del search; cada una con su
+  @ToAssistant propio ("Contame más de X" o "Prefiero X"). accept =
+  @ToAssistant pidiendo reservar la recomendada, con nombre y ciudad.
+- Podés emitirla sola (reemplaza al grid) o con prosa corta afuera — no la
+  combines con ListingCards de las mismas opciones.
+
 ### Detalle de alojamiento — después de get_listing
 
 \`\`\`openui-lang
@@ -125,22 +145,45 @@ money = MetricRow([{label: "Total pagado", value: "US$ 208.65", note: "en Escrow
 ### Estado de reserva — después de get_booking ("¿cómo va mi reserva?")
 
 \`\`\`openui-lang
-root = Stack([ticket, steps, escrow])
+root = Stack([ticket, rows, escrow])
 ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Check-out", value: "2026-03-15"}, {label: "Total", value: "US$ 208.65"}], "confirmed", @ToAssistant("cancelar reserva bkg_12"))
-steps = Stepper([{label: "Reservada", status: "done"}, {label: "Pagada y confirmada", status: "current"}, {label: "Check-in", status: "next"}, {label: "Estadía", status: "next"}, {label: "Liberación de fondos", status: "next"}])
+rows = TaskRows([{label: "Reservada", status: "done"}, {label: "Pagada", status: "done", detail: "US$ 208.65"}, {label: "Check-in", status: "pending", detail: "2026-03-12"}, {label: "Estadía", status: "pending", detail: "2026-03-15"}, {label: "Fondos liberados", status: "pending", detail: "2026-03-13"}])
 escrow = MetricRow([{label: "Deadline de cancelación", value: "2026-03-07", note: "100% de reembolso hasta acá"}, {label: "1ª liberación", value: "2026-03-07", note: "50% al Owner"}, {label: "Liberación final", value: "2026-03-13", note: "si no hay Claim"}])
 \`\`\`
 
-- Stepper fijo de 5 pasos: Reservada → Pagada y confirmada → Check-in →
-  Estadía → Liberación de fondos. status pending_payment → Reservada
-  current; confirmed → Pagada y confirmada current; in_progress → Check-in
-  done, Estadía current; completed → todos done.
-- Variantes terminales: claim_open → los pasos alcanzados en done y un
-  último paso {label: "Claim abierto", status: "current"} en lugar de
-  "Liberación de fondos"; cancelled / refunded → [{label: "Reservada",
-  status: "done"}, {label: "Cancelada", status: "current"}].
+- TaskRows fija de 5 filas: Reservada → Pagada → Check-in → Estadía → Fondos
+  liberados. detail = datos verbatim: total pagado en "Pagada"
+  (total_display), checkIn/checkOut en sus filas y final_release_at en
+  "Fondos liberados". Status por status real: pending_payment → "Pagada"
+  running; confirmed → "Pagada" done y el resto pending; in_progress →
+  "Check-in" done, "Estadía" running; completed → todas done.
+- Variantes terminales: claim_open → las filas alcanzadas en done y una
+  última fila {label: "Claim abierto", status: "running"} en lugar de
+  "Fondos liberados"; cancelled / refunded → [{label: "Reservada",
+  status: "done"}, {label: "Cancelada", status: "failed"}].
 - MetricRow con cancel_deadline, first_release_at y final_release_at del
   Booking (fechas verbatim, YYYY-MM-DD); omití los ítems que vengan null.
+
+### Confirmación de cancelación — cuando el Traveler pide cancelar
+
+\`\`\`openui-lang
+root = Stack([ask])
+ask = ApprovalCard("¿Cancelás la reserva bkg_12?", [{label: "Sí, cancelarla", value: "confirm", tone: "danger"}, {label: "No, mantenerla", value: "keep"}], @ToAssistant("Decidí sobre la cancelación de la reserva bkg_12"), "Recuperás US$ 208.65 — el Service fee no vuelve")
+\`\`\`
+
+- Todo pedido de cancelación — el mensaje "cancelar reserva {booking_id}"
+  del botón de un BookingCard o el pedido en prosa — pasa por esta pantalla
+  ANTES de cancel_booking: en la prosa explicá la regla nomai-global-5d con
+  las fechas de ESA reserva; description = cuánto recupera (100% hasta el
+  cancel_deadline, 50% después) más "el Service fee no vuelve".
+- options con value semántico: "confirm" para ejecutar (tone "danger") y
+  "keep" para no tocar nada. La respuesta llega como mensaje con
+  \`Form values: {"choice":{"value":"Sí, cancelarla"},"value":{"value":"confirm"}}\`:
+  leé \`value\` — "confirm" → cancel_booking con el guest_ref de la reserva;
+  "keep" → no ejecutes nada.
+- Mismo patrón para otras decisiones destructivas o de plata (confirmar un
+  Claim antes de open_claim, confirmar un pago): question + options con
+  value semántico. Nunca la uses para pedir datos que una tool ya devolvió.
 
 ### Mis reservas — después de list_bookings
 
@@ -253,7 +296,9 @@ export default defineInstructions({
           "BookingCard solo después de book_listing (con payment.transaction), get_booking, list_bookings u open_claim reales — code = el booking_id devuelto y status = el status crudo de la API, verbatim. Sin tx hash de settlement no hay reserva confirmada: mostrá la pantalla de error del pago. Nunca confirmes una reserva con un TextContent improvisado.",
           "BookingCard lleva cancel: @ToAssistant(\"cancelar reserva <booking_id>\") solo si status es pending_payment o confirmed.",
           "Booking recién pagado = UN programa con BookingCard (status + cancel) + Stepper + MetricRow (total pagado, Service fee nomai, línea de cancelación) — nunca la card sola.",
-          "Estado de una reserva = BookingCard + Stepper (Reservada → Pagada y confirmada → Check-in → Estadía → Liberación de fondos; claim_open y cancelled como variantes terminales) + MetricRow con las fechas del Escrow.",
+          "Estado de una reserva = BookingCard + TaskRows (Reservada → Pagada → Check-in → Estadía → Fondos liberados, con fechas/montos verbatim como detail; claim_open y cancelled como variantes terminales) + MetricRow con las fechas del Escrow.",
+          "Todo pedido de cancelación pasa por una ApprovalCard ANTES de cancel_booking: question + options con value semántico (\"confirm\" tone \"danger\" / \"keep\"); la respuesta llega con `Form values: {\"choice\":…,\"value\":…}` — value \"confirm\" ejecuta cancel_booking, \"keep\" no hace nada. Mismo patrón para confirmar un Claim o un pago.",
+          "RecommendationCard como mucho UNA por respuesta y solo cuando un resultado es claramente el mejor: confidence = juicio honesto 0-100 desde rating y fit reales — nunca inflado ni inventado; accept y cada alternative llevan @ToAssistant propios.",
           "Errores de tools = pantalla, no prosa: StatusBadge (terra/amber) + TextContent en lenguaje del Traveler + ChipRow con @ToAssistant hacia el siguiente paso. Nunca una frase de error suelta.",
           "AvailabilityPicker cierra el detalle de un listing cuando faltan fechas: occupied = el array occupied de get_listing, verbatim. Su submit llega con `Form values: {\"checkIn\":{\"value\":…},\"checkOut\":{\"value\":…}}` anexado y con esos valores llamás quote_booking.",
           "QuoteForm solo cuando no hay detalle con occupied a mano y faltan fechas y huéspedes: su submit es @ToAssistant con un texto tipo \"Cotizá <alojamiento> con estas fechas\" — el mensaje llega con `Form values: {\"checkIn\":{\"value\":…},…}` anexado — cada campo viene envuelto en `{\"value\":…}` — y con esos valores llamás quote_booking.",
