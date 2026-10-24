@@ -34,7 +34,7 @@ export function LodgingCard({
   const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-card bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-card bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
       <div className="relative h-48 overflow-hidden">
         {photo ? (
           <Image
@@ -63,7 +63,14 @@ export function LodgingCard({
             <p className="font-mono text-xs tracking-widest text-ink-muted">
               {lodging.code} · {lodging.city}
             </p>
-            <h3 className="mt-0.5 font-brand text-xl font-medium leading-snug text-ink">{lodging.name}</h3>
+            <h3 className="mt-0.5 font-brand text-xl font-medium leading-snug text-ink">
+              <Link
+                href={`/lodgings/${lodging.id}`}
+                className="rounded-sm after:absolute after:inset-0 after:content-[''] hover:underline hover:decoration-terra/50 hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
+              >
+                {lodging.name}
+              </Link>
+            </h3>
           </div>
           {lodging.reviews === 0 ? (
             <span className="shrink-0 rounded-full bg-agua-soft px-2.5 py-1 text-xs font-medium text-agua">
@@ -85,7 +92,7 @@ export function LodgingCard({
 
         <Link
           href={`/owners/${owner.slug}`}
-          className="mt-3 flex w-fit items-center gap-2 rounded-md text-xs text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
+          className="relative z-10 mt-3 flex w-fit items-center gap-2 rounded-md text-xs text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
         >
           <span
             aria-hidden="true"
@@ -112,7 +119,7 @@ export function LodgingCard({
           </div>
           <Link
             href={askHref}
-            className="shrink-0 rounded-full bg-terra px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+            className="relative z-10 shrink-0 rounded-full bg-terra px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
           >
             Pedirle a Nomito
           </Link>

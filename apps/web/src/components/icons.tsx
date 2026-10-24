@@ -102,3 +102,24 @@ export function CheckIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function BedIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M2 4v16" />
+      <path d="M2 8h18a2 2 0 0 1 2 2v10" />
+      <path d="M2 17h20" />
+      <path d="M6 8v9" />
+    </svg>
+  );
+}
+
+export function BathIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-1-.5C4.7 3 4 3.7 4 4.5V12" />
+      <path d="M2 12h20v2a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4v-2Z" />
+      <path d="M6 18v2M18 18v2" />
+    </svg>
+  );
+}

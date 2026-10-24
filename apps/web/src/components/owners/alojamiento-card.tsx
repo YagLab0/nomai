@@ -184,7 +184,7 @@ export function AlojamientoCard({
           </p>
           <div className="flex items-center gap-4">
             <Link
-              href="/lodgings"
+              href={`/lodgings/${lodging.id}`}
               className="text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
             >
               Ver en el catálogo
