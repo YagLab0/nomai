@@ -9,6 +9,3 @@ export interface ShortlistArgs {
 }
 
 export type BookingQuoteArgs = BookingQuote;
-
-/** Metadata key carrying the monedas an assistant message actually spent. */
-export const MONEDAS_SPENT_KEY = 'monedasSpent';
