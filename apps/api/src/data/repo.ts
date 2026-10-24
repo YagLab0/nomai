@@ -1,5 +1,6 @@
 import { AMENITY_BY_CODE, AMENITY_BY_ID, CANCELLATION_POLICIES } from "./catalog.js";
 import { buildAvailability, nightsBetween } from "./availability.js";
+import { SERVICE_FEE_PCT } from "./types.js";
 import {
   BUSINESSES,
   LISTING_AMENITIES,
@@ -104,9 +105,13 @@ export interface Quote {
   nights: QuoteNight[];
   nights_minor: number;
   cleaning_minor: number;
+  /** ADR-0005 Service fee — platform revenue line, on top of the rental. */
+  service_fee_minor: number;
+  /** nights + cleaning + service fee — what the Traveler actually pays. */
   total_minor: number;
   nights_display: string;
   cleaning_display: string;
+  service_fee_display: string;
   total_display: string;
   currency: string;
 }
@@ -194,7 +199,9 @@ function quoteResult(
   }
 
   const nights_minor = quoteNights.reduce((s, n) => s + n.price_minor, 0);
-  const total_minor = nights_minor + listing.cleaning_fee_minor;
+  const rental_minor = nights_minor + listing.cleaning_fee_minor;
+  const service_fee_minor = Math.round((rental_minor * SERVICE_FEE_PCT) / 100);
+  const total_minor = rental_minor + service_fee_minor;
   return {
     ok: true,
     quote: {
@@ -206,9 +213,11 @@ function quoteResult(
       nights: quoteNights,
       nights_minor,
       cleaning_minor: listing.cleaning_fee_minor,
+      service_fee_minor,
       total_minor,
       nights_display: formatMoney(nights_minor, listing.currency),
       cleaning_display: formatMoney(listing.cleaning_fee_minor, listing.currency),
+      service_fee_display: formatMoney(service_fee_minor, listing.currency),
       total_display: formatMoney(total_minor, listing.currency),
       currency: listing.currency,
     },

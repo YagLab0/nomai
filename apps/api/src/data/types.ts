@@ -40,6 +40,13 @@ export type BookingStatus =
   | "completed"
   | "refunded";
 
+/**
+ * ADR-0005 Service fee — the platform's revenue line on every Booking,
+ * a fixed percentage of the rental (mirrors platform_settings.service_fee_pct
+ * in the database; keep both in sync). ENV-overridable.
+ */
+export const SERVICE_FEE_PCT = Number(process.env.SERVICE_FEE_PCT ?? "7");
+
 export interface Business {
   id: string;
   name: string;

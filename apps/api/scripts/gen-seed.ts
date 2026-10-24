@@ -9,7 +9,7 @@
  * repo uses — the night window rolls from "today", so regenerate to freshen.
  */
 import { buildAvailability } from "../src/data/availability.js";
-import { AMENITIES, CANCELLATION_POLICIES } from "../src/data/catalog.js";
+import { AMENITIES } from "../src/data/catalog.js";
 import {
   BUSINESSES,
   LISTINGS,
@@ -74,15 +74,9 @@ lines.push(
   ),
   "",
   insert(
-    "cancellation_policies",
-    ["id","business_id","name","full_refund_days","partial_refund_pct","partial_refund_days"],
-    CANCELLATION_POLICIES.map((c) => [c.id,c.business_id,c.name,c.full_refund_days,c.partial_refund_pct,c.partial_refund_days])
-  ),
-  "",
-  insert(
     "listings",
-    ["id","property_id","cancel_policy_id","slug","title","summary","description","kind","max_guests","bedrooms","beds","bathrooms","base_price_minor","currency","cleaning_fee_minor","min_nights","max_nights","rating","reviews","instant_book","pets_allowed","smoking_allowed","events_allowed","status","published_at","created_at","updated_at"],
-    LISTINGS.map((l) => [l.id,l.property_id,l.cancel_policy_id,l.slug,l.title,l.summary,l.description,l.kind,l.max_guests,l.bedrooms,l.beds,l.bathrooms,l.base_price_minor,l.currency,l.cleaning_fee_minor,l.min_nights,l.max_nights,l.rating,l.reviews,l.instant_book,l.pets_allowed,l.smoking_allowed,l.events_allowed,l.status,l.published_at,l.created_at,l.updated_at])
+    ["id","property_id","slug","title","summary","description","kind","max_guests","bedrooms","beds","bathrooms","base_price_minor","currency","cleaning_fee_minor","min_nights","max_nights","rating","reviews","instant_book","pets_allowed","smoking_allowed","events_allowed","status","published_at","created_at","updated_at"],
+    LISTINGS.map((l) => [l.id,l.property_id,l.slug,l.title,l.summary,l.description,l.kind,l.max_guests,l.bedrooms,l.beds,l.bathrooms,l.base_price_minor,l.currency,l.cleaning_fee_minor,l.min_nights,l.max_nights,l.rating,l.reviews,l.instant_book,l.pets_allowed,l.smoking_allowed,l.events_allowed,l.status,l.published_at,l.created_at,l.updated_at])
   ),
   "",
   insert(

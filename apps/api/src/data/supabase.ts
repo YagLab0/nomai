@@ -40,7 +40,6 @@ import type {
   Booking,
   BookingStatus,
   Business,
-  CancellationPolicy,
   Listing,
   Property,
   RateRule,
@@ -60,7 +59,7 @@ type ListingAmenityRow = Database["public"]["Tables"]["listing_amenities"]["Row"
 type ListingUnitRow = Database["public"]["Tables"]["listing_units"]["Row"];
 type RateRuleRow = Database["public"]["Tables"]["rate_rules"]["Row"];
 type AvailNightRow = Database["public"]["Tables"]["availability_nights"]["Row"];
-type PolicyRow = Database["public"]["Tables"]["cancellation_policies"]["Row"];
+import { SERVICE_FEE_PCT } from "./types.js";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -85,7 +84,7 @@ function toListing(row: ListingRow): Listing {
   return {
     id: row.id,
     property_id: row.property_id,
-    cancel_policy_id: row.cancel_policy_id,
+    cancel_policy_id: null,
     slug: row.slug,
     title: row.title,
     summary: row.summary ?? undefined,
@@ -148,17 +147,6 @@ function toBusiness(row: BusinessRow): Business {
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at,
-  };
-}
-
-function toPolicy(row: PolicyRow): CancellationPolicy {
-  return {
-    id: row.id,
-    business_id: row.business_id,
-    name: row.name,
-    full_refund_days: row.full_refund_days,
-    partial_refund_pct: row.partial_refund_pct,
-    partial_refund_days: row.partial_refund_days,
   };
 }
 
@@ -355,17 +343,13 @@ async function fetchUnitsAvailable(listingId: string): Promise<number> {
   return rows.length;
 }
 
-async function fetchPolicy(id: string | null): Promise<CancellationPolicy | null> {
-  if (!id) return null;
-  const { data, error } = await client()
-    .from("cancellation_policies")
-    .select("*")
-    .eq("id", id);
-  if (error) throw error;
-  const rows = (data ?? []) as PolicyRow[];
-  const row = rows[0];
-  return row ? toPolicy(row) : null;
-}
+/** ADR-0006: one global rule — full refund until 5 days before check-in, 50% after. */
+const GLOBAL_POLICY = {
+  name: "nomai-global-5d",
+  full_refund_days: 5,
+  partial_refund_pct: 50,
+  partial_refund_days: 0,
+};
 
 // ---------------------------------------------------------------------------
 // quoting — same precedence + same errors as the mock: availability → rate_rule
@@ -448,7 +432,9 @@ async function quoteListing(
   }
 
   const nights_minor = quoteNights.reduce((s, n) => s + n.price_minor, 0);
-  const total_minor = nights_minor + listing.cleaning_fee_minor;
+  const rental_minor = nights_minor + listing.cleaning_fee_minor;
+  const service_fee_minor = Math.round((rental_minor * SERVICE_FEE_PCT) / 100);
+  const total_minor = rental_minor + service_fee_minor;
   return {
     ok: true,
     quote: {
@@ -460,12 +446,14 @@ async function quoteListing(
       nights: quoteNights,
       nights_minor,
       cleaning_minor: listing.cleaning_fee_minor,
+      service_fee_minor,
       total_minor,
       nights_display: formatMoney(nights_minor, listing.currency),
       cleaning_display: formatMoney(
         listing.cleaning_fee_minor,
         listing.currency
       ),
+      service_fee_display: formatMoney(service_fee_minor, listing.currency),
       total_display: formatMoney(total_minor, listing.currency),
       currency: listing.currency,
     },
@@ -507,9 +495,7 @@ export async function getListingBySlug(slug: string): Promise<ListingDetail | nu
       )
     : null;
   if (!property || !business) return null;
-  const policy = listing.cancel_policy_id
-    ? await fetchPolicy(listing.cancel_policy_id)
-    : null;
+  const policy = GLOBAL_POLICY;
 
   const amenities = (
     await fetchListingAmenitiesByIds([listing.id]).then(
@@ -779,10 +765,17 @@ export async function bookListing(
     })),
     nights_minor: r.quote.nights_minor,
     cleaning_minor: r.quote.cleaning_minor,
-    total_minor: r.quote.total_minor,
+    // The RPC's quote is rental-only; the stored row carries the Service fee
+    // (apply_service_fee trigger) — the delta IS the fee line.
+    service_fee_minor: r.booking.total_minor - r.quote.total_minor,
+    total_minor: r.booking.total_minor,
     nights_display: formatMoney(r.quote.nights_minor, currency),
     cleaning_display: formatMoney(r.quote.cleaning_minor, currency),
-    total_display: formatMoney(r.quote.total_minor, currency),
+    service_fee_display: formatMoney(
+      r.booking.total_minor - r.quote.total_minor,
+      currency
+    ),
+    total_display: formatMoney(r.booking.total_minor, currency),
     currency,
   };
   const booking: Booking = {

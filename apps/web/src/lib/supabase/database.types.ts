@@ -271,41 +271,6 @@ export type Database = {
         }
         Relationships: []
       }
-      cancellation_policies: {
-        Row: {
-          business_id: string | null
-          full_refund_days: number
-          id: string
-          name: string
-          partial_refund_days: number
-          partial_refund_pct: number
-        }
-        Insert: {
-          business_id?: string | null
-          full_refund_days: number
-          id: string
-          name: string
-          partial_refund_days: number
-          partial_refund_pct: number
-        }
-        Update: {
-          business_id?: string | null
-          full_refund_days?: number
-          id?: string
-          name?: string
-          partial_refund_days?: number
-          partial_refund_pct?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cancellation_policies_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       credit_ledger: {
         Row: {
           amount: number
@@ -460,7 +425,6 @@ export type Database = {
           bathrooms: number | null
           bedrooms: number | null
           beds: number | null
-          cancel_policy_id: string | null
           cleaning_fee_minor: number
           created_at: string
           currency: string
@@ -489,7 +453,6 @@ export type Database = {
           bathrooms?: number | null
           bedrooms?: number | null
           beds?: number | null
-          cancel_policy_id?: string | null
           cleaning_fee_minor?: number
           created_at?: string
           currency: string
@@ -518,7 +481,6 @@ export type Database = {
           bathrooms?: number | null
           bedrooms?: number | null
           beds?: number | null
-          cancel_policy_id?: string | null
           cleaning_fee_minor?: number
           created_at?: string
           currency?: string
@@ -543,13 +505,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "listings_cancel_policy_id_fkey"
-            columns: ["cancel_policy_id"]
-            isOneToOne: false
-            referencedRelation: "cancellation_policies"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "listings_property_id_fkey"
             columns: ["property_id"]
@@ -608,6 +563,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
       }
       properties: {
         Row: {
