@@ -47,6 +47,7 @@ among cardones at the Pucará de Tilcara).
 | `atacama-valle-de-la-luna.webp` | Valle de la Luna, San Pedro de Atacama (Chile) | Vinícius Henrique Photography | https://unsplash.com/photos/A7GwggrhXm4 | Unsplash |
 | `atacama-laguna-lejia.webp` | Volcanoes reflected in Laguna Lejía, San Pedro de Atacama (Chile) | Vinícius Henrique Photography | https://unsplash.com/photos/tlCzxI2RQAc | Unsplash |
 | `atacama-baltinache.webp` | Salt lagoon at Baltinache, San Pedro de Atacama (Chile) | Mauro Lima | https://unsplash.com/photos/ZsP_spoY_dI | Unsplash |
+| `cusco-machu-picchu.jpg` | Machu Picchu at dawn, near Cusco (Perú) | Pedro Szekely | https://commons.wikimedia.org/wiki/File:Machu_Picchu,_Peru.jpg | CC BY-SA 2.0 |
 | `colonia-faro.webp` | The lighthouse of Colonia del Sacramento (Uruguay) | Mayumi Maciel | https://unsplash.com/photos/n2IhyWVtxW8 | Unsplash |
 | `colonia-portal.webp` | Old door with bougainvillea, Colonia del Sacramento (Uruguay) | Gonzalo Kaplanski | https://unsplash.com/photos/MOPtPKMk7Qc | Unsplash |
 | `colonia-cafe.webp` | Café under a tree with a vintage car, Colonia del Sacramento (Uruguay) | Tammy Taabassum | https://unsplash.com/photos/5Dio0xzXVg0 | Unsplash |

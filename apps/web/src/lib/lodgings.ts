@@ -20,8 +20,11 @@ export type LodgingKind =
   | 'hostal'
   | 'hotel-boutique';
 
-/** Local fiat the Traveler sees: the currencies of the Ripio countries. */
-export type Fiat = 'ARS' | 'BRL' | 'CLP' | 'COP' | 'MXN' | 'UYU';
+/**
+ * Local fiat the Traveler sees: the currencies of the Ripio countries, plus
+ * USD — the listings API prices some inventory in dollars (USDC-settled).
+ */
+export type Fiat = 'USD' | 'ARS' | 'BRL' | 'CLP' | 'COP' | 'MXN' | 'PEN' | 'UYU';
 
 export const FIAT_META: Record<Fiat, { name: string; symbol: string }> = {
   ARS: { name: 'Pesos argentinos', symbol: '$' },
@@ -29,7 +32,9 @@ export const FIAT_META: Record<Fiat, { name: string; symbol: string }> = {
   CLP: { name: 'Pesos chilenos', symbol: '$' },
   COP: { name: 'Pesos colombianos', symbol: '$' },
   MXN: { name: 'Pesos mexicanos', symbol: 'MX$' },
+  PEN: { name: 'Soles', symbol: 'S/' },
   UYU: { name: 'Pesos uruguayos', symbol: '$U' },
+  USD: { name: 'Dólares', symbol: 'US$' },
 };
 
 export const FIAT_OPTIONS: { id: Fiat; label: string }[] = [
@@ -38,7 +43,9 @@ export const FIAT_OPTIONS: { id: Fiat; label: string }[] = [
   { id: 'CLP', label: 'CLP · $' },
   { id: 'COP', label: 'COP · $' },
   { id: 'MXN', label: 'MXN · MX$' },
+  { id: 'PEN', label: 'PEN · S/' },
   { id: 'UYU', label: 'UYU · $U' },
+  { id: 'USD', label: 'USD · US$' },
 ];
 
 /**
@@ -52,15 +59,18 @@ export const FALLBACK_USD_RATES: Record<Fiat, number> = {
   CLP: 950,
   COP: 4200,
   MXN: 18.5,
+  PEN: 3.8,
   UYU: 40,
+  USD: 1,
 };
 
 export type FxRates = Partial<Record<Fiat, number>>;
 
 /**
- * LATAM countries where Ripio operates (registered entities listed on
- * ripio.com, 2026-10). Travelers fund their Agent wallet and Owners get paid
- * through Ripio, so nomai's destinations are exactly these.
+ * LATAM countries served through Ripio rails. Owners get paid through Ripio
+ * everywhere on this list, so nomai's destinations are exactly these.
+ * Funding splits in two tiers below: registered-entity countries get fiat
+ * ramps; the rest are reached through the wFIAT stablecoin rail only.
  */
 export const RIPIO_COUNTRIES = [
   { code: 'AR', name: 'Argentina', fiat: 'ARS' },
@@ -68,13 +78,52 @@ export const RIPIO_COUNTRIES = [
   { code: 'CL', name: 'Chile', fiat: 'CLP' },
   { code: 'CO', name: 'Colombia', fiat: 'COP' },
   { code: 'MX', name: 'México', fiat: 'MXN' },
+  { code: 'PE', name: 'Perú', fiat: 'PEN' },
   { code: 'UY', name: 'Uruguay', fiat: 'UYU' },
 ] as const satisfies readonly { code: string; name: string; fiat: Fiat }[];
 
+/**
+ * Countries where the Ripio Ramps API actually operates (per
+ * docs.ripio.com/ramps-api — AR, BR, CO, MX only; on/off ramp differs per
+ * country): the Traveler funds the Agent wallet through a fiat ramp — local
+ * transfer, Mercado Pago, PSE, PIX — no wallet needed up front.
+ */
+export const RAMP_COUNTRY_CODES: ReadonlySet<string> = new Set([
+  'AR',
+  'BR',
+  'CO',
+  'MX',
+]);
+
+/** Countries whose Travelers fund through Ripio fiat ramps. */
+export const RAMP_COUNTRIES = RIPIO_COUNTRIES.filter((c) =>
+  RAMP_COUNTRY_CODES.has(c.code),
+);
+
+/**
+ * Countries with no Ramps API coverage — Chile and Uruguay have registered
+ * entities but no ramp, Perú has neither — reached through the wFIAT
+ * stablecoin rail only. The Traveler must already hold a wallet (Ripio or
+ * any other) and funds with a manual QR transfer inside the app.
+ */
+export const QR_FUNDING_COUNTRIES = RIPIO_COUNTRIES.filter(
+  (c) => !RAMP_COUNTRY_CODES.has(c.code),
+);
+
+/** How a Traveler from `countryCode` funds the Agent wallet. */
+export function fundingMethod(countryCode: string): 'ramp' | 'qr' {
+  return RAMP_COUNTRY_CODES.has(countryCode) ? 'ramp' : 'qr';
+}
+
 export const RIPIO_COUNTRY_NAMES = RIPIO_COUNTRIES.map((c) => c.name);
 
-/** "Argentina, Brasil, Chile, Colombia, México y Uruguay" */
+/** "Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay" */
 export const RIPIO_COUNTRIES_TEXT = `${RIPIO_COUNTRY_NAMES.slice(0, -1).join(', ')} y ${RIPIO_COUNTRY_NAMES.at(-1)}`;
+
+const RAMP_COUNTRY_NAMES = RAMP_COUNTRIES.map((c) => c.name);
+
+/** "Argentina, Brasil, Colombia y México" — the ramp tier. */
+export const RAMP_COUNTRIES_TEXT = `${RAMP_COUNTRY_NAMES.slice(0, -1).join(', ')} y ${RAMP_COUNTRY_NAMES.at(-1)}`;
 
 export interface Owner {
   slug: string;
@@ -84,12 +133,13 @@ export interface Owner {
   country: string;
   countryCode: string;
   /** Year the Owner started receiving Bookings through nomai. */
-  since: number;
+  since?: number;
   /** Settlement address every Booking pays into directly. Never shown. */
-  wallet: `0x${string}`;
-  verified: boolean;
-  responseTime: string;
-  bio: string;
+  wallet?: `0x${string}`;
+  /** true → verified badge, false → "verificación en curso", undefined → hidden (API doesn't report it). */
+  verified?: boolean;
+  responseTime?: string;
+  bio?: string;
 }
 
 /** Placeholder artwork tone, see components/marketplace/lodging-art.tsx. */
@@ -128,8 +178,19 @@ export interface Lodging {
   lng?: number;
   /** The Lodging's own photos, ordered; the first is the cover. */
   photos?: string[];
+  /** Remote cover URL from the listings API, used when no curated `photo` exists. */
+  photoUrl?: string;
+  /**
+   * Owner display name carried on the listing (API `owner_name`). Cards use it
+   * when `ownerSlug` isn't one of the curated OWNERS.
+   */
+  ownerName?: string;
   /** Pinned quote figures so the headline scenario matches the spec exactly. */
   pinned?: { subtotalBRL: number; feeBRL: number };
+  /** Pre-formatted nightly price string, e.g. "$ 95.000" or "US$ 70.00". */
+  priceDisplay?: string;
+  /** Publication status in database/API. */
+  status?: 'draft' | 'published' | 'paused' | 'archived';
 }
 
 export const OWNERS: Owner[] = [
@@ -316,6 +377,19 @@ export const OWNERS: Owner[] = [
     verified: false,
     responseTime: '~3 h',
     bio: 'Dos departamentos en Chapinero para quienes vienen a trabajar remoto: wifi de fibra, escritorio y café de la finca.',
+  },
+  {
+    slug: 'rosa-quispe',
+    name: 'Rosa Quispe',
+    initials: 'RQ',
+    city: 'Cusco',
+    country: 'Perú',
+    countryCode: 'PE',
+    since: 2025,
+    wallet: '0x9d1f3b5a7c9e1d3f5b7a9c1e3d5f7a9b1c3e5f7a',
+    verified: true,
+    responseTime: '~1 h',
+    bio: 'Posada familiar a tres cuadras de la Plaza de Armas y un hostal en San Blas. Te paso los horarios para Machu Picchu sin filas.',
   },
 ];
 
@@ -836,6 +910,47 @@ export const LODGINGS: Lodging[] = [
     ownerSlug: 'sofia-cardenas',
     tone: 'terra',
   },
+  {
+    id: 'posada-san-blas',
+    code: 'CUZ',
+    blurb: 'Posada de piedra y patio interno, en el barrio de los artesanos.',
+    name: 'Posada San Blas',
+    kind: 'posada',
+    city: 'Cusco',
+    region: 'San Blas',
+    countryCode: 'PE',
+    pricePerNight: 260,
+    currency: 'PEN',
+    rating: 4.8,
+    reviews: 152,
+    guests: 3,
+    bedrooms: 1,
+    baths: 1,
+    amenities: ['Desayuno', 'Patio', 'Mate de coca'],
+    featured: true,
+    ownerSlug: 'rosa-quispe',
+    tone: 'terra',
+  },
+  {
+    id: 'hostal-plaza-de-armas',
+    code: 'CUZ',
+    blurb: 'Hostal a tres cuadras de la Plaza de Armas, ideal para aclimatarse.',
+    name: 'Hostal Plaza de Armas',
+    kind: 'hostal',
+    city: 'Cusco',
+    region: 'Centro histórico',
+    countryCode: 'PE',
+    pricePerNight: 120,
+    currency: 'PEN',
+    rating: 4.6,
+    reviews: 210,
+    guests: 2,
+    bedrooms: 1,
+    baths: 1,
+    amenities: ['Cocina compartida', 'Guardaequipaje', 'Wifi'],
+    ownerSlug: 'rosa-quispe',
+    tone: 'sand',
+  },
 ];
 
 export const LODGING_KINDS: { id: LodgingKind; label: string }[] = [
@@ -1024,6 +1139,8 @@ export function formatStayEstimate(lodging: Lodging, nights: number, to?: Fiat, 
 export interface QuoteLine {
   label: string;
   value: string;
+  /** Raw number behind `value`, when the line is a formatted amount. */
+  amount?: number;
   kind?: 'fee' | 'total';
 }
 
@@ -1049,7 +1166,7 @@ export function quoteFor(l: Lodging, nights = NIGHTS): BookingQuote {
       { label: `Reserva: ${l.name}, ${l.city} · ${nights} noches`, value: formatAmount(totalLocal, l.currency) },
       { label: `Conversión BRL → ${l.currency} · 1 BRL = ${formatNumber(rate)} ${l.currency}`, value: formatBRL(subtotal) },
       { label: 'Comisión de conversión Nomai', value: formatBRL(fee), kind: 'fee' },
-      { label: 'Total', value: formatBRL(total, { withCode: true }), kind: 'total' },
+      { label: 'Total', value: formatBRL(total, { withCode: true }), amount: total, kind: 'total' },
     ],
   };
 }

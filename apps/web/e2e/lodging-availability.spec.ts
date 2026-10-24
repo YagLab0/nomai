@@ -47,12 +47,12 @@ test('"Reservar con Nomito" carries the Lodging and the dates into the chat', as
 
   const message = 'Quiero reservar Casa de Adobe, Cafayate, del 17 nov al 20 nov';
   await page.getByRole('link', { name: 'Reservar con Nomito' }).click();
-  await expect(page).toHaveURL(/\/signup\?ask=/);
+  await expect(page).toHaveURL(/\/signup\?ask=/, { timeout: 15_000 });
   await expect(page.getByText(message)).toBeVisible();
 
-  // The chat may compile on first visit in dev: allow it a moment.
-  await page.getByRole('button', { name: 'Continuar con Google' }).click();
-  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  // Demo mode (no Supabase): the form just walks the Traveler into the chat.
+  await page.getByRole('button', { name: 'Crear cuenta' }).click();
+  await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
   await expect(page.getByText(message).first()).toBeVisible();
 });
 

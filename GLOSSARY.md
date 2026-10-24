@@ -12,14 +12,16 @@ The person who chats with the Agent and pays for bookings. Product Spanish: *via
 _Avoid_: user, customer, tourist, buyer
 
 **Owner**:
-The lodging host who receives bookings. Pays the platform nothing, ever. Gets paid
-into their own Ripio account, linked when they join.
+The lodging host who receives bookings. Pays the platform nothing, ever: no
+subscription, no commission. Gets paid from Escrow into their own Ripio account,
+linked when they join.
 Product Spanish: *dueño*, *hotelero*.
 _Avoid_: host, merchant, seller, hotel
 
 **Agent**:
-The AI that researches options and executes bookings for a Traveler. Every research
-run spends real money on LLM inference and paid data APIs. Product name: *Nomito*.
+The AI that researches options and executes bookings for a Traveler. Free to use;
+its cost (LLM inference, paid data APIs) is recovered through the Service fee.
+Product name: *Nomito*.
 _Avoid_: bot, assistant, Eve
 
 **Lodging**:
@@ -35,7 +37,8 @@ Product Spanish: *escaparate*.
 _Avoid_: profile, shop, store page
 
 **Booking**:
-A paid reservation settled by an x402 payment in wFIAT, direct to the Owner's wallet.
+A reservation the Traveler pays in full up front, in wFIAT via x402. The rental
+amount sits in Escrow until it is released to the Owner.
 _Avoid_: reservation, order
 
 **Upcoming Booking**:
@@ -50,10 +53,17 @@ _Avoid_: calendar (the UI, not the concept), blocked dates
 
 **Cancellation**:
 A Booking ended before check-in, initiated only by the Traveler, under one global
-rule: full refund until 7 days before check-in, 50% after. The money returns out
-of the Owner's wallet, which already holds the payment. Product Spanish:
+rule: full refund of the rental until 5 days before check-in, 50% after. The
+refund comes out of Escrow; the Service fee is never refunded. Product Spanish:
 *cancelación*.
 _Avoid_: refund (the consequence, not the concept), annulment
+
+**Claim**:
+A Traveler's complaint opened within 24 h of check-in, for one of three reasons
+only: the Lodging doesn't exist or there was no access, it is substantially
+different from the listing, or the Owner didn't show up. Nomai resolves it.
+Product Spanish: *reclamo*.
+_Avoid_: dispute, complaint, ticket
 
 **Agent wallet**:
 The wallet a Traveler's Agent pays Bookings from. One per Traveler, with its own
@@ -63,16 +73,17 @@ _Avoid_: user wallet, account, custodial wallet
 
 ### Money
 
-**Credit**:
-A unit of Agent usage sold to the Traveler as *monedas Nomai*. Searches spend credits
-by stage: conversation and cached inventory cost little; live availability and pricing
-on a shortlist cost most.
-_Avoid_: coin, token, point, balance
+**Service fee**:
+The platform's fixed-percentage charge to the Traveler on every Booking, shown as
+its own line before paying. It pays for the Agent's work, which is otherwise free.
+One of two revenue streams. Product Spanish: *tarifa de servicio*.
+_Avoid_: commission, booking fee, markup, credits, monedas Nomai (retired)
 
-**Free grant**:
-The Credits given to new accounts, released in verification tiers. Non-transferable
-and non-withdrawable — no resale value.
-_Avoid_: free trial, bonus, airdrop
+**Escrow**:
+The contract that holds a Booking's rental amount: 50% goes to the Owner when the
+Cancellation deadline passes, the rest 24 h after check-in if there is no Claim.
+Nomai can only route the funds to that Booking's Traveler or Owner.
+_Avoid_: deposit, hold, platform wallet
 
 **FX fee**:
 The platform's commission on a currency conversion executed inside the Agent's flow
@@ -83,4 +94,5 @@ _Avoid_: markup, spread (also a market term — ambiguous)
 
 **Tiered verification**:
 Identity checks that escalate with risk: phone at signup, first Ripio funding or a
-Self passport proof for the full free grant, government ID only at Booking time.
+Self passport proof for higher free Agent usage limits, government ID only at
+Booking time.

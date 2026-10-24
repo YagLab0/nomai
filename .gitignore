@@ -102,3 +102,6 @@ Thumbs.db
 # Test artifacts
 test-results/
 playwright-report/
+
+# Playwright CLI debug artifacts
+.playwright-cli/

@@ -3,7 +3,10 @@ import type { PhotoKey } from '@/lib/photos';
 
 /**
  * Landing destinations: one per Ripio country, with the Argentine Norte (where
- * nomai was born) first and featured.
+ * nomai was born) first and featured. The editorial layer (tab copy, town
+ * photo) is static; the lodging cards are filled by `buildDestinations` from
+ * whatever inventory the caller has — the live API on the landing, the static
+ * catalog as fallback.
  */
 export interface Destination {
   code: string;
@@ -37,14 +40,24 @@ const BASE = [
   { code: 'CTG', label: 'Cartagena', name: 'Cartagena', country: 'Colombia', photo: 'cartagenaReloj', towns: ['Cartagena'], tagline: 'Murallas, balcones de colores y el Caribe a la vuelta.' },
   { code: 'TUL', label: 'Tulum', name: 'Tulum', country: 'México', photo: 'tulumRuinas', towns: ['Tulum'], tagline: 'Ruinas mayas sobre el mar, cenotes y selva.' },
   { code: 'CJC', label: 'Atacama', name: 'San Pedro de Atacama', country: 'Chile', photo: 'atacamaValle', towns: ['San Pedro de Atacama'], tagline: 'Valle de la Luna, salares y el cielo más limpio del mundo.' },
+  { code: 'CUZ', label: 'Cusco', name: 'Cusco', country: 'Perú', photo: 'cuscoMachuPicchu', towns: ['Cusco'], tagline: 'La capital inca y la puerta a Machu Picchu.' },
   { code: 'CYR', label: 'Colonia', name: 'Colonia del Sacramento', country: 'Uruguay', photo: 'coloniaFaro', towns: ['Colonia del Sacramento'], tagline: 'Calles de piedra, faro y atardeceres sobre el río.' },
 ] as const satisfies readonly Omit<Destination, 'from' | 'lodgings'>[];
 
-// Seed only: the landing is authored content and must render identically on
-// server and client — Lodgings created in the browser don't belong here.
-export const DESTINATIONS: readonly Destination[] = BASE.map((d) => {
-  const all = LODGINGS.filter((l) => (d.towns as readonly string[]).includes(l.city));
-  const cheapest = all.reduce((a, b) => (b.pricePerNight < a.pricePerNight ? b : a));
-  const lodgings = [...all.filter((l) => l.featured), ...all.filter((l) => !l.featured)].slice(0, 2);
-  return { ...d, lodgings, from: `desde ${formatAmount(cheapest.pricePerNight, cheapest.currency)}` };
-});
+/** Pair each destination's editorial card with inventory priced there. */
+export function buildDestinations(lodgings: Lodging[]): Destination[] {
+  return BASE.map((d) => {
+    const all = lodgings.filter((l) => (d.towns as readonly string[]).includes(l.city));
+    const cheapest = all.length ? all.reduce((a, b) => (b.pricePerNight < a.pricePerNight ? b : a)) : undefined;
+    const picks = [...all.filter((l) => l.featured), ...all.filter((l) => !l.featured)].slice(0, 2);
+    return {
+      ...d,
+      lodgings: picks,
+      from: cheapest ? `desde ${formatAmount(cheapest.pricePerNight, cheapest.currency)}` : '',
+    };
+  });
+}
+
+// Seed only: the static fallback must render identically on server and
+// client — Lodgings created in the browser don't belong here.
+export const DESTINATIONS: readonly Destination[] = buildDestinations(LODGINGS);

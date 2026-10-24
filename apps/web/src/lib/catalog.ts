@@ -185,10 +185,18 @@ export function createCatalog(storage?: CatalogStorage, bookings: readonly Booki
   let snapshot: Lodging[] = LODGINGS;
   const listeners = new Set<() => void>();
 
-  function merge(s: State): Lodging[] {
-    if (s.created.length === 0 && s.removed.length === 0 && Object.keys(s.overrides).length === 0) return LODGINGS;
+  function applyState(base: Lodging[], s: State): Lodging[] {
+    if (s.created.length === 0 && s.removed.length === 0 && Object.keys(s.overrides).length === 0) return base;
     const removed = new Set(s.removed);
-    return [...LODGINGS.filter((l) => !removed.has(l.id)).map((l) => s.overrides[l.id] ?? l), ...s.created];
+    const createdIds = new Set(s.created.map((l) => l.id));
+    return [
+      ...base.filter((l) => !removed.has(l.id) && !createdIds.has(l.id)).map((l) => s.overrides[l.id] ?? l),
+      ...s.created.filter((l) => !removed.has(l.id)),
+    ];
+  }
+
+  function merge(s: State): Lodging[] {
+    return applyState(LODGINGS, s);
   }
 
   function current(): State {
@@ -205,6 +213,26 @@ export function createCatalog(storage?: CatalogStorage, bookings: readonly Booki
   }
 
   const byId = (id: string) => all().find((l) => l.id === id);
+
+  /**
+   * The catalog's changes applied onto a different base — e.g. the live API
+   * list — so browser-created, overridden and tombstoned Lodgings show up on
+   * surfaces whose inventory comes from the network (owner-views §9).
+   */
+  function overlay(base: Lodging[]): Lodging[] {
+    return applyState(base, current());
+  }
+
+  /** The browser-only version of a Lodging: created here or an override of the seed/API one. */
+  function localOf(id: string): Lodging | undefined {
+    const s = current();
+    return s.created.find((l) => l.id === id) ?? s.overrides[id];
+  }
+
+  /** Tombstoned in this browser — surfaces must not show it, whatever the API says. */
+  function isRemoved(id: string): boolean {
+    return current().removed.includes(id);
+  }
 
   function find(id: string): Lodging {
     const lodging = byId(id);
@@ -326,6 +354,9 @@ export function createCatalog(storage?: CatalogStorage, bookings: readonly Booki
   return {
     all,
     byId,
+    overlay,
+    localOf,
+    isRemoved,
     byOwner: (ownerSlug: string) => all().filter((l) => l.ownerSlug === ownerSlug),
     byTown: (town: string) => {
       const t = town.toLowerCase();

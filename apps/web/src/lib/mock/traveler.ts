@@ -9,6 +9,8 @@ export interface MockTraveler {
   name: string;
   initials: string;
   from: string;
+  /** Drives how the Traveler funds the Agent wallet: 'ramp' vs 'qr'. */
+  countryCode: string;
   currency: 'BRL';
   monedas: number;
   ladder: LadderStep[];
@@ -29,6 +31,7 @@ export const traveler: MockTraveler = {
   name: 'Lucas',
   initials: 'LU',
   from: 'Florianópolis',
+  countryCode: 'BR',
   currency: 'BRL',
   monedas: 42,
   ladder: [

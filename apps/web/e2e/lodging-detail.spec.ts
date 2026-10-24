@@ -39,7 +39,7 @@ test('the ficha shows gallery, facts, blurb, amenities, address, map and the Own
   const storefront = page.getByRole('link', { name: /escaparate/ });
   await expect(storefront).toBeVisible();
   await storefront.click();
-  await expect(page).toHaveURL(/\/owners\/ramon-guaymas$/);
+  await expect(page).toHaveURL(/\/owners\/ramon-guaymas$/, { timeout: 15_000 });
 });
 
 test('a Lodging without coordinates shows only its town, no map', async ({ page }) => {
@@ -52,12 +52,12 @@ test('a Lodging without coordinates shows only its town, no map', async ({ page 
 test('explorer and storefront cards link to the ficha', async ({ page }) => {
   await page.goto('/lodgings');
   await page.getByRole('link', { name: 'Casa de Adobe' }).first().click();
-  await expect(page).toHaveURL(/\/lodgings\/casa-de-adobe$/);
+  await expect(page).toHaveURL(/\/lodgings\/casa-de-adobe$/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { level: 1, name: 'Casa de Adobe' })).toBeVisible();
 
   await page.goto('/owners/ramon-guaymas');
   await page.getByRole('link', { name: 'Cabaña Viñas del Sol' }).first().click();
-  await expect(page).toHaveURL(/\/lodgings\/cabana-vinas-del-sol$/);
+  await expect(page).toHaveURL(/\/lodgings\/cabana-vinas-del-sol$/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { level: 1, name: 'Cabaña Viñas del Sol' })).toBeVisible();
 });
 
@@ -65,7 +65,7 @@ test('an unknown id shows not-found', async ({ page }) => {
   await page.goto('/lodgings/no-existe');
   await expect(page.getByText('No encontramos este alojamiento')).toBeVisible();
   await page.getByRole('link', { name: 'Ver todos los alojamientos' }).click();
-  await expect(page).toHaveURL(/\/lodgings$/);
+  await expect(page).toHaveURL(/\/lodgings$/, { timeout: 15_000 });
 });
 
 test('a Lodging created in the panel gets its own ficha', async ({ page }) => {

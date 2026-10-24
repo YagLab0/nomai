@@ -1,0 +1,39 @@
+{
+  "name": "agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#*": "./agent/*"
+  },
+  "scripts": {
+    "build": "eve build",
+    "deploy": "eve deploy",
+    "dev": "eve dev",
+    "start": "eve start",
+    "test:openui": "node scripts/check-openui-golden.mjs",
+    "type-check": "tsc"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.78",
+    "@ai-sdk/openai": "^4.0.91",
+    "@ai-sdk/openai-compatible": "^3.0.67",
+    "@celo/attribution-tags": "^0.5.0",
+    "@openuidev/lang-core": "^1.0.1",
+    "@vercel/connect": "2.2.0",
+    "@x402/evm": "^2.28.0",
+    "@x402/fetch": "^2.28.0",
+    "ai": "^7.0.128",
+    "eve": "^0.76.3",
+    "viem": "^2.57.4",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.x",
+    "just-bash": "^3.6.0",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

@@ -17,6 +17,8 @@ import {
 import { AvailabilityCalendar } from '@/components/marketplace/availability-calendar';
 import { CurrencySelect } from '@/components/marketplace/currency-select';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
+import { apiDetailToLodging, initialsFor } from '@/lib/api-mapping';
+import type { ApiListingDetail } from '@/lib/api';
 import { catalog } from '@/lib/catalog';
 import { nightsOf } from '@/lib/dates';
 import { formatShortDate } from '@/lib/format';
@@ -24,7 +26,7 @@ import {
   formatNightPrice,
   formatStayEstimate,
   KIND_LABEL,
-  ownerOf,
+  ownerBySlug,
   type Fiat,
   type FxRates,
   type Lodging,
@@ -72,7 +74,7 @@ function Gallery({ lodging }: { lodging: Lodging }) {
           priority
           sizes="(min-width: 1152px) 1120px, 100vw"
           className="object-cover"
-          unoptimized={current.src.startsWith('data:')}
+          unoptimized={!current.src.startsWith('/')}
         />
       </div>
       {images.length > 1 && (
@@ -94,7 +96,7 @@ function Gallery({ lodging }: { lodging: Lodging }) {
                   width={96}
                   height={64}
                   className="h-16 w-24 object-cover"
-                  unoptimized={img.src.startsWith('data:')}
+                  unoptimized={!img.src.startsWith('/')}
                 />
               </button>
             </li>
@@ -106,7 +108,13 @@ function Gallery({ lodging }: { lodging: Lodging }) {
 }
 
 function OwnerBlock({ lodging }: { lodging: Lodging }) {
-  const owner = ownerOf(lodging);
+  // Curated OWNERS carry verification; API listings only report the name.
+  const owner = ownerBySlug(lodging.ownerSlug) ?? {
+    slug: lodging.ownerSlug,
+    name: lodging.ownerName ?? 'Dueño nomai',
+    initials: initialsFor(lodging.ownerName ?? 'N'),
+    verified: undefined,
+  };
   return (
     <div className="rounded-card bg-white p-6">
       <div className="flex items-center gap-3">
@@ -236,26 +244,51 @@ function LodgingNotFound() {
 }
 
 /**
- * The public Lodging ficha (traveler-views §16). Reads the catalog through
- * `useLodgings`: seeded ids render statically, Lodgings created in this
- * browser resolve after hydration, unknown or deleted ids show not-found.
+ * The public Lodging ficha (traveler-views §16). Resolves the id against the
+ * listings API — enriched by the seed's coordinates when the API doesn't
+ * carry them — and against this browser's catalog: created Lodgings and
+ * edits win, tombstones and unknown ids show not-found.
  */
 export function LodgingDetail({ id }: { id: string }) {
   const lodgings = useLodgings();
-  // Created ids only exist in this browser: wait for hydration before
-  // deciding an id is unknown.
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
+  /** undefined while the API request is in flight, null when it has no detail for this id. */
+  const [api, setApi] = useState<Lodging | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/listings/${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: ApiListingDetail | null) => {
+        if (alive) setApi(d ? apiDetailToLodging(d) : null);
+      })
+      .catch(() => {
+        if (alive) setApi(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
   /** Traveler's preferred currency, as in the explorer. undefined = the Lodging's own. */
   const [fiat, setFiat] = useState<Fiat | undefined>(undefined);
   const { rates } = useFxRates();
 
-  const lodging = lodgings.find((l) => l.id === id);
+  const seed = lodgings.find((l) => l.id === id);
+  const lodging = catalog.isRemoved(id)
+    ? undefined
+    : (catalog.localOf(id) ??
+      (api
+        ? {
+            ...api,
+            address: api.address ?? seed?.address,
+            lat: api.lat ?? seed?.lat,
+            lng: api.lng ?? seed?.lng,
+            photos: api.photos?.length ? api.photos : seed?.photos,
+          }
+        : seed));
   if (!lodging) {
-    return hydrated ? (
-      <LodgingNotFound />
-    ) : (
+    return api === undefined && !seed ? (
       <p className="px-4 py-32 text-center text-ink-muted">Cargando…</p>
+    ) : (
+      <LodgingNotFound />
     );
   }
 

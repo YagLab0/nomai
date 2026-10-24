@@ -48,6 +48,7 @@ export const PHOTOS = {
   atacamaValle: photo('atacama-valle-de-la-luna', 'Las crestas del Valle de la Luna, en San Pedro de Atacama', 1183, 1600),
   atacamaLejia: photo('atacama-laguna-lejia', 'Volcanes reflejados en la Laguna Lejía, cerca de San Pedro de Atacama', 1600, 1200),
   atacamaBaltinache: photo('atacama-baltinache', 'Laguna turquesa sobre la sal en Baltinache, San Pedro de Atacama', 1600, 1066),
+  cuscoMachuPicchu: { src: '/images/cusco-machu-picchu.jpg', alt: 'Machu Picchu al amanecer, cerca de Cusco', width: 1600, height: 1067 },
   coloniaFaro: photo('colonia-faro', 'El faro de Colonia del Sacramento entre árboles', 1600, 1062),
   coloniaPortal: photo('colonia-portal', 'Puerta antigua con una santa rita en flor, en Colonia del Sacramento', 1600, 865),
   coloniaCafe: photo('colonia-cafe', 'Un café bajo un árbol con un auto antiguo, en Colonia del Sacramento', 1067, 1600),

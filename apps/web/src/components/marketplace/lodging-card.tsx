@@ -3,11 +3,11 @@ import Link from 'next/link';
 
 import { CheckBadgeIcon, StarIcon } from '@/components/icons';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
+import { initialsFor } from '@/lib/api-mapping';
 import {
   formatNightPrice,
   KIND_LABEL,
   lodgingCover,
-  ownerOf,
   type Fiat,
   type FxRates,
   type Lodging,
@@ -30,7 +30,12 @@ export function LodgingCard({
   /** Where "Pedirle a Nomito" goes: /signup publicly, /app?ask=... inside the app. */
   askHref: string;
 }) {
-  const owner = ownerOf(lodging);
+  const owner = {
+    slug: lodging.ownerSlug,
+    name: lodging.ownerName ?? 'Dueño nomai',
+    initials: initialsFor(lodging.ownerName ?? 'N'),
+    verified: undefined,
+  };
   const photo = lodgingCover(lodging);
 
   return (
@@ -44,6 +49,16 @@ export function LodgingCard({
             sizes="(min-width: 1280px) 30vw, (min-width: 640px) 50vw, 100vw"
             className="object-cover"
             unoptimized={photo.src.startsWith('data:')}
+          />
+        ) : lodging.photoUrl ? (
+          // Remote API cover (picsum today, CDN later): a plain <img> keeps
+          // next/image remotePatterns out of the way of upstream changes.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={lodging.photoUrl}
+            alt={lodging.name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         ) : (
           <LodgingArt lodging={lodging} className="h-full w-full" />

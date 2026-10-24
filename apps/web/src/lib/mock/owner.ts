@@ -1,12 +1,117 @@
 /** Mock Owner for the dashboard panel. Replaced by the account API later. */
 
-import { ownerBySlug } from '@/lib/lodgings';
+import type { Lodging, Owner } from '@/lib/lodgings';
 
 /**
  * The logged-in Owner: Ramón Guaymás. His Casa de Adobe is the Booking Lucas
  * confirms in the §4 scenario — here it shows up as money received.
  */
-export const currentOwner = ownerBySlug('ramon-guaymas')!;
+export const currentOwner: Owner = {
+  slug: 'ramon-guaymas',
+  name: 'Ramón Guaymás',
+  initials: 'RG',
+  city: 'Cafayate',
+  country: 'Argentina',
+  countryCode: 'AR',
+  since: 2024,
+  wallet: '0x3a5c7e9b1d2f4a6c8e0b2d4f6a8c0e2b4d6f8a1c',
+  verified: true,
+  responseTime: '~30 min',
+  bio: 'Casa de adobe heredada de mi abuelo, con parral y patio. Recibo viajeros hace 9 años; te dejo una botella de torrontés de las bodegas de acá.',
+};
+
+export const ownerLodgings: Lodging[] = [
+  {
+    id: 'casa-de-adobe',
+    name: 'Casa de Adobe',
+    kind: 'casa',
+    city: 'Cafayate',
+    region: 'Valles Calchaquíes',
+    countryCode: 'AR',
+    code: 'CFY',
+    pricePerNight: 95_000,
+    currency: 'ARS',
+    blurb: 'Patio con parral, a dos cuadras de la plaza.',
+    rating: 4.9,
+    reviews: 118,
+    guests: 4,
+    bedrooms: 2,
+    baths: 1,
+    amenities: ['Patio con parral', 'Desayuno', 'Cerca de bodegas'],
+    featured: true,
+    ownerSlug: 'ramon-guaymas',
+    tone: 'terra',
+    photo: 'cafayateHabitacion',
+    pinned: { subtotalBRL: 1461.55, feeBRL: 14.6 },
+  },
+  {
+    id: 'posada-el-algarrobo',
+    name: 'Posada El Algarrobo',
+    kind: 'posada',
+    city: 'Salta',
+    region: 'Barrio Güemes',
+    countryCode: 'AR',
+    code: 'SLA',
+    pricePerNight: 78_000,
+    currency: 'ARS',
+    blurb: 'Galería fresca con vista a los cerros.',
+    rating: 4.8,
+    reviews: 94,
+    guests: 2,
+    bedrooms: 1,
+    baths: 1,
+    amenities: ['Galería colonial', 'Desayuno', 'WiFi'],
+    ownerSlug: 'ramon-guaymas',
+    tone: 'sand',
+    photo: 'saltaCatedral',
+  },
+  {
+    id: 'casona-guemes',
+    name: 'Casona Güemes',
+    kind: 'hotel-boutique',
+    city: 'Salta',
+    region: 'Centro Histórico',
+    countryCode: 'AR',
+    code: 'SLA',
+    pricePerNight: 135_000,
+    currency: 'ARS',
+    blurb: 'Casona del siglo XIX restaurada, patio de aljibe.',
+    rating: 4.9,
+    reviews: 87,
+    guests: 2,
+    bedrooms: 1,
+    baths: 1,
+    amenities: ['Patio con aljibe', 'Desayuno buffet', 'Aire acondicionado'],
+    ownerSlug: 'ramon-guaymas',
+    tone: 'sand',
+    photo: 'saltaTeleferico',
+  },
+  {
+    id: 'cabana-vinas-del-sol',
+    name: 'Cabaña Viñas del Sol',
+    kind: 'cabana',
+    city: 'Cafayate',
+    region: 'Valles Calchaquíes',
+    countryCode: 'AR',
+    code: 'CFY',
+    pricePerNight: 88_000,
+    currency: 'ARS',
+    blurb: 'Entre viñedos de torrontés, pileta y parrilla.',
+    rating: 4.8,
+    reviews: 76,
+    guests: 4,
+    bedrooms: 2,
+    baths: 1,
+    amenities: ['Pileta', 'Parrilla', 'Entre viñedos'],
+    ownerSlug: 'ramon-guaymas',
+    tone: 'terra',
+    photo: 'cafayateVinedos',
+  },
+];
+
+export function ownerLodgingById(id: string): Lodging | undefined {
+  return ownerLodgings.find((l) => l.id === id);
+}
 
 export type OwnerBookingStatus = 'confirmada' | 'en-curso' | 'completada' | 'cancelada';
 

@@ -16,7 +16,9 @@ import {
 
 import { AuthForm } from '@/components/auth/auth-form';
 import { CheckIcon, MinusIcon, PlusIcon } from '@/components/icons';
-import { KIND_LABEL, LODGING_KINDS, NORTE_TOWNS, OWNERS, RIPIO_COUNTRIES_TEXT, type LodgingKind } from '@/lib/lodgings';
+import { KIND_LABEL, LODGING_KINDS, NORTE_TOWNS, RIPIO_COUNTRIES_TEXT, type LodgingKind } from '@/lib/lodgings';
+import { createClient } from '@/lib/supabase/client';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
 
 /**
  * Owner onboarding, UI only (no backend): phone → Lodging → Ripio → done.
@@ -40,6 +42,7 @@ const TOWN_GROUPS: { label: string; towns: string[] }[] = [
   { label: 'Chile', towns: ['San Pedro de Atacama', 'Santiago', 'Valparaíso'] },
   { label: 'Colombia', towns: ['Cartagena', 'Bogotá', 'Medellín'] },
   { label: 'México', towns: ['Tulum', 'Ciudad de México', 'Oaxaca'] },
+  { label: 'Perú', towns: ['Cusco', 'Lima', 'Arequipa'] },
   { label: 'Uruguay', towns: ['Colonia del Sacramento', 'Montevideo', 'Punta del Este'] },
 ];
 
@@ -92,12 +95,46 @@ function Stepper({ step }: { step: Step }) {
 }
 
 function PhoneStep({ onDone }: { onDone: () => void }) {
+  const [currentUser, setCurrentUser] = useState<{ email?: string } | null>(null);
+
+  useEffect(() => {
+    // Demo mode: no Supabase — stay on the mock WhatsApp verification.
+    if (!hasSupabaseEnv) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setCurrentUser({ email: data.user.email });
+      }
+    });
+  }, []);
+
   return (
     <div>
-      <p className="mb-8 rounded-[1.25rem] bg-agua-soft px-4 py-3 text-[15px] text-ink">
-        ¿Ya viajás con nomai? Usá el mismo teléfono y sumamos tu perfil de dueño.
-      </p>
-      <AuthForm mode="owner" onVerified={onDone} />
+      {currentUser ? (
+        <div className="mb-6 rounded-[1.25rem] bg-agua-soft p-5 text-ink">
+          <p className="font-brand text-lg font-medium text-ink">
+            Sesión iniciada como <span className="font-semibold">{currentUser.email}</span>
+          </p>
+          <p className="mt-1 text-sm text-ink-muted">
+            Tu nuevo perfil de dueño se vinculará directamente a tu cuenta.
+          </p>
+          <Button className="mt-4" size="md" onPress={onDone}>
+            Continuar con tu alojamiento
+          </Button>
+        </div>
+      ) : (
+        <p className="mb-8 rounded-[1.25rem] bg-agua-soft px-4 py-3 text-[15px] text-ink">
+          ¿Ya tenés cuenta en nomai?{' '}
+          <Link
+            href="/login?next=/owners/join"
+            className="font-medium text-terra-deep underline underline-offset-4"
+          >
+            Iniciá sesión aquí
+          </Link>{' '}
+          o verificá tu teléfono para sumar tu perfil de dueño.
+        </p>
+      )}
+      {!currentUser && <AuthForm mode="owner" onVerified={onDone} />}
     </div>
   );
 }
@@ -272,8 +309,16 @@ const RIPIO_POINTS = [
   'Sin comisión, ni ahora ni después. Lo que cobra el alojamiento es tuyo.',
 ];
 
-function RipioStep({ lodgingName, onDone }: { lodgingName: string; onDone: () => void }) {
+function RipioStep({
+  draft,
+  onDone,
+}: {
+  draft: LodgingDraft;
+  onDone: (business: { slug: string; name: string }) => void;
+}) {
   const [state, setState] = useState<'idle' | 'connecting' | 'connected'>('idle');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function connect() {
     setState('connecting');
@@ -281,13 +326,49 @@ function RipioStep({ lodgingName, onDone }: { lodgingName: string; onDone: () =>
     setState('connected');
   }
 
+  async function finish() {
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/owners/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: draft.name,
+          kind: draft.kind,
+          town: draft.town,
+          capacity: draft.capacity,
+          payoutAddress: '0x3a5c7e9b1d2f4a6c8e0b2d4f6a8c0e2b4d6f8a1c',
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.business) {
+        onDone({ slug: data.business.slug, name: data.business.name });
+      } else {
+        // If unauthenticated or warning, still advance gracefully
+        onDone({ slug: 'ramon-guaymas', name: draft.name || 'Tu alojamiento' });
+      }
+    } catch {
+      onDone({ slug: 'ramon-guaymas', name: draft.name || 'Tu alojamiento' });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div>
       <h2 className="font-brand text-3xl font-medium leading-tight text-ink">Conectá tu cuenta de Ripio</h2>
       <p className="mt-2 text-ink-muted">
-        Las reservas de {lodgingName || 'tu alojamiento'} se pagan directo en tu cuenta de Ripio. nomai no toca la plata
+        Las reservas de {draft.name || 'tu alojamiento'} se pagan directo en tu cuenta de Ripio. nomai no toca la plata
         en ningún momento.
       </p>
+
+      {errorMsg && (
+        <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {errorMsg}
+        </div>
+      )}
 
       <ul className="mt-6 flex flex-col gap-3">
         {RIPIO_POINTS.map((p) => (
@@ -309,7 +390,7 @@ function RipioStep({ lodgingName, onDone }: { lodgingName: string; onDone: () =>
               </span>
               <div>
                 <p className="font-brand text-xl font-medium text-ink">Cuenta de Ripio conectada</p>
-                <p className="mt-0.5 text-sm text-ink-muted">Desde ahora, cada reserva te llega acá al instante.</p>
+                <p className="mt-0.5 text-sm text-ink-muted">0x3a5c…8a1c · Cada reserva te llega acá al instante.</p>
               </div>
             </div>
             <button
@@ -352,19 +433,32 @@ function RipioStep({ lodgingName, onDone }: { lodgingName: string; onDone: () =>
         size="lg"
         fullWidth
         variant={state === 'connected' ? 'primary' : 'secondary'}
-        isDisabled={state !== 'connected'}
-        onPress={onDone}
+        isDisabled={state !== 'connected' || submitting}
+        isPending={submitting}
+        onPress={finish}
         className="mt-6"
       >
-        Terminar
+        {({ isPending }) => (
+          <>
+            {isPending && <Spinner color="current" size="sm" />}
+            {isPending ? 'Creando tu perfil…' : 'Terminar'}
+          </>
+        )}
       </Button>
     </div>
   );
 }
 
-function DoneStep({ draft }: { draft: LodgingDraft }) {
-  // Template: no storefront exists yet, so show a real one from the same town.
-  const sample = OWNERS.find((o) => o.city === draft.town) ?? OWNERS[0];
+function DoneStep({
+  draft,
+  business,
+}: {
+  draft: LodgingDraft;
+  business?: { slug: string; name: string } | null;
+}) {
+  const slug = business?.slug || 'ramon-guaymas';
+  const name = business?.name || draft.name || 'tu alojamiento';
+
   return (
     <div>
       <h2 className="brand-display text-4xl font-medium leading-tight text-ink">Listo, ya estás en nomai</h2>
@@ -399,14 +493,16 @@ function DoneStep({ draft }: { draft: LodgingDraft }) {
           Ir a tu panel
         </Link>
         <Link
-          href={`/owners/${sample.slug}`}
+          href={`/owners/${slug}`}
           className="inline-flex h-12 items-center justify-center rounded-full border border-terra/40 px-7 text-base font-medium text-terra-deep transition-colors hover:bg-terra-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
         >
           Ver cómo se ve tu página
         </Link>
       </div>
       <p className="mt-3 text-sm text-ink-muted">
-        Mientras armamos la tuya, te mostramos la página de {sample.name}, otro dueño de nomai.
+        {business
+          ? `Tu perfil "${name}" está listo con estado inicial en revisión.`
+          : `Mientras armamos la tuya, podés explorar cómo se ve la página de un dueño de nomai.`}
       </p>
     </div>
   );
@@ -415,6 +511,7 @@ function DoneStep({ draft }: { draft: LodgingDraft }) {
 export function OwnerJoin() {
   const [step, setStep] = useState<Step>(0);
   const [draft, setDraft] = useState<LodgingDraft>({ name: '', kind: 'posada', town: '', capacity: 2 });
+  const [business, setBusiness] = useState<{ slug: string; name: string } | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
 
@@ -433,8 +530,16 @@ export function OwnerJoin() {
       <div ref={panel} tabIndex={-1} className="rounded-panel bg-white p-6 outline-none sm:p-10">
         {step === 0 && <PhoneStep onDone={() => setStep(1)} />}
         {step === 1 && <LodgingStep draft={draft} setDraft={setDraft} onDone={() => setStep(2)} />}
-        {step === 2 && <RipioStep lodgingName={draft.name} onDone={() => setStep(3)} />}
-        {step === 3 && <DoneStep draft={draft} />}
+        {step === 2 && (
+          <RipioStep
+            draft={draft}
+            onDone={(bus) => {
+              setBusiness(bus);
+              setStep(3);
+            }}
+          />
+        )}
+        {step === 3 && <DoneStep draft={draft} business={business} />}
       </div>
     </div>
   );

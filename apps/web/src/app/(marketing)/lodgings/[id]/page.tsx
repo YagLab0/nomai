@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
 import { LodgingDetail } from '@/components/marketplace/lodging-detail';
+import { fetchListing } from '@/lib/api';
+import { apiDetailToLodging } from '@/lib/api-mapping';
 import { catalog } from '@/lib/catalog';
 import { KIND_LABEL, LODGINGS } from '@/lib/lodgings';
 
@@ -14,7 +16,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const lodging = catalog.byId(id);
+  const detail = await fetchListing(id).catch(() => null);
+  const lodging = detail ? apiDetailToLodging(detail) : catalog.byId(id);
   return {
     title: lodging ? `${lodging.name} · nomai` : 'Alojamiento · nomai',
     description: lodging
