@@ -21,13 +21,13 @@ data lives in `src/lib/mock/owner.ts`.
 - `app/(traveler)/` keeps `AppShell` (nav rail, Nomito runtime, side panel):
   today's `app/layout.tsx`, `app/page.tsx` and `app/lodgings/` move inside it.
   URLs don't change.
-- `app/(owner)/owner/` gets `OwnerShell`: a slim chrome with logo, "Panel",
-  and a user chip showing the Owner with a mode toggle ("Modo viajero" →
+- `app/(owner)/owner/` gets `OwnerShell`: a slim chrome with logo and a
+  user chip showing the Owner with a mode toggle ("Modo viajero" →
   `/app`). One account is both Traveler and Owner (§14 of traveler-views);
   the toggle is how the template switches personas. No
   `AssistantRuntimeProvider`, no chat, no monedas/saldo widgets — ADR-0001
-  has no Owner-side Agent. No storefront link in the chrome — the public
-  surface is reached from each Alojamiento card ("Ver en el catálogo").
+  has no Owner-side Agent. No nav links in the chrome — the public surface
+  is reached from each Alojamiento card ("Ver en el catálogo").
 
 ## 2. Persona and mock data
 

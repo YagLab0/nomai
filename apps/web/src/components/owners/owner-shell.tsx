@@ -40,12 +40,6 @@ export function OwnerShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-10 border-b border-sand bg-paper/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <Logo />
-          <span
-            aria-current="page"
-            className="hidden rounded-xl bg-terra-soft px-3 py-2 text-sm font-medium text-terra-deep sm:inline-block"
-          >
-            Panel
-          </span>
           <div className="flex items-center gap-3">
             <Link
               href="/app"
