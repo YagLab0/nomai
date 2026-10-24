@@ -52,10 +52,9 @@ alter table public.bookings
   add column claim_resolution claim_resolution,
   add column claim_resolved_at timestamptz;
 
--- Deadline derives from check_in — set once at booking time, kept as a column
--- so the keeper job can index it directly.
-alter table public.bookings
-  alter column cancel_deadline set default (check_in - 5);
+-- Deadline derives from checkin — set by the booking/confirm RPCs
+-- (coalesce(cancel_deadline, checkin - 5)); kept as a column so the keeper
+-- job can index it directly.
 
 create index bookings_escrow_release_idx
   on public.bookings (escrow_status, cancel_deadline)

@@ -24,7 +24,7 @@ export function ChatHeader() {
       </div>
       {lastCost > 0 && (
         <span className="rounded-full bg-terra-soft px-2.5 py-1 font-mono text-xs text-terra-deep">
-          última búsqueda −{lastCost} monedas
+          última respuesta −{lastCost} monedas
         </span>
       )}
     </header>

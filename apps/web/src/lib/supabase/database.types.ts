@@ -129,42 +129,81 @@ export type Database = {
       }
       bookings: {
         Row: {
+          cancel_deadline: string | null
           checkin: string
           checkout: string
+          claim_evidence: Json | null
+          claim_reason: Database["public"]["Enums"]["claim_reason"] | null
+          claim_resolution:
+            | Database["public"]["Enums"]["claim_resolution"]
+            | null
+          claim_resolved_at: string | null
           created_at: string
           currency: string
+          escrow_address: string | null
+          escrow_status: Database["public"]["Enums"]["escrow_status"]
+          final_release_at: string | null
+          first_release_at: string | null
           guest_ref: string | null
           guests: number
           id: string
           listing_id: string
+          service_fee_minor: number
+          service_fee_pct: number | null
           status: Database["public"]["Enums"]["booking_status"]
           total_minor: number
           traveler_id: string | null
           updated_at: string
         }
         Insert: {
+          cancel_deadline?: string | null
           checkin: string
           checkout: string
+          claim_evidence?: Json | null
+          claim_reason?: Database["public"]["Enums"]["claim_reason"] | null
+          claim_resolution?:
+            | Database["public"]["Enums"]["claim_resolution"]
+            | null
+          claim_resolved_at?: string | null
           created_at?: string
           currency: string
+          escrow_address?: string | null
+          escrow_status?: Database["public"]["Enums"]["escrow_status"]
+          final_release_at?: string | null
+          first_release_at?: string | null
           guest_ref?: string | null
           guests: number
           id: string
           listing_id: string
+          service_fee_minor?: number
+          service_fee_pct?: number | null
           status?: Database["public"]["Enums"]["booking_status"]
           total_minor: number
           traveler_id?: string | null
           updated_at?: string
         }
         Update: {
+          cancel_deadline?: string | null
           checkin?: string
           checkout?: string
+          claim_evidence?: Json | null
+          claim_reason?: Database["public"]["Enums"]["claim_reason"] | null
+          claim_resolution?:
+            | Database["public"]["Enums"]["claim_resolution"]
+            | null
+          claim_resolved_at?: string | null
           created_at?: string
           currency?: string
+          escrow_address?: string | null
+          escrow_status?: Database["public"]["Enums"]["escrow_status"]
+          final_release_at?: string | null
+          first_release_at?: string | null
           guest_ref?: string | null
           guests?: number
           id?: string
           listing_id?: string
+          service_fee_minor?: number
+          service_fee_pct?: number | null
           status?: Database["public"]["Enums"]["booking_status"]
           total_minor?: number
           traveler_id?: string | null
@@ -528,6 +567,7 @@ export type Database = {
           created_at: string
           facilitator_ref: string | null
           id: string
+          kind: Database["public"]["Enums"]["payment_kind"]
           network: string
           pay_to: string
           payer: string | null
@@ -540,6 +580,7 @@ export type Database = {
           created_at?: string
           facilitator_ref?: string | null
           id?: string
+          kind?: Database["public"]["Enums"]["payment_kind"]
           network: string
           pay_to: string
           payer?: string | null
@@ -552,6 +593,7 @@ export type Database = {
           created_at?: string
           facilitator_ref?: string | null
           id?: string
+          kind?: Database["public"]["Enums"]["payment_kind"]
           network?: string
           pay_to?: string
           payer?: string | null
@@ -751,9 +793,27 @@ export type Database = {
         }
         Returns: Json
       }
+      open_claim: {
+        Args: {
+          p_booking_id: string
+          p_evidence?: Json
+          p_guest_ref: string
+          p_reason: Database["public"]["Enums"]["claim_reason"]
+        }
+        Returns: Json
+      }
       owns_business: { Args: { p_business_id: string }; Returns: boolean }
       owns_listing: { Args: { p_listing_id: string }; Returns: boolean }
+      process_escrow_releases: { Args: never; Returns: Json }
       release_booking: { Args: { p_booking_id: string }; Returns: Json }
+      resolve_claim: {
+        Args: {
+          p_booking_id: string
+          p_refund_pct?: number
+          p_resolution: Database["public"]["Enums"]["claim_resolution"]
+        }
+        Returns: Json
+      }
     }
     Enums: {
       amenity_category:
@@ -771,9 +831,21 @@ export type Database = {
         | "cancelled"
         | "completed"
         | "refunded"
+        | "in_progress"
+        | "claim_open"
       business_status: "pending" | "active" | "suspended"
+      claim_reason: "no_access" | "not_as_described" | "owner_no_show"
+      claim_resolution: "full_refund" | "partial_refund" | "full_release"
+      escrow_status:
+        | "unfunded"
+        | "funded"
+        | "partially_released"
+        | "released"
+        | "refunded"
+        | "claimed"
       listing_kind: "entire_place" | "room"
       listing_status: "draft" | "published" | "paused" | "archived"
+      payment_kind: "charge" | "service_fee" | "fx_fee" | "release" | "refund"
       property_type:
         | "hotel"
         | "hostel"
@@ -931,10 +1003,23 @@ export const Constants = {
         "cancelled",
         "completed",
         "refunded",
+        "in_progress",
+        "claim_open",
       ],
       business_status: ["pending", "active", "suspended"],
+      claim_reason: ["no_access", "not_as_described", "owner_no_show"],
+      claim_resolution: ["full_refund", "partial_refund", "full_release"],
+      escrow_status: [
+        "unfunded",
+        "funded",
+        "partially_released",
+        "released",
+        "refunded",
+        "claimed",
+      ],
       listing_kind: ["entire_place", "room"],
       listing_status: ["draft", "published", "paused", "archived"],
+      payment_kind: ["charge", "service_fee", "fx_fee", "release", "refund"],
       property_type: [
         "hotel",
         "hostel",

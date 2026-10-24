@@ -2,7 +2,8 @@ import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
 import { Client, ClientError } from 'eve/client';
 import type { ClientSession, MessageResponse } from 'eve/client';
 
-import { MONEDAS_SPENT_KEY, SEARCH_COST_MONEDAS } from '@/lib/nomito/tools';
+import { creditFailureMessage, spendCredits, type CreditStage } from '@/lib/nomito/credits';
+import { MONEDAS_SPENT_KEY } from '@/lib/nomito/tools';
 
 /**
  * ChatModelAdapter backed by the real Nomito agent in apps/agent, reached
@@ -12,8 +13,10 @@ import { MONEDAS_SPENT_KEY, SEARCH_COST_MONEDAS } from '@/lib/nomito/tools';
  * first send and reused afterwards, so the Agent keeps context across Traveler
  * messages. The eve event stream is folded into cumulative assistant-ui
  * content updates. Agent tools stay internal — the narration text and its
- * OpenUI blocks carry the UX — except `search_listings`, whose result marks
- * the message as having spent Credits (read by the monedas chip/header).
+ * OpenUI blocks carry the UX — except for the Credits they spend: every turn
+ * posts a `conversation` charge up-front, and each completed inventory/pricing
+ * tool call posts its stage (issue #17). A 402/429 refusal ends the run with a
+ * `credits:*` error the message UI translates.
  */
 
 // A path-prefix host makes eve's client issue same-origin relative fetches,
@@ -22,8 +25,17 @@ const EVE_HOST = process.env.NEXT_PUBLIC_EVE_HOST ?? '/';
 
 const SESSION_RETRY_DELAY_MS = 2_000;
 
-/** Agent tool whose execution spends Traveler Credits. */
-const SEARCH_TOOL = 'search_listings';
+/**
+ * Agent tool → the ledger stage its execution spends (ADR-0002 staging).
+ * search_listings and quote_booking touch live inventory/pricing;
+ * get_listing is a cached-inventory read. book_listing/pay_endpoint move
+ * real Booking money, not Credits — unlisted on purpose.
+ */
+const TOOL_STAGE: Readonly<Record<string, CreditStage>> = {
+  search_listings: 'live_query',
+  quote_booking: 'live_query',
+  get_listing: 'cached_inventory',
+};
 
 let client: Client | null = null;
 let sessionPromise: Promise<ClientSession> | null = null;
@@ -169,23 +181,23 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
 export const eveAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const steps = new Map<number, StepBuffer>();
-    let searchCharged = false;
+    // Monedas actually charged this run — surfaced as message metadata so the
+    // chip/header show the real posted amounts, not a hardcoded price.
+    let spent = 0;
     let emittedText = '';
-    let emittedCharge = false;
+    let emittedSpent = 0;
 
     const snapshot = (): ChatModelRunResult => ({
       content: [{ type: 'text', text: fullText(steps) }],
-      ...(searchCharged
-        ? { metadata: { custom: { [MONEDAS_SPENT_KEY]: SEARCH_COST_MONEDAS } } }
-        : {}),
+      ...(spent > 0 ? { metadata: { custom: { [MONEDAS_SPENT_KEY]: spent } } } : {}),
     });
 
     /** Yields nothing twice: content replaces, metadata merges — emit on change only. */
     const pendingUpdate = (): ChatModelRunResult | null => {
       const text = fullText(steps);
-      if (text === emittedText && searchCharged === emittedCharge) return null;
+      if (text === emittedText && spent === emittedSpent) return null;
       emittedText = text;
-      emittedCharge = searchCharged;
+      emittedSpent = spent;
       return snapshot();
     };
 
@@ -200,6 +212,24 @@ export const eveAdapter: ChatModelAdapter = {
     abortSignal.addEventListener('abort', onAbort, { once: true });
 
     try {
+      // The conversation charge is the turn's cover price, paid before the
+      // Agent burns any tokens. 402/429 refuse the turn outright; 401 (no
+      // session — dev/demo) and an unreachable api degrade to an uncharged
+      // turn rather than freezing the chat.
+      const cover = await spendCredits('conversation');
+      if (cover.ok) {
+        spent += cover.amount;
+      } else if (cover.code === 'no-credits' || cover.code === 'daily-cap') {
+        yield {
+          status: {
+            type: 'incomplete',
+            reason: 'error',
+            error: creditFailureMessage(cover.code),
+          },
+        };
+        return;
+      }
+
       const response = await sendUserMessage(lastUserText(messages), abortSignal);
 
       let outcome: 'open' | 'completed' | 'cancelled' | 'failed' = 'open';
@@ -218,9 +248,25 @@ export const eveAdapter: ChatModelAdapter = {
             completeMessage(steps, ev.data.stepIndex, ev.data.message);
             break;
           case 'action.result': {
-            const { result } = ev.data;
-            if (result.kind === 'tool-result' && result.toolName === SEARCH_TOOL) {
-              searchCharged = true;
+            const { result, status } = ev.data;
+            if (result.kind !== 'tool-result' || status !== 'completed' || result.isError === true) break;
+            const stage = TOOL_STAGE[result.toolName];
+            if (stage === undefined) break;
+            // Tools return {error, …} payloads instead of throwing — a failed
+            // lookup is not a spendable query.
+            const output = result.output;
+            if (output !== null && typeof output === 'object' && 'error' in output) break;
+
+            const charge = await spendCredits(stage, { tool: result.toolName });
+            if (charge.ok) {
+              spent += charge.amount;
+            } else if (charge.code === 'no-credits' || charge.code === 'daily-cap') {
+              // The ledger refused the stage — stop the stream rather than
+              // hand out results the free-tier ceiling declined to fund.
+              // The turn keeps running server-side unless we cancel it.
+              failure = creditFailureMessage(charge.code);
+              outcome = 'failed';
+              void sessionPromise?.then((s) => s.cancel()).catch(() => undefined);
             }
             break;
           }
@@ -247,8 +293,11 @@ export const eveAdapter: ChatModelAdapter = {
         if (outcome !== 'open') break;
       }
 
+      const finalMeta =
+        spent > 0 ? { metadata: { custom: { [MONEDAS_SPENT_KEY]: spent } } } : {};
+
       if (abortSignal.aborted || outcome === 'cancelled') {
-        yield { status: { type: 'incomplete', reason: 'cancelled' } };
+        yield { status: { type: 'incomplete', reason: 'cancelled' }, ...finalMeta };
       } else if (outcome === 'failed') {
         yield {
           status: {
@@ -256,10 +305,11 @@ export const eveAdapter: ChatModelAdapter = {
             reason: 'error',
             error: failure ?? 'The agent turn failed.',
           },
+          ...finalMeta,
         };
       } else {
         // 'completed' or a quiet stream end (e.g. turn parked on input).
-        yield { status: { type: 'complete', reason: 'stop' } };
+        yield { status: { type: 'complete', reason: 'stop' }, ...finalMeta };
       }
     } catch (err) {
       if (isDeadSessionError(err)) sessionPromise = null;

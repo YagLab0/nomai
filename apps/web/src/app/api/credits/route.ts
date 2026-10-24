@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { hasSupabaseEnv } from '@/lib/supabase/env';
 import { createClient } from '@/lib/supabase/server';
+import { isCreditStage, STAGE_COST_MONEDAS } from '@/lib/nomito/credits';
 
 const API_URL = process.env.NOMAI_API_URL ?? 'http://localhost:3001';
 
@@ -13,7 +14,12 @@ export const dynamic = 'force-dynamic';
  * the api resolves it to the traveler id (see src/credits.ts there).
  *
  * GET  → GET  {API}/credits/balance   → { balance }
- * POST → POST {API}/credits/spend     → { amount, stage } spend rows
+ * POST → POST {API}/credits/spend
+ *
+ * Spend is priced server-side: the browser posts only { stage, reference?,
+ * meta? } and this handler resolves the amount from STAGE_COST_MONEDAS.
+ * Taking the amount from the request would let a Traveler under-charge their
+ * own ledger — cheap live queries against a free grant (ADR-0002).
  */
 async function bearer(): Promise<string | null> {
   const supabase = await createClient();
@@ -50,6 +56,16 @@ export async function POST(request: Request) {
   const token = await bearer();
   if (!token) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  const body = (await request.json().catch(() => null)) as {
+    stage?: unknown;
+    reference?: string | null;
+    meta?: Record<string, unknown>;
+  } | null;
+  if (!isCreditStage(body?.stage)) {
+    return NextResponse.json({ error: 'invalid stage' }, { status: 400 });
+  }
+  const stage = body!.stage;
+
   let upstream: Response;
   try {
     upstream = await fetch(`${API_URL}/credits/spend`, {
@@ -58,7 +74,12 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: await request.text(),
+      body: JSON.stringify({
+        amount: STAGE_COST_MONEDAS[stage],
+        stage,
+        reference: body?.reference ?? null,
+        meta: body?.meta ?? {},
+      }),
     });
   } catch {
     return NextResponse.json({ error: 'credits api unreachable' }, { status: 502 });
