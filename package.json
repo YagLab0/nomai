@@ -11,7 +11,7 @@
     "type-check": "turbo type-check",
     "api:dev": "turbo run dev --filter=api",
     "api:buy": "turbo run buy --filter=api",
-    "agent:dev": "turbo run dev --filter=agent"
+    "agent:dev": "pnpm --filter agent dev"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild"],
