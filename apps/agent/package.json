@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "24.x",
+    "just-bash": "^3.6.0",
     "typescript": "^5.2.2"
   },
   "engines": {
