@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0006
+---
+
 # Cancellation is Traveler-initiated, under one global refund policy
 
 A Booking's x402 payment settles straight into the Owner's wallet, so a

@@ -7,20 +7,20 @@ export async function updateSession(request: NextRequest) {
   /** Auth cookies touched during this request — flushed onto the final response. */
   const authCookies: { name: string; value: string; options: CookieOptions }[] = [];
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          authCookies.push(...cookiesToSet);
-        },
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return supabaseResponse;
+
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        authCookies.push(...cookiesToSet);
+      },
+    },
+  });
 
   // Refresh the session if expired. getUser() revalidates the token against
   // the Auth server; getSession() does not.

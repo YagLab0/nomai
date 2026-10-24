@@ -24,6 +24,7 @@ const COUNTRIES = [
   { code: 'AR', name: 'Argentina', dial: '+54' },
   { code: 'BR', name: 'Brasil', dial: '+55' },
   { code: 'CL', name: 'Chile', dial: '+56' },
+  { code: 'PE', name: 'Perú', dial: '+51' },
   { code: 'UY', name: 'Uruguay', dial: '+598' },
   { code: 'PY', name: 'Paraguay', dial: '+595' },
   { code: 'BO', name: 'Bolivia', dial: '+591' },

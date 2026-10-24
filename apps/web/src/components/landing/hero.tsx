@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { MapPinIcon } from '@/components/icons';
 import { HeroChat } from '@/components/landing/hero-chat';
+import { Parallax } from '@/components/landing/parallax';
 import { NomitoAvatar } from '@/components/nomito-avatar';
 import { RIPIO_COUNTRIES_TEXT } from '@/lib/lodgings';
 import { PHOTOS } from '@/lib/photos';
@@ -18,14 +19,16 @@ const photo = PHOTOS.humahuacaHornocal;
 export function Hero() {
   return (
     <section className="relative isolate overflow-hidden rounded-b-panel bg-ink text-paper">
-      <Image
-        src={photo.src}
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="-z-20 object-cover object-[50%_35%]"
-      />
+      <Parallax factor={0.18} className="absolute inset-0 -z-20">
+        <Image
+          src={photo.src}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="scale-[1.2] object-cover object-[50%_35%]"
+        />
+      </Parallax>
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-10 bg-gradient-to-b from-ink/75 via-ink/55 to-ink/80 lg:bg-gradient-to-r lg:from-ink/85 lg:via-ink/55 lg:to-ink/25"

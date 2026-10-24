@@ -4,6 +4,7 @@ import { Hero } from '@/components/landing/hero';
 import { HowItWorks } from '@/components/landing/how-it-works';
 import { Owners } from '@/components/landing/owners';
 import { Savings } from '@/components/landing/savings';
+import { Ticker } from '@/components/landing/ticker';
 import { fetchListings } from '@/lib/api';
 import { apiCardToLodging } from '@/lib/api-mapping';
 
@@ -17,6 +18,7 @@ export default async function LandingPage() {
     <>
       <Hero />
       <Destinations lodgings={lodgings} />
+      <Ticker />
       <HowItWorks />
       <Savings />
       <Owners />

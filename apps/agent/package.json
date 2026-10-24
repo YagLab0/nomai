@@ -11,6 +11,7 @@
     "deploy": "eve deploy",
     "dev": "eve dev",
     "start": "eve start",
+    "test:openui": "node scripts/check-openui-golden.mjs",
     "type-check": "tsc"
   },
   "dependencies": {
