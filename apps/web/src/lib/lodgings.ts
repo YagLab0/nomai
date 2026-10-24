@@ -19,8 +19,11 @@ export type LodgingKind =
   | 'hostal'
   | 'hotel-boutique';
 
-/** Local fiat the Traveler sees: the currencies of the Ripio countries. */
-export type Fiat = 'ARS' | 'BRL' | 'CLP' | 'COP' | 'MXN' | 'PEN' | 'UYU';
+/**
+ * Local fiat the Traveler sees: the currencies of the Ripio countries, plus
+ * USD — the listings API prices some inventory in dollars (USDC-settled).
+ */
+export type Fiat = 'USD' | 'ARS' | 'BRL' | 'CLP' | 'COP' | 'MXN' | 'PEN' | 'UYU';
 
 export const FIAT_META: Record<Fiat, { name: string; symbol: string }> = {
   ARS: { name: 'Pesos argentinos', symbol: '$' },
@@ -30,6 +33,7 @@ export const FIAT_META: Record<Fiat, { name: string; symbol: string }> = {
   MXN: { name: 'Pesos mexicanos', symbol: 'MX$' },
   PEN: { name: 'Soles', symbol: 'S/' },
   UYU: { name: 'Pesos uruguayos', symbol: '$U' },
+  USD: { name: 'Dólares', symbol: 'US$' },
 };
 
 export const FIAT_OPTIONS: { id: Fiat; label: string }[] = [
@@ -40,6 +44,7 @@ export const FIAT_OPTIONS: { id: Fiat; label: string }[] = [
   { id: 'MXN', label: 'MXN · MX$' },
   { id: 'PEN', label: 'PEN · S/' },
   { id: 'UYU', label: 'UYU · $U' },
+  { id: 'USD', label: 'USD · US$' },
 ];
 
 /**
@@ -55,6 +60,7 @@ export const FALLBACK_USD_RATES: Record<Fiat, number> = {
   MXN: 18.5,
   PEN: 3.8,
   UYU: 40,
+  USD: 1,
 };
 
 export type FxRates = Partial<Record<Fiat, number>>;
@@ -88,12 +94,13 @@ export interface Owner {
   country: string;
   countryCode: string;
   /** Year the Owner started receiving Bookings through nomai. */
-  since: number;
+  since?: number;
   /** Settlement address every Booking pays into directly. Never shown. */
-  wallet: `0x${string}`;
-  verified: boolean;
-  responseTime: string;
-  bio: string;
+  wallet?: `0x${string}`;
+  /** true → verified badge, false → "verificación en curso", undefined → hidden (API doesn't report it). */
+  verified?: boolean;
+  responseTime?: string;
+  bio?: string;
 }
 
 /** Placeholder artwork tone, see components/marketplace/lodging-art.tsx. */
@@ -125,6 +132,13 @@ export interface Lodging {
   tone: ArtTone;
   /** Photo from lib/photos.ts; Lodgings without one fall back to LodgingArt. */
   photo?: PhotoKey;
+  /** Remote cover URL from the listings API, used when no curated `photo` exists. */
+  photoUrl?: string;
+  /**
+   * Owner display name carried on the listing (API `owner_name`). Cards use it
+   * when `ownerSlug` isn't one of the curated OWNERS.
+   */
+  ownerName?: string;
   /** Pinned quote figures so the headline scenario matches the spec exactly. */
   pinned?: { subtotalBRL: number; feeBRL: number };
 }

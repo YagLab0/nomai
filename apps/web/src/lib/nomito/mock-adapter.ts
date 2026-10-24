@@ -1,17 +1,20 @@
-import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
+import type { ChatModelAdapter } from '@assistant-ui/react';
 
-import { CASA_DE_ADOBE, findLodging, isNorte, LODGINGS, quoteFor, type Lodging } from '@/lib/lodgings';
 import {
-  BOOKING_QUOTE_TOOL,
-  MONEDAS_SPENT_KEY,
-  SEARCH_COST_MONEDAS,
-  SHORTLIST_TOOL,
-} from '@/lib/nomito/tools';
+  CASA_DE_ADOBE,
+  findLodging,
+  formatLocalPrice,
+  isNorte,
+  LODGINGS,
+  quoteFor,
+  type Lodging,
+} from '@/lib/lodgings';
+import { MONEDAS_SPENT_KEY, SEARCH_COST_MONEDAS } from '@/lib/nomito/tools';
 
 /**
  * The ONLY place that knows Nomito's replies are fake. A real backend replaces
- * this adapter with one that streams the same text and emits the same
- * `shortlist` / `booking_quote` tool calls.
+ * this adapter with one that streams the same shape: normal prose plus fenced
+ * ```openui-lang programs that the OpenUI renderer turns into UI.
  */
 
 const TOKEN_DELAY_MS = 28;
@@ -34,8 +37,6 @@ const PLACES: { keywords: string[]; cities: string[] }[] = [
 function placeIn(t: string): string[] | null {
   return PLACES.find((p) => p.keywords.some((k) => t.includes(k)))?.cities ?? null;
 }
-
-type Content = NonNullable<ChatModelRunResult['content']>;
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -77,7 +78,42 @@ function tokens(text: string): string[] {
   return text.match(/\S+\s*/g) ?? [];
 }
 
-type Plan = { text: string; tool?: Content[number] };
+/** Escape a string for a double-quoted openui-lang literal. */
+function esc(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
+ * OpenUI Lang programs — the same wire format the real Agent emits (see
+ * apps/web/src/lib/openui/library.tsx for the catalog these calls target).
+ */
+function shortlistProgram(options: Lodging[]): string {
+  const refs = options.map((_, i) => `c${i}`).join(', ');
+  const cards = options
+    .map(
+      (l, i) =>
+        `c${i} = ListingCard("${esc(l.name)}", "${esc(l.city)}", "${esc(formatLocalPrice(l))} / noche", "directo con el dueño", @ToAssistant("Quiero reservar ${esc(l.name)}, ${esc(l.city)}"), "${esc(l.blurb)}", "${esc(l.code)}")`,
+    )
+    .join('\n');
+  return `root = Stack([${refs}])\n${cards}`;
+}
+
+function quoteProgram(lodging: Lodging): string {
+  const quote = quoteFor(lodging);
+  const lines = quote.lines
+    .map(
+      (line) =>
+        `{label: "${esc(line.label)}", value: "${esc(line.value)}"${line.kind ? `, kind: "${line.kind}"` : ''}}`,
+    )
+    .join(', ');
+  return `root = Stack([quote])\nquote = QuoteCard("${esc(quote.lodging)} · ${quote.nights} noches", [${lines}], @ToAssistant("Sí, confirmo la reserva"))`;
+}
+
+function langBlock(program: string): string {
+  return `\n\n\`\`\`openui-lang\n${program}\n\`\`\``;
+}
+
+type Plan = { text: string; monedasSpent?: number };
 
 function plan(text: string, isFirstTurn: boolean): Plan {
   const t = text.toLowerCase();
@@ -86,18 +122,16 @@ function plan(text: string, isFirstTurn: boolean): Plan {
 
   if (wantsBooking) {
     const lodging = findLodging(text) ?? CASA_DE_ADOBE;
-    const quote = quoteFor(lodging);
     return {
-      text: `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle en reales; el pago va directo al dueño y la comisión de conversión figura aparte.`,
-      tool: toolCall('quote', BOOKING_QUOTE_TOOL, quote),
+      text: `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle en reales; el pago va directo al dueño y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging))}`,
     };
   }
 
   if (mentionsTown || /hostel|busc|alojamiento|semana|casa|cabaña|hospedaje|playa|viaj/.test(t)) {
     const options = shortlistFor(text);
     return {
-      text: `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.`,
-      tool: toolCall('list', SHORTLIST_TOOL, { options }),
+      text: `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.${langBlock(shortlistProgram(options))}`,
+      monedasSpent: SEARCH_COST_MONEDAS,
     };
   }
 
@@ -108,23 +142,11 @@ function plan(text: string, isFirstTurn: boolean): Plan {
   };
 }
 
-function toolCall(id: string, toolName: string, args: object): Content[number] {
-  return {
-    type: 'tool-call',
-    toolCallId: `${id}-${Date.now()}`,
-    toolName,
-    args: args as never,
-    argsText: JSON.stringify(args),
-    // Already "answered": the UI is display-only, nothing waits on the model.
-    result: { ok: true },
-  };
-}
-
 export const mockAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const userText = lastUserText(messages);
     const isFirstTurn = messages.filter((m) => m.role === 'user').length <= 1;
-    const { text, tool } = plan(userText, isFirstTurn);
+    const { text, monedasSpent } = plan(userText, isFirstTurn);
 
     await sleep(500, abortSignal);
 
@@ -136,14 +158,10 @@ export const mockAdapter: ChatModelAdapter = {
       await sleep(TOKEN_DELAY_MS, abortSignal);
     }
 
-    if (tool && !abortSignal.aborted) {
-      await sleep(350, abortSignal);
-      const isSearch = tool.type === 'tool-call' && tool.toolName === SHORTLIST_TOOL;
+    if (monedasSpent && !abortSignal.aborted) {
       yield {
-        content: [{ type: 'text', text: acc }, tool],
-        ...(isSearch && {
-          metadata: { custom: { [MONEDAS_SPENT_KEY]: SEARCH_COST_MONEDAS } },
-        }),
+        content: [{ type: 'text', text: acc }],
+        metadata: { custom: { [MONEDAS_SPENT_KEY]: monedasSpent } },
       };
     }
   },

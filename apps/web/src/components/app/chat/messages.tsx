@@ -3,6 +3,7 @@
 import { MessagePrimitive } from '@assistant-ui/react';
 
 import { MonedasChip } from '@/components/app/chat/monedas-chip';
+import { OpenUIText } from '@/components/app/chat/openui-text';
 import { NomitoAvatar } from '@/components/nomito-avatar';
 
 export function UserMessage() {
@@ -15,20 +16,12 @@ export function UserMessage() {
   );
 }
 
-function BubbleText({ text }: { text: string }) {
-  return (
-    <p className="whitespace-pre-wrap rounded-2xl rounded-tl-md bg-terra-soft px-4 py-2.5 text-ink">
-      {text}
-    </p>
-  );
-}
-
 export function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex items-start gap-3">
       <NomitoAvatar size="sm" className="mt-1" />
-      <div className="flex min-w-0 max-w-[90%] flex-1 flex-col items-start [&>*:not(:first-child)]:w-full">
-        <MessagePrimitive.Parts components={{ Text: BubbleText }} />
+      <div className="flex min-w-0 max-w-[90%] flex-1 flex-col items-start gap-2">
+        <MessagePrimitive.Parts components={{ Text: OpenUIText }} />
         <MonedasChip />
       </div>
     </MessagePrimitive.Root>

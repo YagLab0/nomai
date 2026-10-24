@@ -3,7 +3,10 @@ import type { PhotoKey } from '@/lib/photos';
 
 /**
  * Landing destinations: one per Ripio country, with the Argentine Norte (where
- * nomai was born) first and featured.
+ * nomai was born) first and featured. The editorial layer (tab copy, town
+ * photo) is static; the lodging cards are filled by `buildDestinations` from
+ * whatever inventory the caller has — the live API on the landing, the static
+ * catalog as fallback.
  */
 export interface Destination {
   code: string;
@@ -41,9 +44,19 @@ const BASE = [
   { code: 'CYR', label: 'Colonia', name: 'Colonia del Sacramento', country: 'Uruguay', photo: 'coloniaFaro', towns: ['Colonia del Sacramento'], tagline: 'Calles de piedra, faro y atardeceres sobre el río.' },
 ] as const satisfies readonly Omit<Destination, 'from' | 'lodgings'>[];
 
-export const DESTINATIONS: readonly Destination[] = BASE.map((d) => {
-  const all = LODGINGS.filter((l) => (d.towns as readonly string[]).includes(l.city));
-  const cheapest = all.reduce((a, b) => (b.pricePerNight < a.pricePerNight ? b : a));
-  const lodgings = [...all.filter((l) => l.featured), ...all.filter((l) => !l.featured)].slice(0, 2);
-  return { ...d, lodgings, from: `desde ${formatAmount(cheapest.pricePerNight, cheapest.currency)}` };
-});
+/** Pair each destination's editorial card with inventory priced there. */
+export function buildDestinations(lodgings: Lodging[]): Destination[] {
+  return BASE.map((d) => {
+    const all = lodgings.filter((l) => (d.towns as readonly string[]).includes(l.city));
+    const cheapest = all.length ? all.reduce((a, b) => (b.pricePerNight < a.pricePerNight ? b : a)) : undefined;
+    const picks = [...all.filter((l) => l.featured), ...all.filter((l) => !l.featured)].slice(0, 2);
+    return {
+      ...d,
+      lodgings: picks,
+      from: cheapest ? `desde ${formatAmount(cheapest.pricePerNight, cheapest.currency)}` : '',
+    };
+  });
+}
+
+/** Static-catalog version, kept for consumers without API access. */
+export const DESTINATIONS: readonly Destination[] = buildDestinations(LODGINGS);

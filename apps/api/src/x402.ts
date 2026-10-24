@@ -2,7 +2,7 @@
 //
 // The facilitator is the piece that verifies a payment signature and submits the
 // settlement transaction. You do not run it — Celo hosts one for each network, and
-// the addresses below are what those instances advertise on `GET /supported`.
+// the tables below mirror what those instances advertise on `GET /supported`.
 
 // Loaded here, first, because every constant below reads process.env at module
 // scope — and both entry points import this file before running their own code.
@@ -14,36 +14,95 @@ import type { Address } from "viem";
 
 export type X402Network = "testnet" | "mainnet";
 
+export interface TokenDef {
+  address: Address;
+  /** EIP-712 domain the TOKEN signs with — NOT the symbol (USDT signs as "Tether USD"). */
+  domain: { name: string; version: string };
+  decimals: number;
+  /** eip3009 signs transferWithAuthorization; permit2 needs the facilitator's
+   *  sponsored EIP-2612 permit (advertised via the eip2612GasSponsoring extension). */
+  transferMethod: "eip3009" | "permit2";
+}
+
+interface NetworkConfig {
+  facilitator: string;
+  caip2: `eip155:${string}`;
+  explorer: string;
+  tokens: Record<string, TokenDef>;
+}
+
 /**
- * Celo's hosted x402 facilitators, and the canonical USDC each one settles.
+ * Assets the Celo x402 facilitator settles (see GET /supported).
  *
- * USDC is used because it implements EIP-3009 `transferWithAuthorization`, which is
- * the standard the `exact` scheme signs against. A token without EIP-3009 cannot be
- * settled by this path no matter what you put in `asset`.
+ * Every token here must implement the signed-transfer standard its
+ * transferMethod names: eip3009 for the plain `exact` scheme, or an EIP-2612
+ * permit into Permit2 for the Ripio wFIAT stablecoins. A token without one of
+ * those cannot be settled by this path no matter what you put in `asset`.
  *
- * `domain` is the EIP-712 domain the TOKEN signs with, and it lives next to the
- * address rather than beside the price so the two cannot drift apart. Get it wrong
- * and the token rejects the signature at settlement — after the buyer has signed.
- * Both entries were read from the contracts (`name()` / `version()` on each
- * network) rather than assumed; note that `eip712Domain()` itself reverts on both,
- * so those two getters are how you check.
+ * `domain` lives next to the address rather than beside the price so the two
+ * cannot drift apart. Get it wrong and the token rejects the signature at
+ * settlement — after the buyer has signed. Both fields were read from the
+ * contracts (`name()` / `version()`), not assumed.
  */
-export const X402 = {
+export const X402: Record<X402Network, NetworkConfig> = {
   testnet: {
     facilitator: "https://api.x402.sepolia.celo.org",
     caip2: "eip155:11142220",
-    usdc: "0x01C5C0122039549AD1493B8220cABEdD739BC44E" as Address,
-    domain: { name: "USDC", version: "2" },
     explorer: "https://celo-sepolia.blockscout.com",
+    tokens: {
+      usdc: {
+        address: "0x01C5C0122039549AD1493B8220cABEdD739BC44E",
+        domain: { name: "USDC", version: "2" },
+        decimals: 6,
+        transferMethod: "eip3009",
+      },
+    },
   },
   mainnet: {
     facilitator: "https://api.x402.celo.org",
     caip2: "eip155:42220",
-    usdc: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" as Address,
-    domain: { name: "USDC", version: "2" },
     explorer: "https://celoscan.io",
+    tokens: {
+      usdc: {
+        address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+        domain: { name: "USDC", version: "2" },
+        decimals: 6,
+        transferMethod: "eip3009",
+      },
+      usdt: {
+        address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        domain: { name: "Tether USD", version: "1" },
+        decimals: 6,
+        transferMethod: "eip3009",
+      },
+      usat: {
+        address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
+        domain: { name: "Tether America USD", version: "1" },
+        decimals: 6,
+        transferMethod: "eip3009",
+      },
+      // Ripio wFIAT — settle through Permit2 with a facilitator-sponsored permit.
+      wars: {
+        address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D",
+        domain: { name: "Peso Argentino", version: "1" },
+        decimals: 18,
+        transferMethod: "permit2",
+      },
+      wbrl: {
+        address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0",
+        domain: { name: "Real Brasileño", version: "1" },
+        decimals: 18,
+        transferMethod: "permit2",
+      },
+      wcop: {
+        address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76",
+        domain: { name: "Peso Colombiano", version: "1" },
+        decimals: 18,
+        transferMethod: "permit2",
+      },
+    },
   },
-} as const;
+};
 
 /** Testnet by default, so running this scaffold costs nothing. */
 export const NETWORK: X402Network =
@@ -52,16 +111,41 @@ export const NETWORK: X402Network =
 export const CONFIG = X402[NETWORK];
 
 /** CAIP-2 chain id, e.g. `eip155:11142220`. The `@x402` packages key schemes by this. */
-export const CAIP2: `eip155:${string}` = CONFIG.caip2;
+export const CAIP2 = CONFIG.caip2;
 
 /**
- * Price in RAW token units, not decimals. USDC has 6, so "10000" is 0.01 USDC.
- * Getting this wrong by 10^6 is the single most common mistake when wiring x402.
+ * Price in WHOLE tokens (e.g. "0.01" = 0.01 USDC / 0.01 wARS), converted per
+ * asset by its decimals at accept time. Quoting whole tokens rather than raw
+ * units is what makes a multi-asset `accepts` list possible at all.
  */
-export const PRICE = process.env.X402_PRICE ?? "10000";
+export const PRICE = process.env.X402_PRICE ?? "0.01";
 
 /** Where settled payments land. Unset means /paid answers for free. */
 export const PAY_TO = process.env.X402_PAY_TO;
+
+/**
+ * Assets this seller accepts, e.g. X402_ASSETS="usdc,wars" lets the buyer pay in
+ * whichever it holds. Only assets the facilitator supports on this network are
+ * valid — wFIAT exists on mainnet only.
+ */
+export const ACCEPTED_TOKENS = (process.env.X402_ASSETS ?? "usdc")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+  .map((symbol) => {
+    const token = CONFIG.tokens[symbol];
+    if (!token) {
+      throw new Error(
+        `X402_ASSETS: "${symbol}" is not supported on ${NETWORK} — options: ${Object.keys(CONFIG.tokens).join(", ")}`
+      );
+    }
+    return { symbol, ...token };
+  });
+
+/** True when any accepted asset needs the sponsored EIP-2612 permit extension. */
+export const NEEDS_PERMIT2_SPONSORING = ACCEPTED_TOKENS.some(
+  (t) => t.transferMethod === "permit2"
+);
 
 /**
  * The facilitator client. The API key is attached to every facilitator call and

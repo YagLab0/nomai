@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pagos en corredor wFIAT — nomai</title>
+<style>
+  :root { --ink:#1a1a2e; --accent:#fcff52; --celo:#35d07f; --muted:#666; --line:#ddd; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: var(--ink);
+         max-width: 800px; margin: 0 auto; padding: 40px 32px; font-size: 10.5pt; line-height: 1.55; }
+  h1 { font-size: 22pt; margin: 0 0 4px; letter-spacing: -0.5px; }
+  h2 { font-size: 13pt; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--ink); }
+  h3 { font-size: 11pt; margin: 16px 0 6px; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); font-size: 10.5pt; margin-bottom: 24px; }
+  .meta { color: var(--muted); font-size: 8.5pt; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 8px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: #f4f4f4; font-weight: 600; }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 9pt; background: #f4f4f4; padding: 1px 5px; border-radius: 3px; }
+  pre { font-family: "SF Mono", Menlo, monospace; font-size: 8.8pt; background: #fafafa;
+        border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; overflow-x: auto; line-height: 1.5; }
+  .flow { background: #0f0f1a; color: #e8e8f0; border-radius: 8px; padding: 14px 18px;
+          font-family: "SF Mono", Menlo, monospace; font-size: 8.8pt; line-height: 1.6; white-space: pre; overflow-x: auto; }
+  .flow .hl { color: var(--accent); }
+  .flow .ok { color: var(--celo); }
+  .callout { border-left: 4px solid var(--celo); background: #f0fbf5; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+  .callout.warn { border-color: #e8a13c; background: #fdf6ea; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .tag { display: inline-block; font-size: 8pt; font-weight: 600; padding: 1px 8px; border-radius: 10px;
+         background: var(--ink); color: #fff; margin-right: 4px; }
+  .tag.done { background: var(--celo); color: #111; }
+  .tag.todo { background: #e8a13c; }
+</style>
+</head>
+<body>
+
+<h1>Pagos en corredor wFIAT — nomai</h1>
+<p class="sub">Rampa, swap y settlement x402 sobre Celo. Documento de arquitectura para la demo de
+<strong>Agents on Open Rails</strong> (submission window: 2026-10-06 → 2026-11-09 — bounty $5,000 USD en $CELO).</p>
+
+<h2>1. Resumen</h2>
+<p>nomai es un agente que investiga y reserva alojamiento para viajeros de LATAM, pagando en stablecoins
+locales (wFIAT) sobre Celo vía x402. El corredor que habilita el producto:</p>
+<ul>
+  <li>El <strong>Traveler</strong> entra con su moneda local (ARS) por la <strong>rampa de Ripio</strong> — gratis.</li>
+  <li>El <strong>Agent</strong> convierte on-chain (<strong>swap en Textile FX</strong>) y paga al Owner con x402 — gas patrocinado por el facilitador.</li>
+  <li>El <strong>Owner</strong> recibe su moneda local (wBRL) en su propia wallet y sale a fiat por la misma rampa — gratis.</li>
+</ul>
+<p>Ninguna punta "hace crypto": el Traveler deposita pesos, el Owner recibe reales en su banco.
+Lo on-chain es invisible. Los únicos costos reales por Booking son ~1 bps de protocolo de swap + gas sub-centavo + el FX fee de la plataforma.</p>
+
+<h2>2. La app hoy — tres piezas</h2>
+<table>
+  <tr><th>App</th><th>Rol</th><th>Estado</th></tr>
+  <tr><td><code>apps/web</code></td><td>Next.js 14 (scaffold Celo Composer). UI del Traveler: chat con el Agent, carga de Credits.</td><td><span class="tag todo">landing solamente</span></td></tr>
+  <tr><td><code>apps/api</code></td><td>Hono + <code>@x402/hono</code>. Seller x402: <code>POST /paid</code> acepta cualquier asset de <code>X402_ASSETS</code>.</td><td><span class="tag done">multi-asset ✓</span></td></tr>
+  <tr><td><code>apps/agent</code></td><td>Agente eve (DeepSeek vía OpenCode Go). Tools <code>check_balance</code> y <code>pay_endpoint</code>; wallet + tokens en <code>agent/lib/celo.ts</code>.</td><td><span class="tag done">paga wFIAT ✓</span></td></tr>
+</table>
+
+<h2>3. Cómo paga x402</h2>
+<p>Un endpoint cotiza un precio; el pagador firma una autorización off-chain; el <strong>facilitador de Celo</strong>
+verifica la firma, ejecuta la transferencia on-chain y <strong>paga el gas</strong>. El pagador solo necesita el token — nunca CELO.</p>
+<div class="flow">agente/buyer            endpoint x402 (seller)          facilitador Celo
+     │   POST /paid               │                              │
+     │ ─────────────────────────► │                              │
+     │   <span class="hl">402 + PAYMENT-REQUIRED</span>   │  (asset, amount, payTo)        │
+     │ ◄───────────────────────── │                              │
+     │   firma EIP-3009/permit2   │                              │
+     │   POST /paid + signature   │                              │
+     │ ─────────────────────────► │ ─── /verify ───────────────► │
+     │                            │ ─── /settle (API key) ─────► │
+     │                            │ ◄── tx on-chain, <span class="ok">gas patrocinado</span>
+     │   200 + PAYMENT-RESPONSE   │                              │
+     │ ◄───────────────────────── │                              │</div>
+<p>En Celo el facilitador liquida hoy: <strong>USDC, USDT, USAT</strong> (EIP-3009) y los wFIAT de Ripio
+<strong>wARS, wBRL, wCOP</strong> (permit2 + extensión <code>eip2612GasSponsoring</code> — el facilitador
+patrocina también el permiso EIP-2612). Sepolia solo USDC. Existen on-chain además wMXN, wPEN y wCLP,
+pero el facilitador aún no los liquida.</p>
+
+<h2>4. "Rampa" — la frontera fiat ↔ crypto</h2>
+<p><strong>On-ramp</strong>: fiat → crypto (depositás pesos por transferencia/Mercado Pago/PIX y recibís el token).
+<strong>Off-ramp</strong>: crypto → fiat (devolvés el token y te acreditan plata en el banco).</p>
+<ul>
+  <li><strong>Ripio es LA rampa</strong> de este stack: emiten wFIAT 1:1 contra depósitos fiat, colateralizado
+  en instituciones reguladas, y en Celo las rampas son <strong>sin costo</strong>.</li>
+  <li>Tienen producto integrable: <strong>Ripio Ramps API</strong> (REST + widget embebible, OAuth2, KYC,
+  cotizaciones, métodos de pago por país) — integración B2B.</li>
+  <li>Analogía: la rampa es <em>migraciones en el aeropuerto</em> — necesaria para entrar y salir, lenta,
+  con papeles. Una vez adentro, nadie vuelve a migraciones para cambiar plata.</li>
+</ul>
+
+<h2>5. El corredor completo — tres capas</h2>
+<div class="flow">Traveler: pesos en su banco / Mercado Pago
+    │  <span class="hl">ON-RAMP — Ripio (gratis)</span>: ARS → wARS on-chain
+    ▼
+wARS en la wallet del Agent (Celo — transporte, gas sub-centavo)
+    │  <span class="hl">SWAP — Textile FX</span>: wARS → wBRL al tipo de cambio real   ← <span class="hl">FX fee de nomai</span>
+    ▼
+pago x402 → wBRL en el wallet del Owner
+    │  <span class="hl">OFF-RAMP — Ripio (gratis)</span>: wBRL → reales en su banco
+    ▼
+Owner: reales, sin haber tocado crypto conscientemente</div>
+<table>
+  <tr><th>Capa</th><th>Quién</th><th>Qué hace</th></tr>
+  <tr><td>On/off-ramp</td><td><strong>Ripio</strong> (partner del hackathon)</td><td>Pone la moneda on-chain 1:1 y la redime. Gratis en Celo.</td></tr>
+  <tr><td>Transporte</td><td><strong>Celo</strong></td><td>Mueve los tokens — sub-centavo, 1s de bloque, gas pagable en stablecoins (<code>feeCurrency</code>).</td></tr>
+  <tr><td>Conversión</td><td><strong>Textile FX</strong> (partner)</td><td>DEX armado para FX: market makers cotizan el precio real (no curva AMM) → wARS↔wBRL casi sin slippage.</td></tr>
+</table>
+<p><strong>Textile v2 RFQ</strong> (<code>api.textilecredit.com/v2</code>): pedís un monto — exact-output nativo
+("necesito exactamente X wBRL") — un maker devuelve una <strong>cotización firme de 60s</strong>. No-custodial:
+devuelve la tx sin firmar y vos la firmás. Sin API key exige <code>takerProof</code> por request; con partner
+key (<code>tx_live_…</code>) se omite — mejor para un agente autónomo.</p>
+
+<h2>6. Flujo real de un Traveler</h2>
+<ol>
+  <li>Abre <code>apps/web</code>, chatea con el Agent. Deposita ARS (rampa) → le acreditan <strong>Credits</strong> (monedas Nomai).</li>
+  <li>"Buscame algo en Floripa 15–20" → el Agent investiga (gasta Credits por etapa).</li>
+  <li>Elige una opción → confirma el <strong>Booking</strong>.</li>
+  <li>El Agent hace <code>swap wARS→wBRL</code> si hace falta y llama <code>pay_endpoint</code> al endpoint x402 del Owner.</li>
+  <li>El facilitador liquida → <strong>500 wBRL directo al wallet del Owner</strong>. La plataforma nunca toca esos fondos.</li>
+  <li>El Owner off-rampa a su banco cuando quiere.</li>
+</ol>
+<div class="callout">El Traveler ve una sola línea: <em>"pagaste ~100.000 wARS — el hotel recibió 500 wBRL"</em>.</div>
+
+<h2>7. ¿Por qué el swap y no "solo rampas"?</h2>
+<p>Se podría convertir dentro de Ripio (ARS→wBRL directo por la rampa), pero el swap on-chain es la pieza
+que hace producto:</p>
+<table>
+  <tr><th>Solo rampas</th><th>Rampa + swap</th></tr>
+  <tr><td>Conversión interactiva (KYC, pago, confirmación bancaria — minutos/horas)</td><td>Swap = API + una firma del wallet, ~1s</td></tr>
+  <tr><td>El Agent no puede convertir autónomamente</td><td>El Agent convierte dentro del mismo flujo del Booking</td></tr>
+  <tr><td>La conversión la cobra Ripio con su spread</td><td><strong>El FX fee de nomai vive en el swap</strong> (ADR-0001)</td></tr>
+  <tr><td>Demuestra payments</td><td>Demuestra <strong>FX programable</strong> — el track "Open Corridors"</td></tr>
+</table>
+<p>x402 liquida <strong>un solo asset</strong> por pago — "pago en wARS, llega wBRL" no existe dentro del protocolo.
+El puente es: swap on-chain primero, pago después.</p>
+
+<h2>8. Costos por Booking</h2>
+<table>
+  <tr><th>Paso</th><th>Costo</th><th>Quién lo paga</th></tr>
+  <tr><td>On-ramp ARS → wARS</td><td><strong>$0</strong> (rampa wFIAT gratis en Celo)</td><td>Traveler</td></tr>
+  <tr><td>Swap wARS → wBRL (Textile)</td><td>~0.01% protocolo + gas sub-centavo (o en token vía <code>feeCurrency</code>) + <strong>FX fee nomai</strong> (ej. 0.5%)</td><td>dentro del precio que paga el Traveler</td></tr>
+  <tr><td>Pago x402 al Owner</td><td><strong>$0 de gas</strong> — patrocinado; consume 1 crédito del seller en el facilitador</td><td>nadie realmente</td></tr>
+  <tr><td>Off-ramp wBRL → BRL</td><td><strong>$0</strong> (Ripio)</td><td>Owner</td></tr>
+</table>
+<p>Ejemplo: booking de 500 BRL ≈ 500 BRL + ~0.05 BRL de protocolo + centavos de gas + fee de plataforma.
+El único costo subsidiado real es el gas del settlement.</p>
+
+<h2>9. Una wallet, muchos clientes</h2>
+<p>Los Travelers <strong>no tienen wallet ni tocan una</strong>. Dos capas de contabilidad:</p>
+<div class="flow">On-chain:  UNA wallet del Agent (float operativo de la plataforma)
+           → paga Bookings a wallets de Owners · hace swaps
+
+Off-chain: N filas en el ledger de Credits (una por Traveler)
+           → "Traveler 7 tiene 340 monedas Nomai"</div>
+<p>Es la cuenta omnibus de cualquier fintech: la wallet es el pool operativo; la granularidad por cliente
+vive en el ledger de Credits — donde también operan los tiers de verificación y el free grant (ADR-0002).</p>
+<div class="callout warn"><strong>Por eso los Credits son no-retirables ni transferibles:</strong> si el Traveler
+pudiera sacar saldo a una wallet, serías una billetera custodial por usuario — otro régimen. Como solo compran
+servicios, funcionan como millas, no como depósitos.</div>
+<p>Reconciliación: la extensión <code>payment-identifier</code> del facilitador permite adjuntar
+<code>booking_id</code> al pago on-chain (link ledger ↔ tx). El <code>CELO_ATTRIBUTION_TAG</code> taggea todas
+las txs del agente para el dashboard del hackathon.</p>
+<p>Los únicos con wallet propia son los <strong>Owners</strong> — <code>payTo</code> es su wallet por diseño.</p>
+
+<h2>10. Estado: hecho vs. falta</h2>
+<table>
+  <tr><th>Pieza</th><th>Estado</th></tr>
+  <tr><td>Pagar en wFIAT (<code>pay_endpoint</code>, agente como buyer)</td><td><span class="tag done">hecho</span></td></tr>
+  <tr><td>Cobrar en wFIAT (<code>apps/api</code> multi-asset, extensión permit2)</td><td><span class="tag done">hecho</span></td></tr>
+  <tr><td><code>check_balance</code>, walletClient + attribution tag</td><td><span class="tag done">hecho</span></td></tr>
+  <tr><td><strong>Tool <code>swap</code></strong> (Textile v2 RFQ + FX fee) — el corredor demoable</td><td><span class="tag todo">por construir</span></td></tr>
+  <tr><td>On/off-ramp real (Ripio Ramps API — B2B, KYC)</td><td><span class="tag todo">post-demo — fondeo manual alcanza</span></td></tr>
+  <tr><td>Ledger de Credits + tiers (ADR-0002)</td><td><span class="tag todo">pre-producción</span></td></tr>
+  <tr><td>Paid channel del agente (cobrar research) + ledger wiring</td><td><span class="tag todo">opcional — patrón ya portado en <code>lib/x402.ts</code></span></td></tr>
+  <tr><td>Chat UI en <code>apps/web</code> + eve channel</td><td><span class="tag todo">para demo E2E</span></td></tr>
+</table>
+
+<h2>11. Qué nos conviene para la demo</h2>
+<ol>
+  <li><strong>Construir la tool <code>swap</code> contra Textile v2 RFQ</strong> — es EL build: sin ella el
+  corredor se cuenta, con ella se muestra. Pedir API key de partner (omite <code>takerProof</code>).</li>
+  <li><strong>Fondeo manual</strong> de la wallet del agente (wARS + poco CELO) — la rampa real es B2B y puede esperar.</li>
+  <li><strong>Mainnet</strong>: wFIAT solo existe ahí. Montos chicos pero reales — mejor demo que testnet vacío.</li>
+  <li><code>apps/api</code> hace de endpoint del Owner (<code>X402_PAY_TO</code>=wallet Owner, <code>X402_ASSETS=wbrl</code>).</li>
+  <li>Attribution tag <code>celo_…</code> seteado antes de la primera tx mainnet — no se puede backfilleare.</li>
+  <li>Credits simulados para la demo; el ledger real va antes de producción (es donde vive el modelo de negocio).</li>
+</ol>
+
+<p class="meta">nomai — docs/corredor-wfiat-pagos · generado 2026-10-20 · Fuentes: docs.x402.org, api.x402.celo.org/supported,
+docs.textilecredit.com/api/v2, docs.ripio.com/ramps-api, blog.celo.org (wFIAT launch, jul 2026)</p>
+
+</body>
+</html>

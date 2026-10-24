@@ -4,12 +4,19 @@ import { Hero } from '@/components/landing/hero';
 import { HowItWorks } from '@/components/landing/how-it-works';
 import { Owners } from '@/components/landing/owners';
 import { Savings } from '@/components/landing/savings';
+import { fetchListings } from '@/lib/api';
+import { apiCardToLodging } from '@/lib/api-mapping';
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Live inventory for the destination tabs; when the API is unreachable the
+  // section falls back to the static catalog instead of breaking the landing.
+  const cards = await fetchListings().catch(() => null);
+  const lodgings = cards?.map(apiCardToLodging);
+
   return (
     <>
       <Hero />
-      <Destinations />
+      <Destinations lodgings={lodgings} />
       <HowItWorks />
       <Savings />
       <Owners />

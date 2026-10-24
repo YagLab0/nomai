@@ -98,3 +98,6 @@ Thumbs.db
 
 # Turbo
 .turbo
+
+# Playwright CLI debug artifacts
+.playwright-cli/
