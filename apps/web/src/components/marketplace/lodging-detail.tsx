@@ -18,7 +18,7 @@ import { AvailabilityCalendar } from '@/components/marketplace/availability-cale
 import { CurrencySelect } from '@/components/marketplace/currency-select';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
 import { apiDetailToLodging, initialsFor } from '@/lib/api-mapping';
-import type { ApiListingDetail } from '@/lib/api';
+import type { ApiListingDetail, ApiQuote } from '@/lib/api';
 import { catalog } from '@/lib/catalog';
 import { nightsOf } from '@/lib/dates';
 import { formatShortDate } from '@/lib/format';
@@ -161,6 +161,23 @@ function BookingSection({ lodging, fiat, rates }: { lodging: Lodging; fiat?: Fia
   const [checkOut, setCheckOut] = useState<string | null>(null);
   const stay = checkIn && checkOut ? { checkIn, checkOut } : undefined;
   const nights = stay ? nightsOf(stay.checkIn, stay.checkOut).length : 0;
+  /** The API's quote for the chosen stay — the Service fee comes only from here, never computed client-side. */
+  const [quote, setQuote] = useState<ApiQuote | null>(null);
+  useEffect(() => {
+    setQuote(null);
+    if (!checkIn || !checkOut) return;
+    let alive = true;
+    const qs = new URLSearchParams({ checkin: checkIn, checkout: checkOut });
+    fetch(`/api/listings/${encodeURIComponent(lodging.id)}/quote?${qs.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((q: ApiQuote | null) => {
+        if (alive && q?.service_fee_display) setQuote(q);
+      })
+      .catch(() => null);
+    return () => {
+      alive = false;
+    };
+  }, [lodging.id, checkIn, checkOut]);
 
   return (
     <section aria-labelledby="disponibilidad-heading" className="mt-8">
@@ -192,6 +209,12 @@ function BookingSection({ lodging, fiat, rates }: { lodging: Lodging; fiat?: Fia
               <p data-testid="stay-total" className="font-mono text-2xl font-semibold text-ink">
                 {formatStayEstimate(lodging, nights, fiat, rates)}
               </p>
+              {quote && (
+                <p data-testid="stay-service-fee" className="mt-1 flex justify-between gap-3 text-sm text-ink-muted">
+                  <span>Service fee nomai</span>
+                  <span className="font-mono text-ink">{quote.service_fee_display}</span>
+                </p>
+              )}
               <p className="mt-1 text-xs text-ink-muted">Es una estimación: Nomito te da el precio final al reservar.</p>
             </div>
           )}
