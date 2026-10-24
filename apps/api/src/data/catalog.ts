@@ -117,6 +117,119 @@ export const AMENITIES: Amenity[] = [
     name: "Accesible en silla de ruedas",
     category: "accesibilidad",
   },
+  // --- Amenities added migrating the web catalog (apps/web lodgings.ts) ---
+  // `code` is the slugified Spanish label, `name` keeps the original wording.
+  { id: "amn_patio", code: "patio", name: "Patio", category: "exterior" },
+  {
+    id: "amn_chimenea",
+    code: "chimenea",
+    name: "Chimenea",
+    category: "general",
+  },
+  {
+    id: "amn_vista_cerro",
+    code: "vista_al_cerro",
+    name: "Vista al cerro",
+    category: "exterior",
+  },
+  {
+    id: "amn_vista_cordon",
+    code: "vista_al_cordon",
+    name: "Vista al cordón",
+    category: "exterior",
+  },
+  {
+    id: "amn_cerca_bodegas",
+    code: "cerca_de_bodegas",
+    name: "Cerca de bodegas",
+    category: "general",
+  },
+  {
+    id: "amn_entre_vinedos",
+    code: "entre_vinedos",
+    name: "Entre viñedos",
+    category: "exterior",
+  },
+  {
+    id: "amn_vinedo_propio",
+    code: "vinedo_propio",
+    name: "Viñedo propio",
+    category: "exterior",
+  },
+  {
+    id: "amn_cena_casera",
+    code: "cena_casera",
+    name: "Cena casera",
+    category: "servicios",
+  },
+  {
+    id: "amn_mapa_senderos",
+    code: "mapa_de_senderos",
+    name: "Mapa de senderos",
+    category: "servicios",
+  },
+  {
+    id: "amn_cerca_feria",
+    code: "cerca_de_la_feria",
+    name: "Cerca de la feria",
+    category: "general",
+  },
+  {
+    id: "amn_cuadra_playa",
+    code: "a_una_cuadra_de_la_playa",
+    name: "A una cuadra de la playa",
+    category: "general",
+  },
+  {
+    id: "amn_tablas_surf",
+    code: "tablas_de_surf",
+    name: "Tablas de surf",
+    category: "servicios",
+  },
+  {
+    id: "amn_cielo_estrellas",
+    code: "cielo_para_mirar_estrellas",
+    name: "Cielo para mirar estrellas",
+    category: "exterior",
+  },
+  {
+    id: "amn_salidas_amanecer",
+    code: "salidas_al_amanecer",
+    name: "Salidas al amanecer",
+    category: "servicios",
+  },
+  { id: "amn_bicis", code: "bicis", name: "Bicis", category: "servicios" },
+  {
+    id: "amn_cerca_rio",
+    code: "cerca_del_rio",
+    name: "Cerca del río",
+    category: "general",
+  },
+  { id: "amn_kayaks", code: "kayaks", name: "Kayaks", category: "servicios" },
+  {
+    id: "amn_cenote_privado",
+    code: "cenote_privado",
+    name: "Cenote privado",
+    category: "exterior",
+  },
+  {
+    id: "amn_rooftop",
+    code: "rooftop",
+    name: "Rooftop",
+    category: "exterior",
+  },
+  {
+    id: "amn_biblioteca",
+    code: "biblioteca",
+    name: "Biblioteca",
+    category: "general",
+  },
+  {
+    id: "amn_pet_friendly",
+    code: "pet_friendly",
+    name: "Pet-friendly",
+    category: "general",
+  },
 ];
 
 export const AMENITY_BY_CODE = new Map(AMENITIES.map((a) => [a.code, a]));

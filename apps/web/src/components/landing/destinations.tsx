@@ -2,12 +2,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { ArrowUpRightIcon, MapPinIcon, StarIcon } from '@/components/icons';
 import { NomitoArt } from '@/components/nomito-avatar';
-import { formatLocalPrice, KIND_LABEL, type Lodging } from '@/lib/lodgings';
-import { DESTINATIONS, type Destination } from '@/lib/mock/destinations';
+import { formatLocalPrice, KIND_LABEL, LODGINGS, type Lodging } from '@/lib/lodgings';
+import { buildDestinations, type Destination } from '@/lib/mock/destinations';
 import { PHOTOS } from '@/lib/photos';
 
 const GRID_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw';
@@ -22,9 +22,11 @@ function TownCard({ town }: { town: Destination }) {
         <p className="text-sm text-paper/80">{town.country}</p>
         <h3 className="brand-display text-[2.6rem] font-medium leading-[0.95]">{town.name}</h3>
         <p className="mt-3 text-[15px] leading-snug text-paper/85">{town.tagline}</p>
-        <p className="mt-4 text-sm text-paper/80">
-          <span className="font-mono font-semibold text-paper">{town.from}</span> la noche
-        </p>
+        {town.from && (
+          <p className="mt-4 text-sm text-paper/80">
+            <span className="font-mono font-semibold text-paper">{town.from}</span> la noche
+          </p>
+        )}
       </div>
     </article>
   );
@@ -38,7 +40,12 @@ function LodgingPhotoCard({ lodging }: { lodging: Lodging }) {
       className="group flex h-full flex-col overflow-hidden rounded-card bg-white p-2 transition-shadow hover:shadow-[0_24px_48px_-28px_rgba(143,63,32,0.55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
     >
       <div className="relative aspect-[4/3] overflow-hidden rounded-[1.35rem] bg-sand">
-        {photo && <Image src={photo.src} alt={photo.alt} fill sizes={GRID_SIZES} className="object-cover" />}
+        {photo ? (
+          <Image src={photo.src} alt={photo.alt} fill sizes={GRID_SIZES} className="object-cover" />
+        ) : lodging.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={lodging.photoUrl} alt={lodging.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        ) : null}
         {lodging.featured && (
           <span className="absolute left-3 top-3 rounded-full bg-paper/95 px-3 py-1 text-xs font-medium text-terra-deep">
             Favorito de viajeros
@@ -86,14 +93,22 @@ function AccentCard({ town }: { town: Destination }) {
   );
 }
 
-/** Pill segmented tabs over one destination per Ripio country; each shows the place, two Lodgings and Nomito. */
-export function Destinations() {
+/**
+ * Pill segmented tabs over one destination per Ripio country; each shows the
+ * place, two Lodgings and Nomito. `lodgings` comes from the listings API via
+ * the landing page; absent or empty falls back to the static catalog.
+ */
+export function Destinations({ lodgings }: { lodgings?: Lodging[] }) {
   const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const town = DESTINATIONS[active];
+  const destinations = useMemo(
+    () => buildDestinations(lodgings?.length ? lodgings : LODGINGS),
+    [lodgings],
+  );
+  const town = destinations[active];
 
   function onKeyDown(e: React.KeyboardEvent) {
-    const last = DESTINATIONS.length - 1;
+    const last = destinations.length - 1;
     const next =
       e.key === 'ArrowRight' ? (active === last ? 0 : active + 1)
       : e.key === 'ArrowLeft' ? (active === 0 ? last : active - 1)
@@ -121,7 +136,7 @@ export function Destinations() {
           onKeyDown={onKeyDown}
           className="mt-10 flex max-w-full gap-1 overflow-x-auto rounded-full bg-sand/70 p-1.5"
         >
-          {DESTINATIONS.map((d, i) => (
+          {destinations.map((d, i) => (
             <button
               key={d.code}
               ref={(el) => {

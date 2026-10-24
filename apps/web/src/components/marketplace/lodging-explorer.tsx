@@ -14,12 +14,13 @@ import {
 
 import { SearchIcon } from '@/components/icons';
 import { LodgingCard } from '@/components/marketplace/lodging-card';
+import { apiCardToLodging } from '@/lib/api-mapping';
+import type { ApiListingCard } from '@/lib/api';
 import {
   FALLBACK_USD_RATES,
   FIAT_OPTIONS,
   KIND_LABEL,
   LODGING_KINDS,
-  LODGINGS,
   ownerBySlug,
   type Fiat,
   type FxRates,
@@ -34,7 +35,7 @@ function matches(lodging: Lodging, query: string): boolean {
     lodging.city,
     lodging.region,
     KIND_LABEL[lodging.kind],
-    ownerBySlug(lodging.ownerSlug)?.name ?? '',
+    lodging.ownerName ?? ownerBySlug(lodging.ownerSlug)?.name ?? '',
   ]
     .join(' ')
     .toLowerCase();
@@ -68,9 +69,37 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
       .catch(() => {});
   }, []);
 
+  /**
+   * Inventory comes from the listings API through the same-origin proxy.
+   * `lodgings === null` is still loading; `error` means the fetch failed —
+   * the grid swaps for a state either way, the rest of the page still works.
+   */
+  const [lodgings, setLodgings] = useState<Lodging[] | null>(null);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setLodgings(null);
+    setError(false);
+    fetch('/api/listings')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`listings: ${r.status}`))))
+      .then((body: { results?: ApiListingCard[] }) => {
+        if (alive) setLodgings((body?.results ?? []).map(apiCardToLodging));
+      })
+      .catch(() => {
+        if (alive) {
+          setLodgings([]);
+          setError(true);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
   const results = useMemo(
-    () => LODGINGS.filter((l) => (selected.size === 0 || selected.has(l.kind)) && matches(l, query)),
-    [selected, query],
+    () => (lodgings ?? []).filter((l) => (selected.size === 0 || selected.has(l.kind)) && matches(l, query)),
+    [lodgings, selected, query],
   );
 
   const clearFilters = () => {
@@ -108,7 +137,9 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
 
       <div className="mt-8 flex flex-wrap items-end justify-between gap-3">
         <p className="text-sm text-ink-muted" aria-live="polite">
-          {results.length} {results.length === 1 ? 'alojamiento' : 'alojamientos'} · el pago va directo al dueño
+          {lodgings === null
+            ? 'Buscando alojamientos…'
+            : `${results.length} ${results.length === 1 ? 'alojamiento' : 'alojamientos'} · el pago va directo al dueño`}
           {fiat && (
             <span className="block text-xs">
               ≈ estimado al cambio {fxSource === 'static' || !fxSource ? '· cotización de referencia' : '· cotización en vivo'}
@@ -151,7 +182,24 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
         </div>
       </div>
 
-      {results.length > 0 ? (
+      {lodgings === null ? (
+        <ul aria-busy="true" aria-label="Cargando alojamientos" className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="h-72 animate-pulse rounded-card bg-sand/50" />
+          ))}
+        </ul>
+      ) : error ? (
+        <EmptyState className="mt-16 flex flex-col items-center gap-3 text-center">
+          <SearchIcon className="h-8 w-8 text-ink-muted" />
+          <p className="font-brand text-xl text-ink">No pudimos cargar los alojamientos</p>
+          <p className="max-w-sm text-sm text-ink-muted">
+            El catálogo no responde ahora mismo. Reintentá en un momento, o contale a Nomito qué buscás.
+          </p>
+          <Button variant="secondary" onPress={() => setReloadKey((k) => k + 1)}>
+            Reintentar
+          </Button>
+        </EmptyState>
+      ) : results.length > 0 ? (
         <ul className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {results.map((lodging) => (
             <li key={lodging.id}>

@@ -41,6 +41,8 @@ export type BookingStatus =
 export interface Business {
   id: string;
   name: string;
+  /** Public handle — for migrated hosts it is the Owner's slug in the web catalog. */
+  slug: string;
   legal_name?: string;
   tax_id?: string;
   /** The Booking's x402 payTo — the Owner's own wallet. Platform never holds funds. */
@@ -99,6 +101,10 @@ export interface Listing {
   cleaning_fee_minor: number;
   min_nights: number;
   max_nights: number | null;
+  /** Traveler-facing score, 0–5 (migrated from the web catalog's `rating`). */
+  rating: number;
+  /** Published review count (web `reviews`). */
+  reviews: number;
   instant_book: boolean;
   pets_allowed: boolean;
   smoking_allowed: boolean;

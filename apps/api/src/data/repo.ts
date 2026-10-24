@@ -25,28 +25,43 @@ let bookingSeq = 0;
 
 const LISTING_BY_SLUG = new Map(LISTINGS.map((l) => [l.slug, l]));
 const PROPERTY_BY_ID = new Map(PROPERTIES.map((p) => [p.id, p]));
+const BUSINESS_BY_ID = new Map(BUSINESSES.map((b) => [b.id, b]));
 const POLICY_BY_ID = new Map(CANCELLATION_POLICIES.map((p) => [p.id, p]));
 
 // ---------------------------------------------------------------------------
 // money — minor units are 10^-6 of the display currency (USDC-style, per the
 // model doc). display formatting lives here so endpoints and tools agree.
+// USD/PEN keep the original en-US + cents style; the LATAM fiats migrated
+// from the web catalog display like the front did: web symbol + es-AR
+// grouping, no decimals ("$ 95.000", "R$ 350", "MX$ 780", "$U 4.200").
 // ---------------------------------------------------------------------------
 
-const CURRENCY_SYMBOL: Record<string, string> = {
-  USD: "US$",
-  BRL: "R$",
-  ARS: "AR$",
-  MXN: "MX$",
-  COP: "CO$",
-  PEN: "S/",
+const CURRENCY_DISPLAY: Record<
+  string,
+  { symbol: string; decimals: number; locale: string }
+> = {
+  USD: { symbol: "US$", decimals: 2, locale: "en-US" },
+  PEN: { symbol: "S/", decimals: 2, locale: "en-US" },
+  ARS: { symbol: "$", decimals: 0, locale: "es-AR" },
+  BRL: { symbol: "R$", decimals: 0, locale: "es-AR" },
+  CLP: { symbol: "$", decimals: 0, locale: "es-AR" },
+  COP: { symbol: "$", decimals: 0, locale: "es-AR" },
+  MXN: { symbol: "MX$", decimals: 0, locale: "es-AR" },
+  UYU: { symbol: "$U", decimals: 0, locale: "es-AR" },
 };
 
 export function formatMoney(minor: number, currency: string): string {
-  const symbol = CURRENCY_SYMBOL[currency] ?? `${currency} `;
   const amount = minor / 1_000_000;
-  return `${symbol} ${amount.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const display = CURRENCY_DISPLAY[currency];
+  if (!display) {
+    return `${currency} ${amount.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  return `${display.symbol} ${amount.toLocaleString(display.locale, {
+    minimumFractionDigits: display.decimals,
+    maximumFractionDigits: display.decimals,
   })}`;
 }
 
@@ -242,6 +257,11 @@ export interface ListingCard {
   nightly_display: string;
   max_guests: number;
   min_nights: number;
+  rating: number;
+  reviews: number;
+  /** Flat for card display — sourced from the listing's business. */
+  owner_name: string;
+  owner_slug: string;
   amenities: string[];
   // present only when the search carried dates
   nights_count?: number;
@@ -318,6 +338,7 @@ export function searchListings(params: SearchParams): ListingCard[] {
 
     const amenities = amenitiesOf(listing.id);
     const cover = LISTING_PHOTOS.find((p) => p.listing_id === listing.id && p.is_cover);
+    const business = BUSINESS_BY_ID.get(property.business_id);
 
     const card: ListingCard = {
       slug: listing.slug,
@@ -334,6 +355,10 @@ export function searchListings(params: SearchParams): ListingCard[] {
       nightly_display: formatMoney(listing.base_price_minor, listing.currency),
       max_guests: listing.max_guests,
       min_nights: listing.min_nights,
+      rating: listing.rating,
+      reviews: listing.reviews,
+      owner_name: business?.name ?? "",
+      owner_slug: business?.slug ?? "",
       amenities: amenities.map((a) => a.code),
     };
 
@@ -385,6 +410,11 @@ export interface ListingDetail {
   bedrooms?: number;
   beds?: number;
   bathrooms?: number;
+  rating: number;
+  reviews: number;
+  /** Flat owner fields alongside `business` — same source, card-friendly. */
+  owner_name: string;
+  owner_slug: string;
   instant_book: boolean;
   pets_allowed: boolean;
   smoking_allowed: boolean;
@@ -400,7 +430,7 @@ export interface ListingDetail {
     checkin_time: string;
     checkout_time: string;
   };
-  business: { name: string };
+  business: { name: string; slug: string };
   amenities: { code: string; name: string; detail?: string }[];
   photos: { url: string; alt?: string; is_cover: boolean }[];
   cancellation_policy?: {
@@ -416,7 +446,7 @@ export function getListingBySlug(slug: string): ListingDetail | null {
   const listing = LISTING_BY_SLUG.get(slug);
   if (!listing || listing.status !== "published") return null;
   const property = PROPERTY_BY_ID.get(listing.property_id);
-  const business = property && BUSINESSES.find((b) => b.id === property.business_id);
+  const business = property && BUSINESS_BY_ID.get(property.business_id);
   const policy =
     listing.cancel_policy_id && POLICY_BY_ID.get(listing.cancel_policy_id);
   if (!property || !business) return null;
@@ -439,6 +469,10 @@ export function getListingBySlug(slug: string): ListingDetail | null {
     bedrooms: listing.bedrooms,
     beds: listing.beds,
     bathrooms: listing.bathrooms,
+    rating: listing.rating,
+    reviews: listing.reviews,
+    owner_name: business.name,
+    owner_slug: business.slug,
     instant_book: listing.instant_book,
     pets_allowed: listing.pets_allowed,
     smoking_allowed: listing.smoking_allowed,
@@ -454,7 +488,7 @@ export function getListingBySlug(slug: string): ListingDetail | null {
       checkin_time: property.checkin_time,
       checkout_time: property.checkout_time,
     },
-    business: { name: business.name },
+    business: { name: business.name, slug: business.slug },
     amenities: amenitiesOf(listing.id),
     photos: LISTING_PHOTOS.filter((p) => p.listing_id === listing.id)
       .sort((a, b) => a.position - b.position)
