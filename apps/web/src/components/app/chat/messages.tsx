@@ -20,7 +20,7 @@ export function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex items-start gap-3">
       <NomitoAvatar size="sm" className="mt-1" />
-      <div className="flex min-w-0 max-w-[90%] flex-1 flex-col items-start [&>*:not(:first-child)]:w-full">
+      <div className="flex min-w-0 max-w-[90%] flex-1 flex-col items-start gap-2">
         <MessagePrimitive.Parts components={{ Text: OpenUIText }} />
         <MonedasChip />
       </div>
