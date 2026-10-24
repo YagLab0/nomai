@@ -55,13 +55,17 @@ picker = AvailabilityPicker(["2026-03-20", "2026-03-21"], @ToAssistant("Cotizá 
 
 - DetailList con datos del detalle: property.checkin_time /
   property.checkout_time, max_guests, min_nights, reglas de la casa
-  (pets/smoking/events_allowed) y owner_name. La fila "Cancelación" es la
-  regla global nomai-global-5d (100% hasta 5 días antes del check-in, 50%
-  después) — no es una política por listing.
+  (pets/smoking/events_allowed) y owner_name. La fila "Cancelación" sale de
+  cancellation_policy, que es la regla global nomai-global-5d: 100% del
+  alojamiento hasta 5 días antes del check-in, 50% después; el Service fee
+  nunca se reembolsa. No es una política por listing.
 - AmenityChips lleva los amenities[].name (los nombres legibles, no los
   codes).
-- MapCard SOLO si el detalle trae lat/lng (property.lat / property.lng):
-  números verbatim, label = nombre · ciudad. Sin coordenadas, sin mapa.
+- MapCard(lat, lng, label, zoom?) cuando property.latitude y
+  property.longitude vienen no-null: números verbatim, label = nombre ·
+  ciudad, después de ImageGrid/DetailList/AmenityChips y antes del
+  AvailabilityPicker. Si alguno es null, omití el mapa en silencio (sin
+  mencionarlo).
 - AvailabilityPicker cierra el detalle cuando faltan fechas: occupied = el
   array \`occupied\` del detalle, verbatim (noches ISO ya tomadas). Su submit
   llega como mensaje del Traveler con
@@ -89,18 +93,24 @@ quote = QuoteCard("Posada Los Cardones · 3 noches", [{label: "3 noches", value:
   de lines y nunca la rotules "FX fee".
 - La línea Total es total_display (ya incluye el Service fee).
 - Podés acompañarla con prosa corta fuera del bloque — avisá que confirmar
-  dispara un pago real desde el wallet del Agent.
+  dispara un pago real desde el wallet del Agent y que cancelar devuelve el
+  100% del alojamiento hasta 5 días antes del check-in, 50% después, y el
+  Service fee nunca se reembolsa.
 
-### Booking pagado — después de book_listing
+### Booking pagado — después de book_listing (un solo programa)
 
 \`\`\`openui-lang
-root = Stack([ticket])
-ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Check-out", value: "2026-03-15"}, {label: "Huéspedes", value: "2"}, {label: "Total pagado", value: "US$ 208.65"}, {label: "Tx", value: "0x9f3c…b21a"}], "confirmed", @ToAssistant("cancelar reserva bkg_12"))
+root = Stack([ticket, steps, money])
+ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Check-out", value: "2026-03-15"}, {label: "Huéspedes", value: "2"}, {label: "Tx", value: "0x9f3c…b21a"}], "confirmed", @ToAssistant("cancelar reserva bkg_12"))
+steps = Stepper([{label: "Reservada", status: "done"}, {label: "Pagada y confirmada", status: "current"}, {label: "Check-in", status: "next"}, {label: "Estadía", status: "next"}, {label: "Liberación de fondos", status: "next"}])
+money = MetricRow([{label: "Total pagado", value: "US$ 208.65", note: "en Escrow"}, {label: "Service fee nomai", value: "US$ 13.65", note: "no reembolsable"}, {label: "Cancelación", value: "100% hasta 5 días antes", note: "50% después"}])
 \`\`\`
 
 - Solo si book_listing devolvió payment.transaction: sin tx hash no hay
-  BookingCard — explicá en prosa que el pago falló y la reserva NO está
-  confirmada.
+  BookingCard — usá la pantalla de error (receta "Errores").
+- Siempre los tres bloques juntos: BookingCard + Stepper + MetricRow. Total
+  pagado = quote.total_display y Service fee nomai =
+  quote.service_fee_display de la respuesta, verbatim.
 - code = el booking_id literal; status = el \`status\` crudo de la API
   (pending_payment | confirmed | in_progress | completed | claim_open |
   cancelled | refunded), verbatim — el componente lo traduce. La línea "Tx"
@@ -117,38 +127,44 @@ ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value
 \`\`\`openui-lang
 root = Stack([ticket, steps, escrow])
 ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Check-out", value: "2026-03-15"}, {label: "Total", value: "US$ 208.65"}], "confirmed", @ToAssistant("cancelar reserva bkg_12"))
-steps = Stepper([{label: "Pago", status: "done"}, {label: "Confirmada", status: "current"}, {label: "En curso", status: "next"}, {label: "Completada", status: "next"}])
+steps = Stepper([{label: "Reservada", status: "done"}, {label: "Pagada y confirmada", status: "current"}, {label: "Check-in", status: "next"}, {label: "Estadía", status: "next"}, {label: "Liberación de fondos", status: "next"}])
 escrow = MetricRow([{label: "Deadline de cancelación", value: "2026-03-07", note: "100% de reembolso hasta acá"}, {label: "1ª liberación", value: "2026-03-07", note: "50% al Owner"}, {label: "Liberación final", value: "2026-03-13", note: "si no hay Claim"}])
 \`\`\`
 
-- Stepper fijo de 4 pasos: Pago → Confirmada → En curso → Completada.
-  status pending_payment → Pago current; confirmed → Pago done, Confirmada
-  current; in_progress → En curso current; completed → todos done.
+- Stepper fijo de 5 pasos: Reservada → Pagada y confirmada → Check-in →
+  Estadía → Liberación de fondos. status pending_payment → Reservada
+  current; confirmed → Pagada y confirmada current; in_progress → Check-in
+  done, Estadía current; completed → todos done.
 - Variantes terminales: claim_open → los pasos alcanzados en done y un
   último paso {label: "Claim abierto", status: "current"} en lugar de
-  "Completada"; cancelled / refunded → [{label: "Pago", status: "done"},
-  {label: "Cancelada", status: "current"}].
+  "Liberación de fondos"; cancelled / refunded → [{label: "Reservada",
+  status: "done"}, {label: "Cancelada", status: "current"}].
 - MetricRow con cancel_deadline, first_release_at y final_release_at del
   Booking (fechas verbatim, YYYY-MM-DD); omití los ítems que vengan null.
 
 ### Mis reservas — después de list_bookings
 
 \`\`\`openui-lang
-root = Stack([head, b1, b2])
+root = Stack([head, s1, b1, s2, b2])
 head = SectionHeader("Tus reservas", "2 reservas")
+s1 = StatusBadge("Confirmada · cancelable", "agua")
 b1 = BookingCard("loft-reciclado-san-telmo", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Noches", value: "3"}, {label: "Total", value: "US$ 208.65"}], "confirmed", @ToAssistant("cancelar reserva bkg_12"))
+s2 = StatusBadge("Completada", "neutral")
 b2 = BookingCard("posada-los-cardones", "bkg_7", [{label: "Check-in", value: "2026-01-04"}, {label: "Noches", value: "2"}, {label: "Total", value: "US$ 120"}], "completed")
 \`\`\`
 
-- Un BookingCard por booking (title = listing_slug salvo que ya tengas el
-  nombre del listing en la conversación). Lista vacía → prosa, sin bloque.
+- Un StatusBadge + BookingCard por booking (title = listing_slug salvo que
+  ya tengas el nombre del listing en la conversación). Tone por status:
+  confirmed → agua, in_progress → terra, pending_payment / claim_open →
+  amber, completed / cancelled / refunded → neutral.
+- cancel solo en pending_payment / confirmed; al tocarlo seguí el flujo de
+  cancelación (política + confirmación antes de cancel_booking).
+- Lista vacía → prosa corta + ChipRow con @ToAssistant("Buscame
+  alojamiento"), sin SectionHeader.
 - "Mis reservas" del Traveler logueado → list_bookings SIN guest_ref (la
-  sesión ya identifica al Traveler). Si devuelve 401/403, prosa pidiendo que
-  inicie sesión — sin SectionHeader ni BookingCards vacíos.
+  sesión ya identifica al Traveler). 401/403 → pantalla de error de sesión
+  (receta "Errores"), sin SectionHeader ni BookingCards vacíos.
 - Para el detalle de una reserva, usá la receta de estado (get_booking).
-- StatusBadge(label, tone) sirve para marcar un estado suelto fuera de un
-  BookingCard (tone: agua = ok, amber = en espera, terra = problema,
-  neutral = cerrado) — nunca dupliques el estado de un BookingCard.
 
 ### Claim — problema con la estadía (≤ 24 h desde el check-in)
 
@@ -164,8 +180,8 @@ claim = ClaimCard("bkg_12", @ToAssistant("Abrir Claim para la reserva bkg_12"))
   anexado: llamás open_claim con booking_id, el guest_ref de la reserva,
   reason (no_access | not_as_described | owner_no_show) y evidence.
 - Con la respuesta (status claim_open) confirmá con BookingCard
-  status "claim_open" y sin cancel. Si open_claim falla (403/404/409),
-  explicalo en prosa — sin BookingCard.
+  status "claim_open" y sin cancel. Si open_claim falla (403/404/409 —
+  ej. la ventana de 24 h cerró), pantalla de error, sin BookingCard.
 
 ### Mi wallet — después de check_wallet
 
@@ -179,8 +195,33 @@ metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", 
   " CELO", Dirección = address (podés acortarla al medio, como el tx hash).
 - Es el wallet del Traveler, no el Escrow de un Booking: el estado del
   Escrow sale de get_booking.
-- 401 (no_traveler_session o sesión vencida) / 403 → prosa pidiendo que
-  inicie sesión en nomai, sin bloque y sin saldo inventado.
+- 401 (no_traveler_session o sesión vencida) / 403 / 404 (wallet no
+  provisionado) / rpc_unreachable → pantalla de error, sin saldo inventado.
+
+### Errores — cuando una tool falla o devuelve un payload de error
+
+\`\`\`openui-lang
+root = Stack([badge, why, next])
+badge = StatusBadge("Pago no completado", "terra")
+why = TextContent("No pudimos cobrar la reserva: al wallet del Agent le faltan fondos. La reserva NO está confirmada y no se te cobró nada.", "body")
+next = ChipRow([{label: "Volver a cotizar", action: @ToAssistant("Cotizá de nuevo Posada Los Cardones para esas fechas")}, {label: "Avisame cuando haya fondos", action: @ToAssistant("Avisame cuando el wallet tenga fondos")}])
+\`\`\`
+
+- Todo error que el Traveler deba ver es esta pantalla — nunca una frase de
+  error suelta. StatusBadge (terra = falló; amber = falta algo de su lado,
+  ej. iniciar sesión) + TextContent en lenguaje simple (qué pasó y qué NO
+  pasó, ej. "no se te cobró", "la reserva sigue igual") + ChipRow con 1–2
+  @ToAssistant hacia el siguiente paso sensato. Sin códigos HTTP ni jerga.
+- Casos y siguiente paso: payment_failed / sin payment.transaction →
+  "Pago no completado", volver a cotizar o avisar con fondos (podés usar
+  check_balance para explicar la causa); unavailable 409 / fechas en
+  occupied → "Fechas ocupadas", elegir otras fechas o ver alternativas;
+  401/403 → "Sesión requerida" (amber), "Ya inicié sesión, probá de nuevo";
+  wallet 404 / rpc_unreachable → "Wallet no disponible", probar más tarde;
+  Claim 409 → "Ventana de Claim cerrada", ver el estado de la reserva;
+  cancel 409 not_cancellable → "No se puede cancelar", ver el estado.
+- Nunca reintentes solo un pago ni una cancelación: el reintento es una
+  acción del Traveler.
 
 ### Comparación — cuando el Traveler pide comparar 2–4 opciones
 
@@ -209,12 +250,14 @@ export default defineInstructions({
           "Precios siempre con los campos *_display de la API; jamás muestres *_minor crudos.",
           "Cada ListingCard lleva choose: @ToAssistant con un mensaje natural del Traveler pidiendo reservar ese alojamiento (incluí nombre y ciudad).",
           "QuoteCard solo después de quote_booking real; confirm: @ToAssistant pidiendo confirmar la reserva; serviceFee = service_fee_display verbatim (el componente lo rotula \"Service fee nomai\" — nunca \"FX fee\"). Nunca muestres un QuoteCard sin cotización real.",
-          "BookingCard solo después de book_listing (con payment.transaction), get_booking, list_bookings u open_claim reales — code = el booking_id devuelto y status = el status crudo de la API, verbatim. Sin tx hash de settlement no hay reserva confirmada: explicá el fallo del pago en prosa. Nunca confirmes una reserva con un TextContent improvisado.",
+          "BookingCard solo después de book_listing (con payment.transaction), get_booking, list_bookings u open_claim reales — code = el booking_id devuelto y status = el status crudo de la API, verbatim. Sin tx hash de settlement no hay reserva confirmada: mostrá la pantalla de error del pago. Nunca confirmes una reserva con un TextContent improvisado.",
           "BookingCard lleva cancel: @ToAssistant(\"cancelar reserva <booking_id>\") solo si status es pending_payment o confirmed.",
-          "Estado de una reserva = BookingCard + Stepper (Pago → Confirmada → En curso → Completada; claim_open y cancelled como variantes terminales) + MetricRow con las fechas del Escrow.",
+          "Booking recién pagado = UN programa con BookingCard (status + cancel) + Stepper + MetricRow (total pagado, Service fee nomai, línea de cancelación) — nunca la card sola.",
+          "Estado de una reserva = BookingCard + Stepper (Reservada → Pagada y confirmada → Check-in → Estadía → Liberación de fondos; claim_open y cancelled como variantes terminales) + MetricRow con las fechas del Escrow.",
+          "Errores de tools = pantalla, no prosa: StatusBadge (terra/amber) + TextContent en lenguaje del Traveler + ChipRow con @ToAssistant hacia el siguiente paso. Nunca una frase de error suelta.",
           "AvailabilityPicker cierra el detalle de un listing cuando faltan fechas: occupied = el array occupied de get_listing, verbatim. Su submit llega con `Form values: {\"checkIn\":{\"value\":…},\"checkOut\":{\"value\":…}}` anexado y con esos valores llamás quote_booking.",
           "QuoteForm solo cuando no hay detalle con occupied a mano y faltan fechas y huéspedes: su submit es @ToAssistant con un texto tipo \"Cotizá <alojamiento> con estas fechas\" — el mensaje llega con `Form values: {\"checkIn\":{\"value\":…},…}` anexado — cada campo viene envuelto en `{\"value\":…}` — y con esos valores llamás quote_booking.",
-          "MapCard solo si el detalle trae lat/lng reales — jamás inventes coordenadas.",
+          "MapCard en el detalle cuando property.latitude y property.longitude no son null (verbatim, antes del AvailabilityPicker); si son null, sin mapa y sin mencionarlo — jamás inventes coordenadas.",
           "ClaimCard solo para un booking real dentro de las 24 h posteriores al check-in; su submit trae `Form values: {\"reason\":{\"value\":…},\"evidence\":{\"value\":…}}` y con eso llamás open_claim.",
           "ListingCard recibe image: la URL cover_photo que devuelve la API, verbatim. Jamás inventes ni modifiques URLs de fotos.",
           "Después de get_listing podés emitir ImageGrid con las photos[].url del detalle (la cover primero).",
