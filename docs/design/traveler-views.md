@@ -326,14 +326,15 @@ Destinations: **Argentina, Brasil, Chile, Colombia, México, Perú, Uruguay**.
 `RIPIO_COUNTRIES` in `lib/lodgings.ts` is the single list; `Fiat` is exactly
 their currencies (ARS, BRL, CLP, COP, MXN, PEN, UYU).
 
-**Funding tiers.** Countries with a registered Ripio entity (checked
-2026-10-23) — Argentina, Brasil, Chile, Colombia, México, Uruguay —
-are `RAMP_COUNTRIES`: the Traveler funds the Agent wallet straight from a
-local bank transfer. The rest — today only **Perú** — are
-`QR_FUNDING_COUNTRIES`, reached through the wPEN stablecoin rail with no
-fiat ramp: the Traveler must already hold a wallet (Ripio or any other) and
-funds with a manual QR transfer inside the app. `fundingMethod(code)` returns
-the tier.
+**Funding tiers.** Countries where the Ripio Ramps API operates (per
+docs.ripio.com/ramps-api, checked 2026-10-24) — **Argentina, Brasil,
+Colombia, México** — are `RAMP_COUNTRIES`: the Traveler funds the Agent
+wallet through a fiat ramp (bank transfer, Mercado Pago, PSE, PIX). The
+rest — **Chile, Perú, Uruguay** — are `QR_FUNDING_COUNTRIES`, reached
+through the wFIAT stablecoin rail only: the Traveler must already hold a
+wallet (Ripio or any other) and funds with a manual QR transfer inside the
+app. Chile and Uruguay have registered entities but no ramp; Perú has
+neither. `fundingMethod(code)` returns the tier.
 
 | Destination (tab) | Country | Lodgings in the catalog |
 |---|---|---|

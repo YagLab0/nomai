@@ -82,17 +82,16 @@ export const RIPIO_COUNTRIES = [
 ] as const satisfies readonly { code: string; name: string; fiat: Fiat }[];
 
 /**
- * Countries with a registered Ripio entity (listed on ripio.com): fiat ramps
- * work there, so the Traveler funds the Agent wallet straight from a local
- * bank transfer — no wallet needed up front.
+ * Countries where the Ripio Ramps API actually operates (per
+ * docs.ripio.com/ramps-api — AR, BR, CO, MX only; on/off ramp differs per
+ * country): the Traveler funds the Agent wallet through a fiat ramp — local
+ * transfer, Mercado Pago, PSE, PIX — no wallet needed up front.
  */
 export const RAMP_COUNTRY_CODES: ReadonlySet<string> = new Set([
   'AR',
   'BR',
-  'CL',
   'CO',
   'MX',
-  'UY',
 ]);
 
 /** Countries whose Travelers fund through Ripio fiat ramps. */
@@ -101,10 +100,10 @@ export const RAMP_COUNTRIES = RIPIO_COUNTRIES.filter((c) =>
 );
 
 /**
- * Countries with no registered Ripio entity, reached through the wFIAT
- * stablecoin rail only (wPEN for Perú). There is no fiat ramp: the Traveler
- * must already hold a wallet — Ripio or any other — and funds the Agent
- * wallet with a manual QR transfer inside the app.
+ * Countries with no Ramps API coverage — Chile and Uruguay have registered
+ * entities but no ramp, Perú has neither — reached through the wFIAT
+ * stablecoin rail only. The Traveler must already hold a wallet (Ripio or
+ * any other) and funds with a manual QR transfer inside the app.
  */
 export const QR_FUNDING_COUNTRIES = RIPIO_COUNTRIES.filter(
   (c) => !RAMP_COUNTRY_CODES.has(c.code),
@@ -122,7 +121,7 @@ export const RIPIO_COUNTRIES_TEXT = `${RIPIO_COUNTRY_NAMES.slice(0, -1).join(', 
 
 const RAMP_COUNTRY_NAMES = RAMP_COUNTRIES.map((c) => c.name);
 
-/** "Argentina, Brasil, Chile, Colombia, México y Uruguay" — the ramp tier. */
+/** "Argentina, Brasil, Colombia y México" — the ramp tier. */
 export const RAMP_COUNTRIES_TEXT = `${RAMP_COUNTRY_NAMES.slice(0, -1).join(', ')} y ${RAMP_COUNTRY_NAMES.at(-1)}`;
 
 export interface Owner {
