@@ -1,11 +1,11 @@
 const STEPS = [
   {
     title: 'Teléfono',
-    unlocks: 'Tus primeras monedas Nomai, gratis',
+    unlocks: 'Ya podés buscar alojamiento con Nomito, gratis',
   },
   {
     title: 'Primera carga de saldo',
-    unlocks: 'El resto del regalo (o probá tu pasaporte con Self)',
+    unlocks: 'Más búsquedas por día con Nomito (o verificá tu pasaporte con Self)',
   },
   {
     title: 'Documento de identidad',
@@ -13,12 +13,12 @@ const STEPS = [
   },
 ];
 
-/** What each verification step unlocks (ADR-0002). Step 1 is the current one. */
+/** The verification tiers that gate free Agent usage (ADR-0002, ADR-0005). Step 1 is the current one. */
 export function VerificationLadder() {
   return (
     <section aria-labelledby="ladder-title" className="mt-10 border-t border-sand pt-8">
       <h2 id="ladder-title" className="font-brand text-lg font-medium text-ink">
-        Tu regalo llega por etapas
+        Verificás solo lo necesario, cuando hace falta
       </h2>
       <ol className="mt-5">
         {STEPS.map((step, i) => {

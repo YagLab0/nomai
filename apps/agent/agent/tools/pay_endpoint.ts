@@ -1,9 +1,8 @@
 import { defineTool } from "eve/tools";
-import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
-import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { z } from "zod";
 
-import { agentAccount, networkName, NETWORK_CAIP2, RPC_URL } from "../lib/celo";
+import { networkName, NETWORK_CAIP2 } from "../lib/celo";
+import { paymentFetch, readSettlementReceipt } from "../lib/x402";
 
 // Pays an x402-gated HTTP endpoint from the agent wallet. This is the Booking
 // primitive: the Owner's endpoint quotes a price, the Agent signs it, and the
@@ -29,17 +28,7 @@ export default defineTool({
       .describe("JSON request body (e.g. the booking details the Owner expects)"),
   }),
   execute: async ({ url, method, body }) => {
-    const network = networkName();
-    const client = new x402Client();
-    // The scheme needs chain READ access (permit nonce / allowance for permit2
-    // assets), not just signing — pass an rpcUrl.
-    client.register(
-      "eip155:*",
-      new ExactEvmScheme(agentAccount(), { rpcUrl: RPC_URL[network] }),
-    );
-
-    const payFetch = wrapFetchWithPayment(fetch, client);
-    const res = await payFetch(url, {
+    const res = await paymentFetch()(url, {
       method,
       headers: body ? { "content-type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
@@ -47,15 +36,12 @@ export default defineTool({
 
     // The settlement receipt rides back on this header — the tx hash is the
     // only proof that anything actually moved on chain.
-    const receipt = res.headers.get("payment-response");
-    const payment = receipt
-      ? (JSON.parse(Buffer.from(receipt, "base64").toString("utf8")) as Record<string, unknown>)
-      : null;
+    const payment = readSettlementReceipt(res);
 
     const text = await res.text();
     return {
       status: res.status,
-      network: NETWORK_CAIP2[network],
+      network: NETWORK_CAIP2[networkName()],
       payment,
       response: text.length > MAX_BODY_CHARS ? `${text.slice(0, MAX_BODY_CHARS)}…` : text,
     };
