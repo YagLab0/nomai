@@ -7,23 +7,16 @@ import {
   type ActionEvent,
   type OpenUIError,
 } from '@openuidev/react-lang';
-
+import { ProseText } from '@/components/app/chat/prose-text';
 import { library } from '@/lib/openui/library';
 import { parseSegments } from '@/lib/openui/segments';
 
 /**
  * Assistant text part: splits the model's reply into prose and fenced
- * ```openui-lang programs. Prose renders in the classic bubble; each program
- * renders through the OpenUI Renderer against the nomai catalog.
+ * ```openui-lang programs. Prose renders as bare markdown text (no bubble —
+ * same look as TextContent inside programs); each program renders through the
+ * OpenUI Renderer against the nomai catalog.
  */
-
-export function BubbleText({ text }: { text: string }) {
-  return (
-    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-md bg-terra-soft px-4 py-2.5 text-ink">
-      {text}
-    </p>
-  );
-}
 
 function LangSkeleton() {
   return (
@@ -62,7 +55,7 @@ export function OpenUIText({ text, status }: TextMessagePartProps) {
   return (
     <>
       {parseSegments(text, { isStreaming }).map((segment, i) => {
-        if (segment.type === 'prose') return <BubbleText key={i} text={segment.text} />;
+        if (segment.type === 'prose') return <ProseText key={i} text={segment.text} />;
         if (segment.type === 'openui') {
           return (
             <div key={i} className="w-full min-w-0">

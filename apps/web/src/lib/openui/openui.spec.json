@@ -2,7 +2,7 @@
   "root": "Stack",
   "components": {
     "Stack": {
-      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
+      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
       "description": "Root layout container every program starts with: stacks children vertically (default) or horizontally with a gap."
     },
     "TextContent": {
@@ -20,6 +20,34 @@
     "ImageGrid": {
       "signature": "ImageGrid(images: string[], alt?: string)",
       "description": "Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs."
+    },
+    "SectionHeader": {
+      "signature": "SectionHeader(title: string, subtitle?: string)",
+      "description": "Screen/section heading inside a program — the title of a generated view or a group divider."
+    },
+    "ChipRow": {
+      "signature": "ChipRow(chips: {label: string, action?: ActionExpression}[])",
+      "description": "Row of refinement/filter chips (e.g. \"Solo posadas\", \"Solo San Blas\") — each chip can carry an action to trigger a follow-up."
+    },
+    "DetailList": {
+      "signature": "DetailList(items: {label: string, value: string}[])",
+      "description": "Label/value detail rows for a listing detail view: check-in/out times, max guests, policies, owner name."
+    },
+    "AmenityChips": {
+      "signature": "AmenityChips(items: string[])",
+      "description": "Amenity pills for a listing detail view — wifi, breakfast, heating, etc."
+    },
+    "QuoteForm": {
+      "signature": "QuoteForm(submit: ActionExpression, title?: string)",
+      "description": "Interactive quote form: check-in/check-out dates and guest count. Render INSTEAD of asking for dates in prose when the Traveler has not given them."
+    },
+    "BookingCard": {
+      "signature": "BookingCard(title: string, code: string, lines: {label: string, value: string}[])",
+      "description": "Confirmed booking ticket — only after a real book_listing result. code = the booking id (e.g. bkg_1)."
+    },
+    "Table": {
+      "signature": "Table(columns: string[], rows: string[][])",
+      "description": "Compare 2-4 listings side by side — first column is the row label."
     }
   },
   "componentGroups": [
@@ -35,7 +63,14 @@
       "components": [
         "ListingCard",
         "QuoteCard",
-        "ImageGrid"
+        "ImageGrid",
+        "SectionHeader",
+        "ChipRow",
+        "DetailList",
+        "AmenityChips",
+        "QuoteForm",
+        "BookingCard",
+        "Table"
       ]
     }
   ],
@@ -57,6 +92,27 @@
       },
       "ImageGrid": {
         "$ref": "#/$defs/ImageGrid"
+      },
+      "SectionHeader": {
+        "$ref": "#/$defs/SectionHeader"
+      },
+      "ChipRow": {
+        "$ref": "#/$defs/ChipRow"
+      },
+      "DetailList": {
+        "$ref": "#/$defs/DetailList"
+      },
+      "AmenityChips": {
+        "$ref": "#/$defs/AmenityChips"
+      },
+      "QuoteForm": {
+        "$ref": "#/$defs/QuoteForm"
+      },
+      "BookingCard": {
+        "$ref": "#/$defs/BookingCard"
+      },
+      "Table": {
+        "$ref": "#/$defs/Table"
       }
     },
     "required": [
@@ -64,7 +120,14 @@
       "TextContent",
       "ListingCard",
       "QuoteCard",
-      "ImageGrid"
+      "ImageGrid",
+      "SectionHeader",
+      "ChipRow",
+      "DetailList",
+      "AmenityChips",
+      "QuoteForm",
+      "BookingCard",
+      "Table"
     ],
     "additionalProperties": false,
     "$defs": {
@@ -89,6 +152,27 @@
                 },
                 {
                   "$ref": "#/$defs/ImageGrid"
+                },
+                {
+                  "$ref": "#/$defs/SectionHeader"
+                },
+                {
+                  "$ref": "#/$defs/ChipRow"
+                },
+                {
+                  "$ref": "#/$defs/DetailList"
+                },
+                {
+                  "$ref": "#/$defs/AmenityChips"
+                },
+                {
+                  "$ref": "#/$defs/QuoteForm"
+                },
+                {
+                  "$ref": "#/$defs/BookingCard"
+                },
+                {
+                  "$ref": "#/$defs/Table"
                 }
               ]
             }
@@ -291,6 +375,174 @@
         ],
         "additionalProperties": false,
         "description": "Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs."
+      },
+      "SectionHeader": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "description": "Screen/section heading inside a program — the title of a generated view or a group divider."
+      },
+      "ChipRow": {
+        "type": "object",
+        "properties": {
+          "chips": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "action": {
+                  "$ref": "#/$defs/ActionExpression"
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "chips"
+        ],
+        "additionalProperties": false,
+        "description": "Row of refinement/filter chips (e.g. \"Solo posadas\", \"Solo San Blas\") — each chip can carry an action to trigger a follow-up."
+      },
+      "DetailList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Label/value detail rows for a listing detail view: check-in/out times, max guests, policies, owner name."
+      },
+      "AmenityChips": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Amenity pills for a listing detail view — wifi, breakfast, heating, etc."
+      },
+      "QuoteForm": {
+        "type": "object",
+        "properties": {
+          "submit": {
+            "$ref": "#/$defs/ActionExpression"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "submit"
+        ],
+        "additionalProperties": false,
+        "description": "Interactive quote form: check-in/check-out dates and guest count. Render INSTEAD of asking for dates in prose when the Traveler has not given them."
+      },
+      "BookingCard": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "title",
+          "code",
+          "lines"
+        ],
+        "additionalProperties": false,
+        "description": "Confirmed booking ticket — only after a real book_listing result. code = the booking id (e.g. bkg_1)."
+      },
+      "Table": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "Compare 2-4 listings side by side — first column is the row label."
       }
     }
   },
