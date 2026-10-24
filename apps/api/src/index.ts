@@ -28,6 +28,7 @@ import {
   PRICE,
   facilitator,
 } from "./x402.js";
+import listings from "./listings.js";
 
 const app = new Hono();
 
@@ -35,6 +36,11 @@ const app = new Hono();
 app.get("/free", (c) =>
   c.json({ ok: true, network: NETWORK, facilitator: CONFIG.facilitator })
 );
+
+// Listings API — the Agent's data surface. Mounted before the x402
+// middleware so payment gating never touches these routes; the book
+// endpoint is where the paid Booking middleware will plug in later.
+app.route("/listings", listings);
 
 if (PAY_TO) {
   const server = new x402ResourceServer(facilitator);
