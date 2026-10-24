@@ -14,9 +14,25 @@ import {
   StarIcon,
   UsersIcon,
 } from '@/components/icons';
+import { AvailabilityCalendar } from '@/components/marketplace/availability-calendar';
+import { CurrencySelect } from '@/components/marketplace/currency-select';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
-import { formatLocalPrice, KIND_LABEL, ownerOf, type Lodging } from '@/lib/lodgings';
+import { catalog } from '@/lib/catalog';
+import { nightsOf } from '@/lib/dates';
+import { formatShortDate } from '@/lib/format';
+import {
+  formatNightPrice,
+  formatStayEstimate,
+  KIND_LABEL,
+  ownerOf,
+  type Fiat,
+  type FxRates,
+  type Lodging,
+} from '@/lib/lodgings';
+import { MOCK_TODAY } from '@/lib/mock/owner';
+import { askHrefPublic } from '@/lib/nomito/ask';
 import { PHOTOS } from '@/lib/photos';
+import { useFxRates } from '@/lib/use-fx-rates';
 import { useLodgings } from '@/lib/use-lodgings';
 
 const LodgingMap = dynamic(() => import('@/components/marketplace/lodging-map'), {
@@ -128,6 +144,77 @@ function OwnerBlock({ lodging }: { lodging: Lodging }) {
   );
 }
 
+/**
+ * Availability plus the single action (traveler-views §16): pick a stay, see
+ * an estimate in the Traveler's currency, hand it to Nomito. No checkout here.
+ */
+function BookingSection({ lodging, fiat, rates }: { lodging: Lodging; fiat?: Fiat; rates: FxRates }) {
+  const [checkIn, setCheckIn] = useState<string | null>(null);
+  const [checkOut, setCheckOut] = useState<string | null>(null);
+  const stay = checkIn && checkOut ? { checkIn, checkOut } : undefined;
+  const nights = stay ? nightsOf(stay.checkIn, stay.checkOut).length : 0;
+
+  return (
+    <section aria-labelledby="disponibilidad-heading" className="mt-8">
+      <h2 id="disponibilidad-heading" className="font-brand text-xl font-medium text-ink">
+        Disponibilidad
+      </h2>
+      <div className="mt-4 grid gap-6 rounded-card bg-white p-4 sm:p-6 md:grid-cols-[minmax(0,20rem)_1fr]">
+        <AvailabilityCalendar
+          occupied={catalog.occupiedNights(lodging.id)}
+          today={MOCK_TODAY}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          onChange={(i, o) => {
+            setCheckIn(i);
+            setCheckOut(o);
+          }}
+        />
+        <div className="flex flex-col gap-3">
+          <p data-testid="stay-status" aria-live="polite" className="font-medium text-ink">
+            {stay
+              ? `${nights} ${nights === 1 ? 'noche' : 'noches'} · del ${formatShortDate(stay.checkIn)} al ${formatShortDate(stay.checkOut)}`
+              : checkIn
+                ? 'Elegí la fecha de salida'
+                : 'Elegí la fecha de llegada'}
+          </p>
+          {stay && (
+            <div>
+              <p className="text-sm text-ink-muted">Total estimado</p>
+              <p data-testid="stay-total" className="font-mono text-2xl font-semibold text-ink">
+                {formatStayEstimate(lodging, nights, fiat, rates)}
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">Es una estimación: Nomito te da el precio final al reservar.</p>
+            </div>
+          )}
+          {checkIn && (
+            <button
+              type="button"
+              onClick={() => {
+                setCheckIn(null);
+                setCheckOut(null);
+              }}
+              className="w-fit rounded-md text-sm font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
+            >
+              Borrar fechas
+            </button>
+          )}
+          <Link
+            href={askHrefPublic(lodging, stay)}
+            className="mt-auto inline-flex justify-center rounded-full bg-terra px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-terra-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terra"
+          >
+            Reservar con Nomito
+          </Link>
+          <p className="text-xs text-ink-muted">
+            {stay ? 'Nomito arma la reserva con estas fechas.' : 'Sin fechas, Nomito te sugiere algunas.'} Pagás en tu
+            moneda, directo al dueño.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function LodgingNotFound() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-28 text-center">
@@ -159,6 +246,9 @@ export function LodgingDetail({ id }: { id: string }) {
   // deciding an id is unknown.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
+  /** Traveler's preferred currency, as in the explorer. undefined = the Lodging's own. */
+  const [fiat, setFiat] = useState<Fiat | undefined>(undefined);
+  const { rates } = useFxRates();
 
   const lodging = lodgings.find((l) => l.id === id);
   if (!lodging) {
@@ -254,17 +344,22 @@ export function LodgingDetail({ id }: { id: string }) {
               </div>
             )}
           </section>
+
+          <BookingSection key={lodging.id} lodging={lodging} fiat={fiat} rates={rates} />
         </div>
 
         <aside className="flex flex-col gap-5 lg:pt-2">
           <div className="rounded-card bg-white p-6">
             <p className="font-mono text-2xl font-semibold text-ink">
-              {formatLocalPrice(lodging)}
-              <span className="font-sans text-sm font-normal text-ink-muted"> {lodging.currency} / noche</span>
+              {formatNightPrice(lodging, fiat, rates)}
+              <span className="font-sans text-sm font-normal text-ink-muted">
+                {fiat && fiat !== lodging.currency ? ' / noche' : ` ${lodging.currency} / noche`}
+              </span>
             </p>
             <p className="mt-2 inline-flex rounded-full bg-agua-soft px-2.5 py-1 text-xs font-medium text-agua">
               directo con el dueño
             </p>
+            <CurrencySelect value={fiat} onChange={setFiat} className="mt-4 w-full" />
           </div>
           <OwnerBlock lodging={lodging} />
         </aside>

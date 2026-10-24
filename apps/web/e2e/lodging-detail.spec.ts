@@ -30,7 +30,7 @@ test('the ficha shows gallery, facts, blurb, amenities, address, map and the Own
 
   // Price in the Lodging's local currency, no crypto vocabulary.
   await expect(page.getByText('$ 95.000')).toBeVisible();
-  await expect(page.getByText(/ARS/)).toBeVisible();
+  await expect(page.getByText('ARS / noche')).toBeVisible();
 
   // Owner block with the link to the storefront.
   await expect(page.getByText('Ramón Guaymás')).toBeVisible();

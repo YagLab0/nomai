@@ -1,30 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  EmptyState,
-  ListBox,
-  SearchField,
-  Select,
-  Tag,
-  TagGroup,
-  type Key,
-} from '@heroui/react';
+import { useMemo, useState } from 'react';
+import { Button, EmptyState, SearchField, Tag, TagGroup, type Key } from '@heroui/react';
 
 import { SearchIcon } from '@/components/icons';
+import { CurrencySelect } from '@/components/marketplace/currency-select';
 import { LodgingCard } from '@/components/marketplace/lodging-card';
+import { useFxRates } from '@/lib/use-fx-rates';
 import { useLodgings } from '@/lib/use-lodgings';
-import {
-  FALLBACK_USD_RATES,
-  FIAT_OPTIONS,
-  KIND_LABEL,
-  LODGING_KINDS,
-  ownerBySlug,
-  type Fiat,
-  type FxRates,
-  type Lodging,
-} from '@/lib/lodgings';
+import { KIND_LABEL, LODGING_KINDS, ownerBySlug, type Fiat, type Lodging } from '@/lib/lodgings';
 import { askHrefInApp } from '@/lib/nomito/ask';
 
 function matches(lodging: Lodging, query: string): boolean {
@@ -53,20 +37,7 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
   const [fiat, setFiat] = useState<Fiat | undefined>(undefined);
   const selected = useMemo(() => new Set(kinds), [kinds]);
 
-  /** Live fiat-per-USD rates; /api/fx resolves live sources, then a static table. */
-  const [rates, setRates] = useState<FxRates>(FALLBACK_USD_RATES);
-  const [fxSource, setFxSource] = useState<string | null>(null);
-  useEffect(() => {
-    fetch('/api/fx')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body) => {
-        if (body?.rates) {
-          setRates(body.rates);
-          setFxSource(body.source ?? null);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const { rates, source: fxSource } = useFxRates();
 
   const lodgings = useLodgings();
   const results = useMemo(
@@ -123,32 +94,7 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
               Limpiar filtros
             </Button>
           )}
-          <Select
-            aria-label="Ver precios en"
-            variant="secondary"
-            selectedKey={fiat ?? 'local'}
-            onSelectionChange={(key) => setFiat(key === 'local' ? undefined : (key as Fiat))}
-            className="w-[160px]"
-          >
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                <ListBox.Item id="local" textValue="Moneda local">
-                  Moneda local
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                {FIAT_OPTIONS.map((f) => (
-                  <ListBox.Item key={f.id} id={f.id} textValue={f.label}>
-                    {f.label}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
+          <CurrencySelect value={fiat} onChange={setFiat} />
         </div>
       </div>
 

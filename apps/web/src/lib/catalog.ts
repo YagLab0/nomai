@@ -9,6 +9,7 @@ import {
   type LodgingKind,
   type Owner,
 } from '@/lib/lodgings';
+import { nightsOf } from '@/lib/dates';
 import { ownerBookings, type OwnerBooking } from '@/lib/mock/owner';
 
 /**
@@ -66,8 +67,8 @@ interface CatalogStorage {
   setItem(key: string, value: string): void;
 }
 
-/** What the rules need from a Booking. */
-type BookingRef = Pick<OwnerBooking, 'lodgingId' | 'status'>;
+/** What the rules and the Availability need from a Booking. */
+type BookingRef = Pick<OwnerBooking, 'lodgingId' | 'status' | 'checkIn' | 'checkOut'>;
 
 /** Upcoming Booking statuses (GLOSSARY): they block removing and relocating. */
 const UPCOMING: readonly OwnerBooking['status'][] = ['confirmada', 'en-curso'];
@@ -223,9 +224,19 @@ export function createCatalog(storage?: CatalogStorage, bookings: readonly Booki
     listeners.forEach((fn) => fn());
   }
 
-  const hasUpcoming = (id: string) => bookings.some((b) => b.lodgingId === id && UPCOMING.includes(b.status));
-  const canRemove = (id: string) => !hasUpcoming(id);
-  const canRelocate = (id: string) => !hasUpcoming(id);
+  const upcoming = (id: string) => bookings.filter((b) => b.lodgingId === id && UPCOMING.includes(b.status));
+  const canRemove = (id: string) => upcoming(id).length === 0;
+  const canRelocate = (id: string) => upcoming(id).length === 0;
+
+  /** Nights taken by Upcoming Bookings (GLOSSARY: Availability), sorted. Owners can't block nights. */
+  const occupiedNights = (id: string) => upcoming(id).flatMap((b) => nightsOf(b.checkIn, b.checkOut)).sort();
+
+  /** True when the stay has at least one night and none of them is taken. */
+  function isAvailable(id: string, checkIn: string, checkOut: string): boolean {
+    if (checkOut <= checkIn) return false;
+    const taken = new Set(occupiedNights(id));
+    return nightsOf(checkIn, checkOut).every((night) => !taken.has(night));
+  }
 
   function create(ownerSlug: string, draft: LodgingDraft): Lodging {
     const owner = ownerBySlug(ownerSlug);
@@ -325,6 +336,8 @@ export function createCatalog(storage?: CatalogStorage, bookings: readonly Booki
     remove,
     canRemove,
     canRelocate,
+    occupiedNights,
+    isAvailable,
     subscribe,
   };
 }

@@ -34,6 +34,9 @@ export interface OwnerBooking {
   isNew?: boolean;
 }
 
+/** The mock's "today": Martina is mid-stay and Camila cancelled this morning. */
+export const MOCK_TODAY = '2026-11-04';
+
 /** Mock "today" is early November 2026, consistent with mock/traveler.ts. */
 export const ownerBookings: OwnerBooking[] = [
   {

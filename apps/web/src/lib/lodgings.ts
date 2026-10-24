@@ -1010,6 +1010,17 @@ export function formatNightPrice(lodging: Lodging, to?: Fiat, rates?: FxRates): 
   return formatLocalPrice(lodging);
 }
 
+/**
+ * Estimated total for `nights`, displayed like `formatNightPrice`: local fiat
+ * with its code, or `≈ BRL …` when the Traveler picked another currency.
+ */
+export function formatStayEstimate(lodging: Lodging, nights: number, to?: Fiat, rates?: FxRates): string {
+  if (to && to !== lodging.currency) {
+    return `≈ ${to} ${formatNumber(convertNightPrice(lodging, to, rates) * nights)}`;
+  }
+  return formatAmount(lodging.pricePerNight * nights, lodging.currency);
+}
+
 export interface QuoteLine {
   label: string;
   value: string;

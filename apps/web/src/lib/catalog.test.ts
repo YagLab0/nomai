@@ -186,7 +186,12 @@ describe('catalog.create', () => {
   });
 });
 
-const booking = (lodgingId: string, status: OwnerBookingStatus) => ({ lodgingId, status });
+const booking = (lodgingId: string, status: OwnerBookingStatus, checkIn = '2026-12-01', checkOut = '2026-12-04') => ({
+  lodgingId,
+  status,
+  checkIn,
+  checkOut,
+});
 
 describe('catalog rules: an Upcoming Booking blocks removing and relocating', () => {
   it.each(['confirmada', 'en-curso'] as const)('a %s Booking blocks both', (status) => {
@@ -332,5 +337,42 @@ describe('catalog.remove', () => {
 
   it('rejects an unknown id', () => {
     expect(() => createCatalog(memoryStorage()).remove('no-existe')).toThrow();
+  });
+});
+
+describe('catalog availability', () => {
+  it("derives Casa de Adobe's occupied nights from Ramón's Bookings: Lucas's stay, not Camila's cancelled one", () => {
+    expect(createCatalog(memoryStorage()).occupiedNights('casa-de-adobe')).toEqual([
+      '2026-11-20',
+      '2026-11-21',
+      '2026-11-22',
+    ]);
+  });
+
+  it('counts Confirmada and En curso nights, across months, and ignores Cancelada and Completada', () => {
+    const c = createCatalog(memoryStorage(), [
+      booking('casa-de-adobe', 'confirmada', '2026-11-30', '2026-12-02'),
+      booking('casa-de-adobe', 'en-curso', '2026-11-03', '2026-11-04'),
+      booking('casa-de-adobe', 'cancelada', '2026-11-10', '2026-11-12'),
+      booking('casa-de-adobe', 'completada', '2026-10-01', '2026-10-03'),
+      booking('cabana-vinas-del-sol', 'confirmada', '2026-11-15', '2026-11-16'),
+    ]);
+    expect(c.occupiedNights('casa-de-adobe')).toEqual(['2026-11-03', '2026-11-30', '2026-12-01']);
+  });
+
+  it('leaves every night free without Bookings', () => {
+    expect(createCatalog(memoryStorage(), []).occupiedNights('casa-de-adobe')).toEqual([]);
+  });
+
+  it.each([
+    ['a free stay', '2026-11-10', '2026-11-13', true],
+    ['checking out the morning the next guest arrives', '2026-11-17', '2026-11-20', true],
+    ['checking in the day the last guest leaves', '2026-11-23', '2026-11-26', true],
+    ['a stay that crosses an occupied night', '2026-11-18', '2026-11-25', false],
+    ['a stay inside the occupied nights', '2026-11-21', '2026-11-22', false],
+    ['a check-out before the check-in', '2026-11-12', '2026-11-10', false],
+    ['zero nights', '2026-11-12', '2026-11-12', false],
+  ])('isAvailable: %s', (_case, checkIn, checkOut, expected) => {
+    expect(createCatalog(memoryStorage()).isAvailable('casa-de-adobe', checkIn, checkOut)).toBe(expected);
   });
 });
