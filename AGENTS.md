@@ -10,7 +10,7 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 
 `X402_SETUP.md` explains the payment flow and facilitator setup. The buyer needs no CELO — the facilitator sponsors gas.
 
-- `supabase/` — Postgres schema (migrations) + generated seed for the linked project `tspsaemylnzvdgwtjcrz`. Docs in `docs/supabase/`: env setup, schema/RLS, client usage, CLI workflows.
+- `supabase/` — Postgres schema (migrations) + generated seed (`apps/api/scripts/gen-seed.ts`) for the linked project `tspsaemylnzvdgwtjcrz`. Docs in `docs/supabase/`: env setup, schema/RLS, client usage, CLI workflows. E2E test users seeded: `viajera@nomai.dev` / `duena@nomai.dev`, password `nomai123` (also shown under the login form).
 
 ## Commands
 

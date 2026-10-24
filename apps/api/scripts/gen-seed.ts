@@ -118,4 +118,36 @@ lines.push(
   ""
 );
 
+/**
+ * Test users for e2e (auth + owner business/property/listing). Idempotent.
+ *   viajera@nomai.dev / nomai123  — Traveler (travelers row via trigger)
+ *   duena@nomai.dev   / nomai123  — Owner with a published listing
+ */
+const TEST_USERS_SQL = `insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at
+) values
+  ('00000000-0000-0000-0000-000000000000','11111111-1111-1111-1111-111111111111','authenticated','authenticated','viajera@nomai.dev',crypt('nomai123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Viajera Test","country_code":"AR"}',now(),now()),
+  ('00000000-0000-0000-0000-000000000000','22222222-2222-2222-2222-222222222222','authenticated','authenticated','duena@nomai.dev',crypt('nomai123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Dueña Test"}',now(),now())
+on conflict (id) do nothing;
+
+insert into auth.identities (id, provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) values
+  (gen_random_uuid(),'11111111-1111-1111-1111-111111111111','11111111-1111-1111-1111-111111111111','{"sub":"11111111-1111-1111-1111-111111111111","email":"viajera@nomai.dev"}','email',now(),now(),now()),
+  (gen_random_uuid(),'22222222-2222-2222-2222-222222222222','22222222-2222-2222-2222-222222222222','{"sub":"22222222-2222-2222-2222-222222222222","email":"duena@nomai.dev"}','email',now(),now(),now())
+on conflict do nothing;
+
+insert into public.businesses (id, name, slug, payout_address, email, status, user_id) values
+  ('biz_test','Posada Test','posada-test','0x0000000000000000000000000000000000000001','duena@nomai.dev','active','22222222-2222-2222-2222-222222222222')
+on conflict (id) do nothing;
+
+insert into public.properties (id, business_id, name, property_type, description, city, region, country_code, timezone, checkin_time, checkout_time) values
+  ('prop_test','biz_test','Posada Test — Centro','posada','Propiedad de prueba para e2e.','Mendoza','Mendoza','AR','America/Argentina/Mendoza','15:00','11:00')
+on conflict (id) do nothing;
+
+insert into public.listings (id, property_id, slug, title, kind, max_guests, base_price_minor, currency, status) values
+  ('lst_test','prop_test','posada-test-centro','Posada Test — habitación doble','entire_place',2,3800000,'ARS','published')
+on conflict (id) do nothing;`;
+
 console.log(lines.join("\n"));
+console.log(TEST_USERS_SQL);
