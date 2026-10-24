@@ -8,10 +8,14 @@ import { ShortlistTool } from '@/components/app/chat/shortlist-tool';
 import { MobileBar } from '@/components/app/mobile-bar';
 import { Logo, NavList, UserChip } from '@/components/app/nav-list';
 import { SidePanel } from '@/components/app/side-panel';
+import { eveAdapter } from '@/lib/nomito/eve-adapter';
 import { mockAdapter } from '@/lib/nomito/mock-adapter';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const runtime = useLocalRuntime(mockAdapter);
+  // 'mock' keeps the fake path for demos/tests; the real eve agent is the default.
+  const adapter =
+    process.env.NEXT_PUBLIC_NOMAI_CHAT_BACKEND === 'mock' ? mockAdapter : eveAdapter;
+  const runtime = useLocalRuntime(adapter);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>

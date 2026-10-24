@@ -1,2 +1,6 @@
 packages:
   - "apps/*"
+
+ignoredOptionalDependencies:
+  - "@mongodb-js/zstd"
+  - "node-liblzma"
