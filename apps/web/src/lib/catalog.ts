@@ -9,18 +9,20 @@ import {
   type LodgingKind,
   type Owner,
 } from '@/lib/lodgings';
+import { ownerBookings, type OwnerBooking } from '@/lib/mock/owner';
 
 /**
  * The catalog: one store for every surface that reads Lodgings (owner-views
- * §9). It merges the seed with Lodgings an Owner created in this browser —
- * the seed itself is never mutated — and persists the created ones in
- * `localStorage`, which is per browser on purpose (template scope).
+ * §9). It merges the seed with Lodgings an Owner created in this browser plus
+ * edits (overrides) and deletions (tombstones) of seeded ones — the seed
+ * itself is never mutated — and persists them in `localStorage`, which is per
+ * browser on purpose (template scope).
  *
- * Client surfaces that need the created Lodgings after hydration subscribe
+ * Client surfaces that need the browser's changes after hydration subscribe
  * with `useLodgings`; non-React readers (Nomito's adapter) call `all()`.
  */
 
-/** What the creation wizard collects; the catalog derives the rest. */
+/** What the wizard collects; the catalog derives the rest. */
 export interface LodgingDraft {
   name: string;
   kind: LodgingKind;
@@ -64,7 +66,21 @@ interface CatalogStorage {
   setItem(key: string, value: string): void;
 }
 
-const STORAGE_KEY = 'nomai.catalog.created';
+/** What the rules need from a Booking. */
+type BookingRef = Pick<OwnerBooking, 'lodgingId' | 'status'>;
+
+/** Upcoming Booking statuses (GLOSSARY): they block removing and relocating. */
+const UPCOMING: readonly OwnerBooking['status'][] = ['confirmada', 'en-curso'];
+
+interface State {
+  created: Lodging[];
+  overrides: Record<string, Lodging>;
+  removed: string[];
+}
+
+const STORAGE_KEY = 'nomai.catalog';
+/** Before edits existed the catalog stored only the created Lodgings here. */
+const LEGACY_KEY = 'nomai.catalog.created';
 
 function memoryStorage(): CatalogStorage {
   const data = new Map<string, string>();
@@ -86,8 +102,9 @@ function slugify(name: string): string {
   return slug || 'alojamiento';
 }
 
-function buildLodging(owner: Owner, draft: LodgingDraft, taken: Set<string>): Lodging {
-  const name = draft.name.trim();
+/** Validates a draft for an Owner; returns the normalized fields every write stores. */
+function validate(owner: Owner, draft: LodgingDraft) {
+  const name = draft.name?.trim() ?? '';
   if (name.length < 3) throw new Error('name is required');
   if (!(draft.kind in KIND_LABEL)) throw new Error('unknown kind');
   const town = townByName(draft.town);
@@ -110,81 +127,184 @@ function buildLodging(owner: Owner, draft: LodgingDraft, taken: Set<string>): Lo
     throw new Error(`at most ${MAX_PHOTOS} photos`);
   }
 
-  const currency = ownerFiat(owner);
-
-  const base = slugify(name);
-  let id = base;
-  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
-
   return {
-    id,
     name,
     kind: draft.kind,
-    city: town.name,
-    region: town.region,
-    countryCode: town.countryCode,
-    code: town.code,
-    pricePerNight: Math.round(draft.pricePerNight),
-    currency,
-    blurb: draft.blurb?.trim() ?? '',
-    rating: 0,
-    reviews: 0,
     guests: draft.guests,
     bedrooms: draft.bedrooms,
     baths: draft.baths,
+    pricePerNight: Math.round(draft.pricePerNight),
+    blurb: draft.blurb?.trim() ?? '',
     amenities: draft.amenities?.map((a) => a.trim()).filter(Boolean) ?? [],
-    ownerSlug: owner.slug,
-    tone: TONES[taken.size % TONES.length],
     address,
     lat: draft.lat,
     lng: draft.lng,
-    ...(photos.length > 0 && { photos: [...photos] }),
+    photos: photos.length > 0 ? [...photos] : undefined,
+    town,
   };
 }
 
-export function createCatalog(storage?: CatalogStorage) {
+/** The draft an existing Lodging would come from: the wizard's edit prefill. */
+export function draftOf(l: Lodging): LodgingDraft {
+  return {
+    name: l.name,
+    kind: l.kind,
+    town: l.city,
+    guests: l.guests,
+    bedrooms: l.bedrooms,
+    baths: l.baths,
+    pricePerNight: l.pricePerNight,
+    blurb: l.blurb,
+    amenities: l.amenities,
+    address: l.address ?? '',
+    lat: l.lat ?? Number.NaN,
+    lng: l.lng ?? Number.NaN,
+    photos: l.photos,
+  };
+}
+
+function readState(store: CatalogStorage): State {
+  const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+  try {
+    const raw = store.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<State>;
+      const overrides = parsed.overrides && typeof parsed.overrides === 'object' ? parsed.overrides : {};
+      return { created: list(parsed.created), overrides, removed: list(parsed.removed) };
+    }
+    return { created: list(JSON.parse(store.getItem(LEGACY_KEY) ?? '[]')), overrides: {}, removed: [] };
+  } catch {
+    return { created: [], overrides: {}, removed: [] };
+  }
+}
+
+export function createCatalog(storage?: CatalogStorage, bookings: readonly BookingRef[] = ownerBookings) {
   const store = storage ?? (typeof window === 'undefined' ? memoryStorage() : window.localStorage);
-  let created: Lodging[] | null = null;
+  let state: State | null = null;
   let snapshot: Lodging[] = LODGINGS;
   const listeners = new Set<() => void>();
 
-  function createdLodgings(): Lodging[] {
-    if (created === null) {
-      created = read();
-      if (created.length > 0) snapshot = [...LODGINGS, ...created];
-    }
-    return created;
+  function merge(s: State): Lodging[] {
+    if (s.created.length === 0 && s.removed.length === 0 && Object.keys(s.overrides).length === 0) return LODGINGS;
+    const removed = new Set(s.removed);
+    return [...LODGINGS.filter((l) => !removed.has(l.id)).map((l) => s.overrides[l.id] ?? l), ...s.created];
   }
 
-  function read(): Lodging[] {
-    try {
-      const parsed: unknown = JSON.parse(store.getItem(STORAGE_KEY) ?? '[]');
-      return Array.isArray(parsed) ? (parsed as Lodging[]) : [];
-    } catch {
-      return [];
+  function current(): State {
+    if (state === null) {
+      state = readState(store);
+      snapshot = merge(state);
     }
+    return state;
   }
 
   function all(): Lodging[] {
-    createdLodgings();
+    current();
     return snapshot;
   }
 
-  function create(ownerSlug: string, draft: LodgingDraft): Lodging {
-    const owner = ownerBySlug(ownerSlug);
-    if (!owner) throw new Error(`unknown owner: ${ownerSlug}`);
-    const lodging = buildLodging(owner, draft, new Set(all().map((l) => l.id)));
-    const next = [...createdLodgings(), lodging];
-    // Persist first: a storage failure rejects the write with the catalog intact.
+  const byId = (id: string) => all().find((l) => l.id === id);
+
+  function find(id: string): Lodging {
+    const lodging = byId(id);
+    if (!lodging) throw new Error(`unknown lodging: ${id}`);
+    return lodging;
+  }
+
+  /** Persist first: a storage failure rejects the write with the catalog intact. */
+  function commit(next: State) {
     try {
       store.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch (e) {
       throw isQuotaError(e) ? new CatalogFullError() : e;
     }
-    created = next;
-    snapshot = [...LODGINGS, ...next];
+    state = next;
+    snapshot = merge(next);
     listeners.forEach((fn) => fn());
+  }
+
+  const hasUpcoming = (id: string) => bookings.some((b) => b.lodgingId === id && UPCOMING.includes(b.status));
+  const canRemove = (id: string) => !hasUpcoming(id);
+  const canRelocate = (id: string) => !hasUpcoming(id);
+
+  function create(ownerSlug: string, draft: LodgingDraft): Lodging {
+    const owner = ownerBySlug(ownerSlug);
+    if (!owner) throw new Error(`unknown owner: ${ownerSlug}`);
+    const { town, photos, ...fields } = validate(owner, draft);
+    const taken = new Set([...LODGINGS, ...current().created].map((l) => l.id));
+    const base = slugify(fields.name);
+    let id = base;
+    for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+
+    const lodging: Lodging = {
+      id,
+      ...fields,
+      city: town.name,
+      region: town.region,
+      countryCode: town.countryCode,
+      code: town.code,
+      currency: ownerFiat(owner),
+      rating: 0,
+      reviews: 0,
+      ownerSlug: owner.slug,
+      tone: TONES[taken.size % TONES.length],
+      ...(photos && { photos }),
+    };
+    const s = current();
+    commit({ ...s, created: [...s.created, lodging] });
     return lodging;
+  }
+
+  /**
+   * Edits a Lodging. The town, address and pin can't change while it has an
+   * Upcoming Booking. Prices apply to future Bookings only: settled ones are
+   * separate records and never touched.
+   */
+  function update(id: string, patch: Partial<LodgingDraft>): Lodging {
+    const existing = find(id);
+    const draft = { ...draftOf(existing), ...patch };
+    const relocating =
+      draft.town !== existing.city ||
+      (draft.address?.trim() ?? '') !== (existing.address ?? '') ||
+      draft.lat !== existing.lat ||
+      draft.lng !== existing.lng;
+    if (relocating && !canRelocate(id)) throw new Error('a lodging with upcoming bookings cannot be relocated');
+
+    const { town, photos, ...fields } = validate(ownerBySlug(existing.ownerSlug)!, draft);
+    const { photos: _old, ...rest } = existing;
+    const lodging: Lodging = {
+      ...rest,
+      ...fields,
+      ...(town.name !== existing.city && {
+        city: town.name,
+        region: town.region,
+        countryCode: town.countryCode,
+        code: town.code,
+      }),
+      ...(photos && { photos }),
+    };
+
+    const s = current();
+    const isCreated = s.created.some((l) => l.id === id);
+    commit(
+      isCreated
+        ? { ...s, created: s.created.map((l) => (l.id === id ? lodging : l)) }
+        : { ...s, overrides: { ...s.overrides, [id]: lodging } },
+    );
+    return lodging;
+  }
+
+  function remove(id: string): void {
+    find(id);
+    if (!canRemove(id)) throw new Error('a lodging with upcoming bookings cannot be removed');
+    const s = current();
+    const isCreated = s.created.some((l) => l.id === id);
+    const { [id]: _dropped, ...overrides } = s.overrides;
+    commit(
+      isCreated
+        ? { ...s, created: s.created.filter((l) => l.id !== id) }
+        : { ...s, overrides, removed: [...s.removed, id] },
+    );
   }
 
   function subscribe(listener: () => void): () => void {
@@ -194,13 +314,17 @@ export function createCatalog(storage?: CatalogStorage) {
 
   return {
     all,
-    byId: (id: string) => all().find((l) => l.id === id),
+    byId,
     byOwner: (ownerSlug: string) => all().filter((l) => l.ownerSlug === ownerSlug),
     byTown: (town: string) => {
       const t = town.toLowerCase();
       return all().filter((l) => l.city.toLowerCase() === t);
     },
     create,
+    update,
+    remove,
+    canRemove,
+    canRelocate,
     subscribe,
   };
 }

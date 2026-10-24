@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { pickOption } from './helpers';
+
 test('the ficha shows gallery, facts, blurb, amenities, address, map and the Owner block', async ({ page }) => {
   await page.goto('/lodgings/casa-de-adobe');
 
@@ -71,8 +73,7 @@ test('a Lodging created in the panel gets its own ficha', async ({ page }) => {
   await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
   await page.getByLabel('Nombre del alojamiento').fill('La Posada del E2E');
   await page.getByRole('button', { name: 'Siguiente' }).click();
-  await page.getByLabel('Pueblo o ciudad').click();
-  await page.getByRole('option', { name: 'Humahuaca' }).click();
+  await pickOption(page, 'Pueblo o ciudad', 'Humahuaca');
   await page.getByLabel('Dirección').fill('Tucumán 12');
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByRole('heading', { name: 'Detalles' })).toBeVisible();

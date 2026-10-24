@@ -26,19 +26,21 @@ import {
   ownerFiat,
   townByName,
   townsInCountry,
+  type Lodging,
   type LodgingKind,
   type Owner,
 } from '@/lib/lodgings';
 
-const PinPickerMap = dynamic(() => import('@/components/owners/pin-picker-map'), {
-  ssr: false,
-  loading: () => <div className="h-full w-full bg-sand/60" />,
-});
+const mapLoading = () => <div className="h-full w-full bg-sand/60" />;
+const PinPickerMap = dynamic(() => import('@/components/owners/pin-picker-map'), { ssr: false, loading: mapLoading });
+const LodgingMap = dynamic(() => import('@/components/marketplace/lodging-map'), { ssr: false, loading: mapLoading });
 
 /**
- * "Agregar alojamiento": the four-step alta wizard (owner-views §9). Siguiente
- * validates only the current step, Atrás keeps what was typed, and Publicar
- * writes to the catalog — the Lodging is born published.
+ * "Agregar alojamiento" and "Editar": one four-step wizard (owner-views §9).
+ * Siguiente validates only the current step, Atrás keeps what was typed, and
+ * Publicar writes to the catalog — the Lodging is born published. In edit mode
+ * it saves changes, locks the location and can delete, both per the
+ * Upcoming Booking rule.
  */
 
 const STEP_LABELS = ['Básico', 'Ubicación', 'Detalles', 'Fotos y precio'] as const;
@@ -169,20 +171,43 @@ function CountField({
   );
 }
 
+function prefill(l: Lodging): Draft {
+  return {
+    name: l.name,
+    kind: l.kind,
+    town: l.city,
+    address: l.address ?? '',
+    pin: l.lat !== undefined && l.lng !== undefined ? { lat: l.lat, lng: l.lng } : null,
+    guests: l.guests,
+    bedrooms: l.bedrooms,
+    baths: l.baths,
+    blurb: l.blurb,
+    amenities: l.amenities.join('\n'),
+    photos: l.photos ?? [],
+    price: String(l.pricePerNight),
+  };
+}
+
 export function LodgingWizard({
   owner,
+  lodging,
   isOpen,
   onOpenChange,
 }: {
   owner: Owner;
+  /** Edit mode: the Lodging to prefill. Without it the wizard creates one. */
+  lodging?: Lodging;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [step, setStep] = useState(0);
   const [touched, setTouched] = useState(false);
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [draft, setDraft] = useState<Draft>(() => (lodging ? prefill(lodging) : EMPTY));
   const [error, setError] = useState<string | null>(null);
   const [preparingPhotos, setPreparingPhotos] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const locationLocked = !!lodging && !catalog.canRelocate(lodging.id);
+  const removable = !!lodging && catalog.canRemove(lodging.id);
   const panel = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
 
@@ -232,37 +257,51 @@ export function LodgingWizard({
     setStep(step - 1);
   }
 
-  function publish() {
+  function save() {
     setTouched(true);
     if (priceInvalid || !draft.pin) return;
+    const fields = {
+      name: draft.name,
+      kind: draft.kind,
+      town: draft.town,
+      address: draft.address,
+      lat: draft.pin.lat,
+      lng: draft.pin.lng,
+      guests: draft.guests,
+      bedrooms: draft.bedrooms,
+      baths: draft.baths,
+      pricePerNight: parsedPrice,
+      blurb: draft.blurb,
+      amenities: draft.amenities
+        .split('\n')
+        .map((a) => a.trim())
+        .filter(Boolean),
+      photos: draft.photos,
+    };
     try {
-      catalog.create(owner.slug, {
-        name: draft.name,
-        kind: draft.kind,
-        town: draft.town,
-        address: draft.address,
-        lat: draft.pin.lat,
-        lng: draft.pin.lng,
-        guests: draft.guests,
-        bedrooms: draft.bedrooms,
-        baths: draft.baths,
-        pricePerNight: parsedPrice,
-        blurb: draft.blurb,
-        amenities: draft.amenities
-          .split('\n')
-          .map((a) => a.trim())
-          .filter(Boolean),
-        photos: draft.photos,
-      });
+      if (lodging) catalog.update(lodging.id, fields);
+      else catalog.create(owner.slug, fields);
     } catch (e) {
       setError(
         e instanceof CatalogFullError
           ? 'No hay más espacio en este navegador para guardar las fotos. Quitá alguna o elegí otras y probá de nuevo: lo demás queda como lo dejaste.'
-          : 'No se pudo publicar. Revisá los datos y probá de nuevo.',
+          : 'No se pudo guardar. Revisá los datos y probá de nuevo.',
       );
       return;
     }
-    toast('Alojamiento publicado');
+    toast(lodging ? 'Alojamiento actualizado' : 'Alojamiento publicado');
+    onOpenChange(false);
+  }
+
+  function remove() {
+    if (!lodging) return;
+    try {
+      catalog.remove(lodging.id);
+    } catch {
+      setError('No se pudo eliminar. Probá de nuevo.');
+      return;
+    }
+    toast('Alojamiento eliminado');
     onOpenChange(false);
   }
 
@@ -274,7 +313,7 @@ export function LodgingWizard({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading className="font-brand text-2xl font-medium text-ink">
-                Agregar alojamiento
+                {lodging ? `Editar ${lodging.name}` : 'Agregar alojamiento'}
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-6">
@@ -347,7 +386,30 @@ export function LodgingWizard({
                   </div>
                 )}
 
-                {step === 1 && (
+                {step === 1 && locationLocked && lodging && (
+                  <div className="mt-5 flex flex-col gap-4">
+                    <p role="note" className="rounded-card bg-terra-soft/70 px-4 py-3 text-sm text-terra-deep">
+                      Tenés reservas confirmadas en este alojamiento: la ubicación no se puede cambiar.
+                    </p>
+                    <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="text-ink-muted">Pueblo o ciudad</dt>
+                        <dd className="mt-0.5 font-medium text-ink">{lodging.city}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-ink-muted">Dirección</dt>
+                        <dd className="mt-0.5 font-medium text-ink">{lodging.address ?? '—'}</dd>
+                      </div>
+                    </dl>
+                    {lodging.lat !== undefined && lodging.lng !== undefined && (
+                      <div className="h-56 overflow-hidden rounded-card border border-sand sm:h-64">
+                        <LodgingMap lodging={lodging} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {step === 1 && !locationLocked && (
                   <div className="mt-5 flex flex-col gap-5">
                     <Select
                       isRequired
@@ -476,6 +538,40 @@ export function LodgingWizard({
                   </p>
                 )}
               </div>
+
+              {lodging && (
+                <section aria-label="Eliminar alojamiento" className="border-t border-sand pt-5">
+                  {!removable ? (
+                    <>
+                      <Button variant="danger-soft" size="sm" isDisabled aria-describedby="remove-reason">
+                        Eliminar alojamiento
+                      </Button>
+                      <p id="remove-reason" className="mt-2 text-xs text-ink-muted">
+                        Tenés reservas confirmadas o en curso en este alojamiento: no se puede eliminar.
+                      </p>
+                    </>
+                  ) : confirmingRemove ? (
+                    <div className="rounded-card border border-terra/40 bg-white p-4">
+                      <p className="text-sm text-ink">
+                        ¿Eliminar {lodging.name}? Deja de aparecer en tu escaparate, en el catálogo y en Nomito. No se
+                        puede deshacer.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="danger" size="sm" onPress={remove}>
+                          Sí, eliminar
+                        </Button>
+                        <Button variant="secondary" size="sm" onPress={() => setConfirmingRemove(false)}>
+                          No, conservarlo
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="danger-soft" size="sm" onPress={() => setConfirmingRemove(true)}>
+                      Eliminar alojamiento
+                    </Button>
+                  )}
+                </section>
+              )}
             </Modal.Body>
             <Modal.Footer className="flex gap-3">
               {step === 0 ? (
@@ -492,8 +588,8 @@ export function LodgingWizard({
                   Siguiente
                 </Button>
               ) : (
-                <Button className="flex-1" onPress={publish} isDisabled={preparingPhotos}>
-                  Publicar
+                <Button className="flex-1" onPress={save} isDisabled={preparingPhotos}>
+                  {lodging ? 'Guardar cambios' : 'Publicar'}
                 </Button>
               )}
             </Modal.Footer>

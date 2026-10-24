@@ -1,38 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Button, toast } from '@heroui/react';
+import { useState } from 'react';
+import { Button } from '@heroui/react';
 
-import { AlojamientoCard, type AlojamientoDraft } from '@/components/owners/alojamiento-card';
+import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
 import { ReservaCard } from '@/components/owners/reserva-card';
 import { catalog } from '@/lib/catalog';
 import { useLodgings } from '@/lib/use-lodgings';
 import { formatNumber, formatShortDate } from '@/lib/format';
+import type { Lodging } from '@/lib/lodgings';
 import { currentOwner, monthNetARS, ownerBookings } from '@/lib/mock/owner';
 
 /** The Owner's panel: Resumen → Reservas → Tus alojamientos (owner-views §3). */
 export function OwnerDashboard() {
   const nextArrival = ownerBookings.find((b) => b.status === 'confirmada');
   const nextLodging = nextArrival && catalog.byId(nextArrival.lodgingId);
-  const [adding, setAdding] = useState(false);
-
-  const all = useLodgings();
-  // The edit modal is a mock until the wizard takes it over: keep its drafts as
-  // a local overlay on top of the catalog.
-  const [edits, setEdits] = useState<Record<string, AlojamientoDraft>>({});
-  const lodgings = useMemo(
-    () =>
-      all
-        .filter((l) => l.ownerSlug === currentOwner.slug)
-        .map((l) => (edits[l.id] ? { ...l, ...edits[l.id] } : l)),
-    [all, edits],
-  );
-
-  function saveAlojamiento(id: string, draft: AlojamientoDraft) {
-    setEdits((e) => ({ ...e, [id]: draft }));
-    toast('Alojamiento actualizado');
-  }
+  /** The open wizard: `{}` creates, `{ lodging }` edits. */
+  const [wizard, setWizard] = useState<{ lodging?: Lodging } | null>(null);
+  const lodgings = useLodgings().filter((l) => l.ownerSlug === currentOwner.slug);
 
   return (
     <div className="flex flex-col gap-10">
@@ -86,17 +72,23 @@ export function OwnerDashboard() {
               Lo que los viajeros ven en tu escaparate y en el catálogo.
             </p>
           </div>
-          <Button onPress={() => setAdding(true)}>Agregar alojamiento</Button>
+          <Button onPress={() => setWizard({})}>Agregar alojamiento</Button>
         </div>
         <div className="mt-4 grid gap-5 md:grid-cols-2">
           {lodgings.map((l) => (
-            <AlojamientoCard key={l.id} lodging={l} onSave={(d) => saveAlojamiento(l.id, d)} />
+            <AlojamientoCard key={l.id} lodging={l} onEdit={() => setWizard({ lodging: l })} />
           ))}
         </div>
       </section>
 
-      {adding && (
-        <LodgingWizard owner={currentOwner} isOpen={adding} onOpenChange={setAdding} />
+      {wizard && (
+        <LodgingWizard
+          key={wizard.lodging?.id ?? 'new'}
+          owner={currentOwner}
+          lodging={wizard.lodging}
+          isOpen
+          onOpenChange={(open) => !open && setWizard(null)}
+        />
       )}
     </div>
   );

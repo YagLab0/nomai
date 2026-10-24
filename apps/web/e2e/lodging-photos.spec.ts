@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
+import { pickOption } from './helpers';
+
 const image = (name: string) => path.join(__dirname, '..', 'public', 'images', `${name}.webp`);
 const PHOTOS = ['tilcara-patio', 'tilcara-pucara', 'humahuaca-valle', 'cafayate-vinedos', 'salta-catedral', 'colonia-faro'];
 
@@ -11,8 +13,7 @@ async function openPhotosStep(page: Page, name: string) {
   await page.getByLabel('Nombre del alojamiento').fill(name);
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByRole('heading', { name: 'Ubicación' })).toBeVisible();
-  await page.getByLabel('Pueblo o ciudad').click();
-  await page.getByRole('option', { name: 'Tilcara' }).click();
+  await pickOption(page, 'Pueblo o ciudad', 'Tilcara');
   await page.getByLabel('Dirección').fill('Belgrano 450');
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByRole('heading', { name: 'Detalles' })).toBeVisible();

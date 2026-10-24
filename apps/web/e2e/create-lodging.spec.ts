@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { pickOption } from './helpers';
+
 test('an Owner publishes a Lodging from the panel and it reaches every surface', async ({ page }) => {
   await page.goto('/app/owner');
   await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
@@ -9,13 +11,11 @@ test('an Owner publishes a Lodging from the panel and it reaches every surface',
 
   // 1. Básico
   await page.getByLabel('Nombre del alojamiento').fill('Posada del Molino');
-  await page.getByLabel('Tipo').click();
-  await page.getByRole('option', { name: 'Cabaña' }).click();
+  await pickOption(page, 'Tipo', 'Cabaña');
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
   // 2. Ubicación (towns limited to the Owner's country)
-  await page.getByLabel('Pueblo o ciudad').click();
-  await page.getByRole('option', { name: 'Tilcara' }).click();
+  await pickOption(page, 'Pueblo o ciudad', 'Tilcara');
   await page.getByLabel('Dirección').fill('Belgrano 450');
   await page.getByRole('button', { name: 'Siguiente' }).click();
 

@@ -2,130 +2,14 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
-import {
-  Button,
-  FieldError,
-  Input,
-  Label,
-  Modal,
-  TextArea,
-  TextField,
-} from '@heroui/react';
+import { Button } from '@heroui/react';
 
 import { StarIcon } from '@/components/icons';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
 import { formatLocalPrice, KIND_LABEL, lodgingCover, type Lodging } from '@/lib/lodgings';
 
-/** Editable Lodging fields (owner-views §3): name, blurb, amenities, price. */
-export interface AlojamientoDraft {
-  name: string;
-  pricePerNight: number;
-  blurb: string;
-  amenities: string[];
-}
-
-function EditModal({
-  lodging,
-  isOpen,
-  onOpenChange,
-  onSave,
-}: {
-  lodging: Lodging;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (draft: AlojamientoDraft) => void;
-}) {
-  const [name, setName] = useState(lodging.name);
-  const [price, setPrice] = useState(String(lodging.pricePerNight));
-  const [blurb, setBlurb] = useState(lodging.blurb);
-  const [amenities, setAmenities] = useState(lodging.amenities.join('\n'));
-  const [touched, setTouched] = useState(false);
-
-  const parsedPrice = Number(price.replace(/\./g, '').replace(',', '.'));
-  const nameInvalid = name.trim().length < 3;
-  const priceInvalid = !Number.isFinite(parsedPrice) || parsedPrice <= 0;
-
-  function save() {
-    setTouched(true);
-    if (nameInvalid || priceInvalid) return;
-    onSave({
-      name: name.trim(),
-      pricePerNight: Math.round(parsedPrice),
-      blurb: blurb.trim(),
-      amenities: amenities
-        .split('\n')
-        .map((a) => a.trim())
-        .filter(Boolean),
-    });
-    onOpenChange(false);
-  }
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-        <Modal.Container placement="center">
-          <Modal.Dialog className="bg-paper">
-            <Modal.CloseTrigger />
-            <Modal.Header>
-              <Modal.Heading className="font-brand text-2xl font-medium text-ink">
-                Editar {lodging.name}
-              </Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-5">
-              <TextField
-                isRequired
-                value={name}
-                onChange={setName}
-                isInvalid={touched && nameInvalid}
-              >
-                <Label>Nombre</Label>
-                <Input fullWidth />
-                <FieldError>Escribí el nombre, como lo conocen tus huéspedes.</FieldError>
-              </TextField>
-
-              <TextField
-                isRequired
-                value={price}
-                onChange={setPrice}
-                isInvalid={touched && priceInvalid}
-              >
-                <Label>Precio por noche ({lodging.currency})</Label>
-                <Input fullWidth inputMode="numeric" />
-                <FieldError>Poné un precio mayor a cero.</FieldError>
-              </TextField>
-
-              <TextField value={blurb} onChange={setBlurb}>
-                <Label>Descripción corta</Label>
-                <TextArea fullWidth rows={2} />
-              </TextField>
-
-              <TextField value={amenities} onChange={setAmenities}>
-                <Label>Servicios (uno por línea)</Label>
-                <TextArea fullWidth rows={4} />
-              </TextField>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button fullWidth onPress={save}>
-                Guardar
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
-}
-
-/** A Lodging the Owner manages, with the edit modal. Mock saves via onSave. */
-export function AlojamientoCard({
-  lodging,
-  onSave,
-}: {
-  lodging: Lodging;
-  onSave: (draft: AlojamientoDraft) => void;
-}) {
-  const [editing, setEditing] = useState(false);
+/** A Lodging the Owner manages; "Editar" opens the wizard (owner-views §9). */
+export function AlojamientoCard({ lodging, onEdit }: { lodging: Lodging; onEdit: () => void }) {
   const photo = lodgingCover(lodging);
 
   return (
@@ -189,16 +73,12 @@ export function AlojamientoCard({
             >
               Ver en el catálogo
             </Link>
-            <Button variant="secondary" size="sm" onPress={() => setEditing(true)}>
+            <Button variant="secondary" size="sm" onPress={onEdit}>
               Editar
             </Button>
           </div>
         </div>
       </div>
-
-      {editing && (
-        <EditModal lodging={lodging} isOpen={editing} onOpenChange={setEditing} onSave={onSave} />
-      )}
     </article>
   );
 }

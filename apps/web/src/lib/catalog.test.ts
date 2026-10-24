@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { catalog, CatalogFullError, createCatalog, type LodgingDraft } from '@/lib/catalog';
 import { LODGINGS } from '@/lib/lodgings';
+import { ownerBookings, type OwnerBookingStatus } from '@/lib/mock/owner';
 
 /** In-memory stand-in for localStorage (owner-views §9 testing seam). */
 function memoryStorage() {
@@ -182,5 +183,154 @@ describe('catalog.create', () => {
     c.create('ramon-guaymas', DRAFT);
     expect(notified).toBe(1);
     unsubscribe();
+  });
+});
+
+const booking = (lodgingId: string, status: OwnerBookingStatus) => ({ lodgingId, status });
+
+describe('catalog rules: an Upcoming Booking blocks removing and relocating', () => {
+  it.each(['confirmada', 'en-curso'] as const)('a %s Booking blocks both', (status) => {
+    const c = createCatalog(memoryStorage(), [booking('casa-de-adobe', status)]);
+    expect(c.canRemove('casa-de-adobe')).toBe(false);
+    expect(c.canRelocate('casa-de-adobe')).toBe(false);
+  });
+
+  it('cancelled and completed Bookings block nothing', () => {
+    const c = createCatalog(memoryStorage(), [
+      booking('casa-de-adobe', 'cancelada'),
+      booking('casa-de-adobe', 'completada'),
+    ]);
+    expect(c.canRemove('casa-de-adobe')).toBe(true);
+    expect(c.canRelocate('casa-de-adobe')).toBe(true);
+  });
+
+  it("follows Ramón's mock Bookings by default: both seeded Lodgings are locked, a new one is not", () => {
+    const c = createCatalog(memoryStorage());
+    expect(c.canRemove('casa-de-adobe')).toBe(false);
+    expect(c.canRelocate('cabana-vinas-del-sol')).toBe(false);
+    const created = c.create('ramon-guaymas', DRAFT);
+    expect(c.canRemove(created.id)).toBe(true);
+    expect(c.canRelocate(created.id)).toBe(true);
+  });
+});
+
+describe('catalog.update', () => {
+  it('overrides a seeded Lodging in every read and survives a reload, leaving the seed untouched', () => {
+    const storage = memoryStorage();
+    const seedPrice = LODGINGS.find((l) => l.id === 'casa-de-adobe')!.pricePerNight;
+    const updated = createCatalog(storage).update('casa-de-adobe', { name: 'Casa de Adobe y Parral', pricePerNight: 99_000 });
+
+    expect(updated).toMatchObject({ id: 'casa-de-adobe', name: 'Casa de Adobe y Parral', pricePerNight: 99_000 });
+    const reopened = createCatalog(storage);
+    expect(reopened.byId('casa-de-adobe')?.name).toBe('Casa de Adobe y Parral');
+    expect(reopened.byOwner('ramon-guaymas').find((l) => l.id === 'casa-de-adobe')?.pricePerNight).toBe(99_000);
+    expect(reopened.byTown('Cafayate').map((l) => l.id)).toContain('casa-de-adobe');
+    expect(LODGINGS.find((l) => l.id === 'casa-de-adobe')!.pricePerNight).toBe(seedPrice);
+    expect(createCatalog(memoryStorage()).byId('casa-de-adobe')?.pricePerNight).toBe(seedPrice);
+  });
+
+  it('a price edit leaves existing Bookings as they were settled', () => {
+    const before = ownerBookings.map((b) => b.amount);
+    createCatalog(memoryStorage()).update('casa-de-adobe', { pricePerNight: 150_000 });
+    expect(ownerBookings.map((b) => b.amount)).toEqual(before);
+  });
+
+  it('keeps the rating and reviews of a seeded Lodging', () => {
+    const updated = createCatalog(memoryStorage()).update('casa-de-adobe', { blurb: 'Otro texto.' });
+    expect(updated).toMatchObject({ rating: 4.9, reviews: 118 });
+  });
+
+  it.each([
+    ['the town', { town: 'Salta' }],
+    ['the address', { address: 'San Martín 10' }],
+    ['the pin', { lat: -26.08 }],
+  ])('rejects changing %s while an Upcoming Booking exists', (_case, patch) => {
+    const c = createCatalog(memoryStorage());
+    const before = c.byId('casa-de-adobe');
+    expect(() => c.update('casa-de-adobe', patch)).toThrow();
+    expect(c.byId('casa-de-adobe')).toEqual(before);
+  });
+
+  it('accepts the unchanged location alongside other edits while locked', () => {
+    const c = createCatalog(memoryStorage());
+    const l = c.byId('casa-de-adobe')!;
+    const updated = c.update('casa-de-adobe', {
+      town: l.city,
+      address: l.address,
+      lat: l.lat,
+      lng: l.lng,
+      pricePerNight: 100_000,
+    });
+    expect(updated.pricePerNight).toBe(100_000);
+  });
+
+  it('relocates a Lodging without Upcoming Bookings, deriving the town data again', () => {
+    const c = createCatalog(memoryStorage());
+    const created = c.create('ramon-guaymas', DRAFT);
+    const moved = c.update(created.id, { town: 'Humahuaca', address: 'Tucumán 12', lat: -23.2, lng: -65.35 });
+    expect(moved).toMatchObject({ city: 'Humahuaca', code: 'HUM', address: 'Tucumán 12', lat: -23.2 });
+    expect(c.byTown('Humahuaca').map((l) => l.id)).toContain(created.id);
+    expect(c.byTown('Tilcara').map((l) => l.id)).not.toContain(created.id);
+  });
+
+  it.each([
+    ['an empty name', { name: ' ' }],
+    ['a zero price', { pricePerNight: 0 }],
+    ['six photos', { photos: Array.from({ length: 6 }, (_, i) => `data:image/jpeg;base64,${i}`) }],
+    ['a town abroad', { town: 'Tulum' }],
+  ])('validates the edited Lodging: rejects %s', (_case, patch) => {
+    const c = createCatalog(memoryStorage(), []);
+    expect(() => c.update('casa-de-adobe', patch)).toThrow();
+  });
+
+  it('changes the photos of a created Lodging', () => {
+    const c = createCatalog(memoryStorage());
+    const created = c.create('ramon-guaymas', { ...DRAFT, photos: ['data:image/jpeg;base64,A'] });
+    const updated = c.update(created.id, { photos: ['data:image/jpeg;base64,B', 'data:image/jpeg;base64,C'] });
+    expect(updated.photos).toEqual(['data:image/jpeg;base64,B', 'data:image/jpeg;base64,C']);
+    expect(c.update(created.id, { photos: [] }).photos).toBeUndefined();
+  });
+
+  it('rejects an unknown id and notifies subscribers on success', () => {
+    const c = createCatalog(memoryStorage());
+    expect(() => c.update('no-existe', { name: 'Nada' })).toThrow();
+    let notified = 0;
+    c.subscribe(() => notified++);
+    c.update('casa-de-adobe', { name: 'Casa de Adobe II' });
+    expect(notified).toBe(1);
+  });
+});
+
+describe('catalog.remove', () => {
+  it('hides a created Lodging from every query, also after a reload', () => {
+    const storage = memoryStorage();
+    const c = createCatalog(storage);
+    const created = c.create('ramon-guaymas', DRAFT);
+    c.remove(created.id);
+
+    for (const reader of [c, createCatalog(storage)]) {
+      expect(reader.byId(created.id)).toBeUndefined();
+      expect(reader.all().map((l) => l.id)).not.toContain(created.id);
+      expect(reader.byOwner('ramon-guaymas').map((l) => l.id)).not.toContain(created.id);
+      expect(reader.byTown('Tilcara').map((l) => l.id)).not.toContain(created.id);
+    }
+  });
+
+  it('tombstones a seeded Lodging without Upcoming Bookings, leaving the seed untouched', () => {
+    const storage = memoryStorage();
+    createCatalog(storage, []).remove('posada-el-algarrobo');
+    expect(createCatalog(storage, []).byId('posada-el-algarrobo')).toBeUndefined();
+    expect(createCatalog(storage, []).byTown('Salta').map((l) => l.id)).toEqual(['casona-guemes']);
+    expect(LODGINGS.some((l) => l.id === 'posada-el-algarrobo')).toBe(true);
+  });
+
+  it('rejects removing a Lodging with an Upcoming Booking and leaves it in place', () => {
+    const c = createCatalog(memoryStorage());
+    expect(() => c.remove('casa-de-adobe')).toThrow();
+    expect(c.byId('casa-de-adobe')).toBeDefined();
+  });
+
+  it('rejects an unknown id', () => {
+    expect(() => createCatalog(memoryStorage()).remove('no-existe')).toThrow();
   });
 });

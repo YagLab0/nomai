@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { pickOption } from './helpers';
+
 async function openLocationStep(page: Page) {
   await page.goto('/app/owner');
   await page.getByRole('button', { name: 'Agregar alojamiento' }).click();
@@ -17,8 +19,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await openLocationStep(page);
 
-    await page.getByLabel('Pueblo o ciudad').click();
-    await page.getByRole('option', { name: 'Tilcara' }).click();
+    await pickOption(page, 'Pueblo o ciudad', 'Tilcara');
 
     // The map measures itself inside the modal and shows the pin at the town center.
     const dialog = page.getByRole('dialog');
@@ -54,8 +55,7 @@ for (const viewport of [
 
 test('the location step requires the street address', async ({ page }) => {
   await openLocationStep(page);
-  await page.getByLabel('Pueblo o ciudad').click();
-  await page.getByRole('option', { name: 'Tilcara' }).click();
+  await pickOption(page, 'Pueblo o ciudad', 'Tilcara');
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByText('Escribí la dirección, con calle y número.')).toBeVisible();
   await expect(page.getByLabel('Dirección')).toBeVisible();
