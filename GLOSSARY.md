@@ -23,16 +23,30 @@ run spends real money on LLM inference and paid data APIs. Product name: *Nomito
 _Avoid_: bot, assistant, Eve
 
 **Lodging**:
-A place an Owner lists for Travelers to book (posada, cabaña, departamento…).
-Priced in its Owner's currency and located in the Owner's country, since every
-Booking settles into the Owner's single-country Ripio account. While it has an
-upcoming Booking it can't be removed or relocated.
+A place an Owner lists for Travelers to book (posada, cabaña, departamento…),
+priced in the Owner's currency and located in the Owner's country. While it has
+an Upcoming Booking it can't be removed or relocated.
 Product Spanish: *alojamiento*.
 _Avoid_: property, listing, hotel
+
+**Storefront**:
+The public page showing one Owner and all of their Lodgings.
+Product Spanish: *escaparate*.
+_Avoid_: profile, shop, store page
 
 **Booking**:
 A paid reservation settled by an x402 payment in wFIAT, direct to the Owner's wallet.
 _Avoid_: reservation, order
+
+**Upcoming Booking**:
+A Booking that is confirmed or in progress: not cancelled, check-out not yet
+passed. Product Spanish: *reserva confirmada* / *en curso*.
+_Avoid_: active booking, pending booking (there is no pending state: payment is confirmation)
+
+**Availability**:
+The nights a Lodging is free to book: every night not covered by an Upcoming
+Booking. Owners can't block nights. Product Spanish: *disponibilidad*.
+_Avoid_: calendar (the UI, not the concept), blocked dates
 
 **Cancellation**:
 A Booking ended before check-in, initiated only by the Traveler, under one global
