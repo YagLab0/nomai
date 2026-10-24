@@ -34,6 +34,8 @@ export type AmenityCategory =
 export type BookingStatus =
   | "pending_payment"
   | "confirmed"
+  | "in_progress"
+  | "claim_open"
   | "cancelled"
   | "completed"
   | "refunded";
