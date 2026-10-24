@@ -96,6 +96,12 @@ head = SectionHeader("Tus viajes")
 metrics = MetricRow([{label: "Pagado", value: "US$ 402", note: "2 reservas"}, {label: "Noches", value: "6"}, {label: "Service fee", value: "US$ 12"}])`,
   },
   {
+    name: "traveler wallet (SectionHeader + MetricRow, after check_wallet)",
+    code: `root = Stack([head, metrics])
+head = SectionHeader("Tu wallet nomai", "celo-sepolia")
+metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", value: "0x9f3c…b21a"}])`,
+  },
+  {
     name: "bare Stack (single inline TextContent child)",
     code: `root = Stack([TextContent("Solo una nota corta")])`,
   },

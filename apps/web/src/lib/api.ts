@@ -157,9 +157,13 @@ export interface ApiQuote {
   nights: ApiQuoteNight[];
   nights_minor: number;
   cleaning_minor: number;
+  /** ADR-0005 Service fee — platform revenue line, on top of the rental. */
+  service_fee_minor: number;
+  /** nights + cleaning + Service fee — what the Traveler actually pays. */
   total_minor: number;
   nights_display: string;
   cleaning_display: string;
+  service_fee_display: string;
   total_display: string;
   currency: string;
 }

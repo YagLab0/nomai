@@ -2,6 +2,9 @@ import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
 import { Client, ClientError } from 'eve/client';
 import type { ClientSession, MessageResponse } from 'eve/client';
 
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
+
 /**
  * ChatModelAdapter backed by the real Nomito agent in apps/agent, reached
  * through the same-origin `/eve/v1/*` routes that `withEve` mounts in Next.
@@ -23,8 +26,34 @@ const SESSION_RETRY_DELAY_MS = 2_000;
 let client: Client | null = null;
 let sessionPromise: Promise<ClientSession> | null = null;
 
+/**
+ * Header carrying the signed-in Traveler's Supabase access token to the Agent,
+ * where Traveler-scoped tools (check_wallet, list_bookings) forward it to the
+ * API as `Authorization: Bearer`. A dedicated header, not `Authorization`: that
+ * one belongs to the Agent's own route auth (vercelOidc). Keep in sync with
+ * apps/agent/agent/lib/traveler-auth.ts.
+ */
+const TRAVELER_TOKEN_HEADER = 'x-nomai-traveler-token';
+
+/**
+ * Resolved before every eve request, so each turn carries the current token
+ * (getSession refreshes an expired one). No Supabase env or no session → no
+ * header: the chat still works and Traveler-scoped tools answer 401.
+ */
+async function travelerHeaders(): Promise<Record<string, string>> {
+  if (!hasSupabaseEnv || typeof window === 'undefined') return {};
+  try {
+    const { data } = await createSupabaseClient().auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { [TRAVELER_TOKEN_HEADER]: token } : {};
+  } catch {
+    return {};
+  }
+}
+
 function getClient(): Client {
-  client ??= new Client({ host: EVE_HOST });
+  // redirect: 'error' keeps the credential header from following a redirect.
+  client ??= new Client({ host: EVE_HOST, headers: travelerHeaders, redirect: 'error' });
   return client;
 }
 

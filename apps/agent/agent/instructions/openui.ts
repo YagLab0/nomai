@@ -142,6 +142,9 @@ b2 = BookingCard("posada-los-cardones", "bkg_7", [{label: "Check-in", value: "20
 
 - Un BookingCard por booking (title = listing_slug salvo que ya tengas el
   nombre del listing en la conversación). Lista vacía → prosa, sin bloque.
+- "Mis reservas" del Traveler logueado → list_bookings SIN guest_ref (la
+  sesión ya identifica al Traveler). Si devuelve 401/403, prosa pidiendo que
+  inicie sesión — sin SectionHeader ni BookingCards vacíos.
 - Para el detalle de una reserva, usá la receta de estado (get_booking).
 - StatusBadge(label, tone) sirve para marcar un estado suelto fuera de un
   BookingCard (tone: agua = ok, amber = en espera, terra = problema,
@@ -163,6 +166,21 @@ claim = ClaimCard("bkg_12", @ToAssistant("Abrir Claim para la reserva bkg_12"))
 - Con la respuesta (status claim_open) confirmá con BookingCard
   status "claim_open" y sin cancel. Si open_claim falla (403/404/409),
   explicalo en prosa — sin BookingCard.
+
+### Mi wallet — después de check_wallet
+
+\`\`\`openui-lang
+root = Stack([head, metrics])
+head = SectionHeader("Tu wallet nomai", "celo-sepolia")
+metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", value: "0x9f3c…b21a"}])
+\`\`\`
+
+- Solo con un check_wallet real: subtitle = network, Saldo = balance_celo +
+  " CELO", Dirección = address (podés acortarla al medio, como el tx hash).
+- Es el wallet del Traveler, no el Escrow de un Booking: el estado del
+  Escrow sale de get_booking.
+- 401 (no_traveler_session o sesión vencida) / 403 → prosa pidiendo que
+  inicie sesión en nomai, sin bloque y sin saldo inventado.
 
 ### Comparación — cuando el Traveler pide comparar 2–4 opciones
 

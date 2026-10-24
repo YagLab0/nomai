@@ -2,22 +2,21 @@
 // talks to listings through this boundary — mock data today, Supabase later —
 // so tools stay identical when the data layer changes underneath.
 
+import type { TravelerAuth } from "./traveler-auth";
 import { paymentFetch, readSettlementReceipt, type SettlementReceipt } from "./x402";
 
 const BASE = () =>
   (process.env.NOMAI_API_URL ?? "http://localhost:3001").replace(/\/+$/, "");
 
 // The Traveler's Supabase access token, sent as `Authorization: Bearer` on
-// user-scoped routes (/credits/* — the API verifies it with the Auth server
-// and the verified user id IS the traveler id). Nothing forwards that token
-// to the Agent today: the eve channel authenticates the Agent's own caller
-// (vercelOidc/localDev) and the web adapter never passes a session token, so
-// until the real-auth ticket lands, NOMAI_TRAVELER_TOKEN is the dev escape
-// hatch. Returns null when unset — the API answers 401 either way.
-export const travelerAuthHeaders = (): Record<string, string> | null => {
-  const token = process.env.NOMAI_TRAVELER_TOKEN;
-  return token ? { authorization: `Bearer ${token}` } : null;
-};
+// user-scoped routes (/credits/*, /wallet/* — the API verifies it with the
+// Auth server and the verified user id IS the traveler id). Resolve the
+// Traveler with travelerAuth(ctx.session.auth.current) from ./traveler-auth:
+// the token the web chat forwarded with this turn, or NOMAI_TRAVELER_TOKEN as
+// the dev override.
+export const travelerAuthHeaders = (traveler: TravelerAuth): Record<string, string> => ({
+  authorization: `Bearer ${traveler.token}`,
+});
 
 export type ApiResult<T> =
   | { ok: true; data: T }
