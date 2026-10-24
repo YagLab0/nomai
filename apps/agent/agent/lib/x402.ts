@@ -1,9 +1,13 @@
 import { getAddress, parseUnits } from "viem";
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 import {
+  agentAccount,
   FACILITATOR_URL,
   NETWORK_CAIP2,
   networkName,
   payeeAddress,
+  RPC_URL,
   TOKENS,
   type TokenDef,
 } from "./celo";
@@ -13,8 +17,9 @@ import {
 // (v1 clients send X-PAYMENT instead of PAYMENT-SIGNATURE — we accept both).
 // Spec: https://docs.x402.org · Celo: https://x402.celo.org/skill.md
 //
-// Dormant until a paid channel uses it — eve channels are Request→Response
-// handlers, so the @x402/hono middleware does not plug in here.
+// The seller half is dormant until a paid channel uses it — eve channels are
+// Request→Response handlers, so the @x402/hono middleware does not plug in
+// here. The buyer half (paymentFetch) is live: see the bottom of this file.
 
 export interface PaymentRequirements {
   scheme: "exact";
@@ -170,4 +175,43 @@ export function paymentResponseHeader(settle: FacilitatorResult): string {
     network: NETWORK_CAIP2[networkName()],
     payer: settle.payer,
   });
+}
+
+// ── Buyer side ──────────────────────────────────────────────────────────────
+// The payment-capable fetch the Agent uses to pay x402-gated endpoints from
+// its wallet (pay_endpoint, book_listing). On a 402 it signs the quoted
+// requirement and retries once; the facilitator sponsors gas, so the wallet
+// only needs the quoted asset. The wallet balance is the hard spend cap.
+
+/** fetch that answers 402 Payment Required by paying from the agent wallet. */
+export function paymentFetch(): typeof fetch {
+  const network = networkName();
+  const client = new x402Client();
+  // The scheme needs chain READ access (permit nonce / allowance for permit2
+  // assets), not just signing — pass an rpcUrl.
+  client.register(
+    "eip155:*",
+    new ExactEvmScheme(agentAccount(), { rpcUrl: RPC_URL[network] }),
+  );
+  return wrapFetchWithPayment(fetch, client);
+}
+
+export interface SettlementReceipt {
+  success?: boolean;
+  transaction?: string;
+  network?: string;
+  payer?: string;
+  [k: string]: unknown;
+}
+
+/** Decodes the PAYMENT-RESPONSE header — the tx hash is the only proof that
+ *  anything actually moved on chain. Null when absent or malformed. */
+export function readSettlementReceipt(res: Response): SettlementReceipt | null {
+  const raw = res.headers.get("payment-response") ?? res.headers.get("x-payment-response");
+  if (!raw) return null;
+  try {
+    return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
 }
