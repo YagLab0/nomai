@@ -13,6 +13,8 @@
     "@assistant-ui/react": "^0.15.31",
     "@heroui/react": "^3.2.6",
     "@heroui/styles": "^3.2.6",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.0.0",
     "next": "^15.5.28",
     "react": "^19.3.1",
