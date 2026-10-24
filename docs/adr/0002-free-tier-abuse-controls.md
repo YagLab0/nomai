@@ -1,3 +1,7 @@
+---
+status: accepted, amended by ADR-0005 (Credits dropped; tiers and ceilings now gate free Agent usage)
+---
+
 # Free credits are released by verification tier, bounded by hard spend ceilings
 
 The Agent's free tier costs real money per search, so the free grant is released in

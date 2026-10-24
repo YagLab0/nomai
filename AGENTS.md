@@ -31,17 +31,24 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 
 ## Business model
 
-Two revenue streams (see `docs/adr/0001`): Credits (*monedas Nomai*) the Traveler
-buys for Agent research, and an FX fee on conversions the Agent executes
-(e.g. wARS→wBRL). Owners are never charged — a Booking's x402 `payTo` is the
-Owner's own wallet; the platform never holds booking funds.
+Two revenue streams (see `docs/adr/0005`): a fixed-percentage Service fee the
+Traveler pays on every Booking (it covers the Agent's cost; Credits / *monedas Nomai*
+are retired), and an FX fee on conversions the Agent executes (e.g. wARS→wBRL).
+Owners are never charged: no subscription, no commission.
 
-Abuse controls (`docs/adr/0002`): free credits release in verification tiers
+Payments (`docs/adr/0006`): a Booking's rental amount goes into an Escrow contract,
+not straight to the Owner. 50% is released to the Owner at the Cancellation
+deadline (5 days before check-in), the rest 24 h after check-in if there is no
+Claim. Cancellation refunds 100% before the deadline, 50% after; the Service fee
+is never refunded. Nomai resolves Claims but can only route funds to that
+Booking's Traveler or Owner.
+
+Abuse controls (`docs/adr/0002`): free Agent usage is gated by verification tiers
 (phone → first Ripio funding or Self passport proof → government ID at Booking),
 with a daily free-tier budget and the agent wallet's balance as hard spend caps.
 
 Domain vocabulary lives in `GLOSSARY.md` — use its terms (Traveler, Owner, Agent,
-Booking, Credit, FX fee) in issues, specs and code comments.
+Booking, Service fee, Escrow, Claim, FX fee) in issues, specs and code comments.
 
 ## Agent skills
 

@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0005 and ADR-0006
+---
+
 # Business model: traveler credits + FX fee; owners never pay; bookings settle direct to owner
 
 Revenue comes from exactly two streams. (1) Credits (*monedas Nomai*) that the
