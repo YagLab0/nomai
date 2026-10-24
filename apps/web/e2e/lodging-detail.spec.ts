@@ -75,7 +75,9 @@ test('a Lodging created in the panel gets its own ficha', async ({ page }) => {
   await page.getByRole('option', { name: 'Humahuaca' }).click();
   await page.getByLabel('Dirección').fill('Tucumán 12');
   await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(page.getByRole('heading', { name: 'Detalles' })).toBeVisible();
   await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(page.getByRole('heading', { name: 'Fotos y precio' })).toBeVisible();
   await page.getByLabel(/Precio por noche/).fill('60000');
   await page.getByRole('button', { name: 'Publicar' }).click();
 

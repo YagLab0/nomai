@@ -38,6 +38,25 @@ export interface LodgingDraft {
   /** The pin the Owner dropped on the map. */
   lat: number;
   lng: number;
+  /** Up to MAX_PHOTOS image sources (data URLs), ordered; the first is the cover. */
+  photos?: string[];
+}
+
+export const MAX_PHOTOS = 5;
+
+/** The browser storage has no room left for this write; nothing was saved. */
+export class CatalogFullError extends Error {
+  constructor() {
+    super('catalog storage is full');
+    this.name = 'CatalogFullError';
+  }
+}
+
+function isQuotaError(e: unknown): boolean {
+  return (
+    e instanceof DOMException &&
+    (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22)
+  );
 }
 
 interface CatalogStorage {
@@ -86,6 +105,10 @@ function buildLodging(owner: Owner, draft: LodgingDraft, taken: Set<string>): Lo
   if (!address) throw new Error('address is required');
   const onGlobe = (n: unknown, max: number) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= max;
   if (!onGlobe(draft.lat, 90) || !onGlobe(draft.lng, 180)) throw new Error('pin is required');
+  const photos = draft.photos ?? [];
+  if (photos.length > MAX_PHOTOS || photos.some((p) => typeof p !== 'string' || !p)) {
+    throw new Error(`at most ${MAX_PHOTOS} photos`);
+  }
 
   const currency = ownerFiat(owner);
 
@@ -115,6 +138,7 @@ function buildLodging(owner: Owner, draft: LodgingDraft, taken: Set<string>): Lo
     address,
     lat: draft.lat,
     lng: draft.lng,
+    ...(photos.length > 0 && { photos: [...photos] }),
   };
 }
 
@@ -152,7 +176,11 @@ export function createCatalog(storage?: CatalogStorage) {
     const lodging = buildLodging(owner, draft, new Set(all().map((l) => l.id)));
     const next = [...createdLodgings(), lodging];
     // Persist first: a storage failure rejects the write with the catalog intact.
-    store.setItem(STORAGE_KEY, JSON.stringify(next));
+    try {
+      store.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch (e) {
+      throw isQuotaError(e) ? new CatalogFullError() : e;
+    }
     created = next;
     snapshot = [...LODGINGS, ...next];
     listeners.forEach((fn) => fn());

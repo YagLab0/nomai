@@ -10,7 +10,7 @@
  */
 
 import { formatBRL, formatNumber } from '@/lib/format';
-import type { PhotoKey } from '@/lib/photos';
+import { PHOTOS, type PhotoKey } from '@/lib/photos';
 
 export type LodgingKind =
   | 'posada'
@@ -855,6 +855,15 @@ export const KIND_LABEL: Record<LodgingKind, string> = {
   hostal: 'Hostal',
   'hotel-boutique': 'Hotel boutique',
 };
+
+/**
+ * The image a card shows: the Owner's own cover (first of `photos`), else the
+ * seed photo; undefined means the card falls back to LodgingArt.
+ */
+export function lodgingCover(l: Lodging): { src: string; alt: string } | undefined {
+  if (l.photos?.length) return { src: l.photos[0], alt: `Foto de ${l.name}` };
+  return l.photo ? PHOTOS[l.photo] : undefined;
+}
 
 export function ownerBySlug(slug: string): Owner | undefined {
   return OWNERS.find((o) => o.slug === slug);

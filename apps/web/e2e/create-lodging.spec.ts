@@ -20,11 +20,13 @@ test('an Owner publishes a Lodging from the panel and it reaches every surface',
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
   // 3. Detalles
+  await expect(page.getByRole('heading', { name: 'Detalles' })).toBeVisible();
   await page.getByLabel('Descripción corta').fill('Cabaña de adobe frente al Pucará.');
   await page.getByLabel('Servicios (uno por línea)').fill('Parrilla\nWifi');
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
-  // 4. Precio
+  // 4. Fotos y precio
+  await expect(page.getByRole('heading', { name: 'Fotos y precio' })).toBeVisible();
   await page.getByLabel(/Precio por noche/).fill('85000');
   await page.getByRole('button', { name: 'Publicar' }).click();
 

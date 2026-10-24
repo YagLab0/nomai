@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { catalog, createCatalog, type LodgingDraft } from '@/lib/catalog';
+import { catalog, CatalogFullError, createCatalog, type LodgingDraft } from '@/lib/catalog';
 import { LODGINGS } from '@/lib/lodgings';
 
 /** In-memory stand-in for localStorage (owner-views §9 testing seam). */
@@ -115,6 +115,33 @@ describe('catalog.create', () => {
 
     const reopened = createCatalog(storage).byId(created.id);
     expect(reopened).toMatchObject({ address: 'Belgrano 450', lat: -23.5781, lng: -65.3959 });
+  });
+
+  it('keeps up to five photos in order, the first being the cover, also after a reload', () => {
+    const storage = memoryStorage();
+    const photos = ['data:image/jpeg;base64,AAA', 'data:image/jpeg;base64,BBB'];
+    const created = createCatalog(storage).create('ramon-guaymas', { ...DRAFT, photos });
+    expect(created.photos).toEqual(photos);
+    expect(createCatalog(storage).byId(created.id)?.photos).toEqual(photos);
+  });
+
+  it('rejects more than five photos', () => {
+    const c = createCatalog(memoryStorage());
+    const photos = Array.from({ length: 6 }, (_, i) => `data:image/jpeg;base64,${i}`);
+    expect(() => c.create('ramon-guaymas', { ...DRAFT, photos })).toThrow();
+    expect(c.byOwner('ramon-guaymas')).toHaveLength(2);
+  });
+
+  it('fails with CatalogFullError and stays unchanged when the browser storage is full', () => {
+    const full = {
+      getItem: () => null,
+      setItem: () => {
+        throw new DOMException('quota', 'QuotaExceededError');
+      },
+    };
+    const c = createCatalog(full);
+    expect(() => c.create('ramon-guaymas', DRAFT)).toThrow(CatalogFullError);
+    expect(c.byOwner('ramon-guaymas')).toHaveLength(2);
   });
 
   it('rejects a draft for an unknown Owner', () => {

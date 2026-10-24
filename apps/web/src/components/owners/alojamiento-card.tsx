@@ -15,8 +15,7 @@ import {
 
 import { StarIcon } from '@/components/icons';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
-import { formatLocalPrice, KIND_LABEL, type Lodging } from '@/lib/lodgings';
-import { PHOTOS } from '@/lib/photos';
+import { formatLocalPrice, KIND_LABEL, lodgingCover, type Lodging } from '@/lib/lodgings';
 
 /** Editable Lodging fields (owner-views §3): name, blurb, amenities, price. */
 export interface AlojamientoDraft {
@@ -127,7 +126,7 @@ export function AlojamientoCard({
   onSave: (draft: AlojamientoDraft) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
+  const photo = lodgingCover(lodging);
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-card bg-white">
@@ -139,6 +138,7 @@ export function AlojamientoCard({
             fill
             sizes="(min-width: 768px) 45vw, 100vw"
             className="object-cover"
+            unoptimized={photo.src.startsWith('data:')}
           />
         ) : (
           <LodgingArt lodging={lodging} className="h-full w-full" />

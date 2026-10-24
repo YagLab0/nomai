@@ -16,8 +16,9 @@ import {
 } from '@heroui/react';
 
 import { CheckIcon, MapPinIcon, MinusIcon, PlusIcon } from '@/components/icons';
+import { PhotoPicker } from '@/components/owners/photo-picker';
 import type { Pin } from '@/components/owners/pin-picker-map';
-import { catalog } from '@/lib/catalog';
+import { catalog, CatalogFullError } from '@/lib/catalog';
 import {
   FIAT_META,
   KIND_LABEL,
@@ -40,7 +41,7 @@ const PinPickerMap = dynamic(() => import('@/components/owners/pin-picker-map'),
  * writes to the catalog — the Lodging is born published.
  */
 
-const STEP_LABELS = ['Básico', 'Ubicación', 'Detalles', 'Precio'] as const;
+const STEP_LABELS = ['Básico', 'Ubicación', 'Detalles', 'Fotos y precio'] as const;
 
 interface Draft {
   name: string;
@@ -55,6 +56,8 @@ interface Draft {
   blurb: string;
   /** Servicios, one per line. */
   amenities: string;
+  /** Compressed data URLs; the first is the cover. */
+  photos: string[];
   price: string;
 }
 
@@ -69,6 +72,7 @@ const EMPTY: Draft = {
   baths: 1,
   blurb: '',
   amenities: '',
+  photos: [],
   price: '',
 };
 
@@ -178,6 +182,7 @@ export function LodgingWizard({
   const [touched, setTouched] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [preparingPhotos, setPreparingPhotos] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
 
@@ -189,7 +194,7 @@ export function LodgingWizard({
     'Nombre, tipo y cuánta gente entra.',
     `Tu cuenta de Ripio es de ${owner.country}, así que el alojamiento tiene que estar ahí.`,
     'Lo que el viajero lee antes de pedirle a Nomito.',
-    `En ${FIAT_META[fiat].name.toLowerCase()}. Cobrás directo, sin comisión.`,
+    `Lo primero que ve el viajero. El precio va en ${FIAT_META[fiat].name.toLowerCase()} y lo cobrás directo, sin comisión.`,
   ];
 
   // Each step swaps the panel's content: move focus there so it's announced.
@@ -223,6 +228,7 @@ export function LodgingWizard({
 
   function back() {
     setTouched(false);
+    setError(null);
     setStep(step - 1);
   }
 
@@ -246,9 +252,14 @@ export function LodgingWizard({
           .split('\n')
           .map((a) => a.trim())
           .filter(Boolean),
+        photos: draft.photos,
       });
-    } catch {
-      setError('No se pudo publicar. Revisá los datos y probá de nuevo.');
+    } catch (e) {
+      setError(
+        e instanceof CatalogFullError
+          ? 'No hay más espacio en este navegador para guardar las fotos. Quitá alguna o elegí otras y probá de nuevo: lo demás queda como lo dejaste.'
+          : 'No se pudo publicar. Revisá los datos y probá de nuevo.',
+      );
       return;
     }
     toast('Alojamiento publicado');
@@ -439,7 +450,13 @@ export function LodgingWizard({
                 )}
 
                 {step === 3 && (
-                  <div className="mt-5">
+                  <div className="mt-5 flex flex-col gap-6">
+                    <PhotoPicker
+                      photos={draft.photos}
+                      onChange={(update) => setDraft((d) => ({ ...d, photos: update(d.photos) }))}
+                      busy={preparingPhotos}
+                      onBusyChange={setPreparingPhotos}
+                    />
                     <TextField
                       isRequired
                       value={draft.price}
@@ -475,7 +492,7 @@ export function LodgingWizard({
                   Siguiente
                 </Button>
               ) : (
-                <Button className="flex-1" onPress={publish}>
+                <Button className="flex-1" onPress={publish} isDisabled={preparingPhotos}>
                   Publicar
                 </Button>
               )}

@@ -6,12 +6,12 @@ import { LodgingArt } from '@/components/marketplace/lodging-art';
 import {
   formatNightPrice,
   KIND_LABEL,
+  lodgingCover,
   ownerOf,
   type Fiat,
   type FxRates,
   type Lodging,
 } from '@/lib/lodgings';
-import { PHOTOS } from '@/lib/photos';
 
 /**
  * Lodging as a ticket: landscape on top, perforated edge, then the stub with
@@ -31,7 +31,7 @@ export function LodgingCard({
   askHref: string;
 }) {
   const owner = ownerOf(lodging);
-  const photo = lodging.photo ? PHOTOS[lodging.photo] : undefined;
+  const photo = lodgingCover(lodging);
 
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-card bg-white transition-shadow hover:shadow-[0_20px_40px_-24px_rgba(143,63,32,0.5)]">
@@ -43,6 +43,7 @@ export function LodgingCard({
             fill
             sizes="(min-width: 1280px) 30vw, (min-width: 640px) 50vw, 100vw"
             className="object-cover"
+            unoptimized={photo.src.startsWith('data:')}
           />
         ) : (
           <LodgingArt lodging={lodging} className="h-full w-full" />
