@@ -16,7 +16,7 @@
 //   POST /bookings/:id/claim                → { ok, booking_id, status }
 // Same ownership proof as cancel: guest_ref (or traveler_id) must match.
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import {
   CLAIM_REASONS,
   cancelBooking,
@@ -27,6 +27,7 @@ import {
   type ClaimErrorCode,
   type ClaimReason,
 } from "./data/index.js";
+import { travelerIdFrom } from "./credits.js";
 
 const bookings = new Hono();
 
@@ -53,18 +54,34 @@ const owner = (q: { guest_ref?: string; traveler_id?: string }) => ({
   traveler_id: q.traveler_id?.trim() || undefined,
 });
 
+// traveler_id is only honored as an ownership proof when the Bearer token
+// verifies it — otherwise anyone could enumerate/cancel a Booking by UUID.
+// guest_ref stays an open possession proof. Returns an error Response or null.
+async function checkTravelerId(c: Context, who: { traveler_id?: string }) {
+  if (!who.traveler_id) return null;
+  const authId = await travelerIdFrom(c);
+  if (!authId) return c.json({ error: "unauthorized" }, 401);
+  if (authId !== who.traveler_id) return c.json({ error: "forbidden" }, 403);
+  return null;
+}
+
 // GET /bookings?guest_ref=&traveler_id= — the caller's Bookings, newest first.
 bookings.get("/", async (c) => {
   const who = owner(c.req.query());
   if (!who.guest_ref && !who.traveler_id)
     return c.json({ error: "guest_ref or traveler_id is required" }, 400);
+  const denied = await checkTravelerId(c, who);
+  if (denied) return denied;
   return c.json({ bookings: await listBookings(who) });
 });
 
 // GET /bookings/:id — full row incl. Escrow dates and Claim state. guest_ref /
 // traveler_id are optional here; when given they must match (403 otherwise).
 bookings.get("/:id", async (c) => {
-  const r = await getBookingDetail(c.req.param("id"), owner(c.req.query()));
+  const who = owner(c.req.query());
+  const denied = await checkTravelerId(c, who);
+  if (denied) return denied;
+  const r = await getBookingDetail(c.req.param("id"), who);
   if (!r.ok)
     return c.json(
       { error: r.error.message, code: r.error.code },
@@ -92,6 +109,8 @@ bookings.post("/:id/claim", async (c) => {
   });
   if (!who.guest_ref && !who.traveler_id)
     return c.json({ error: "guest_ref is required" }, 400);
+  const denied = await checkTravelerId(c, who);
+  if (denied) return denied;
   if (!CLAIM_REASONS.includes(body?.reason as ClaimReason))
     return c.json(
       { error: `reason must be one of ${CLAIM_REASONS.join(", ")}` },
@@ -129,6 +148,11 @@ bookings.post("/:id/cancel", async (c) => {
     guest_ref?: string;
     traveler_id?: string;
   } | null;
+
+  const denied = await checkTravelerId(c, {
+    traveler_id: body?.traveler_id,
+  });
+  if (denied) return denied;
 
   const r = await cancelBooking(c.req.param("id"), {
     guest_ref: body?.guest_ref,

@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import {
   keccak256,
   stringToHex,
@@ -10,6 +10,7 @@ import {
 import { celoSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createSupabaseAdmin } from "./supabase.js";
+import { travelerIdFrom } from "./credits.js";
 
 const router = new Hono();
 
@@ -92,6 +93,16 @@ export async function provisionAgentWallet(travelerId: string) {
   return inserted;
 }
 
+// Auth (same contract as /credits/*): `Authorization: Bearer <Supabase access
+// token>`, verified through the Auth server. No/invalid token → 401; a valid
+// token for a different Traveler than the requested traveler_id → 403.
+async function authorize(c: Context, travelerId: string) {
+  const callerId = await travelerIdFrom(c);
+  if (!callerId) return c.json({ error: "unauthorized" }, 401);
+  if (callerId !== travelerId) return c.json({ error: "forbidden" }, 403);
+  return null;
+}
+
 // POST /wallet/provision - body: { traveler_id: string }
 router.post("/provision", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { traveler_id?: string };
@@ -99,6 +110,8 @@ router.post("/provision", async (c) => {
   if (!travelerId || typeof travelerId !== "string") {
     return c.json({ error: "traveler_id is required" }, 400);
   }
+  const denied = await authorize(c, travelerId);
+  if (denied) return denied;
 
   try {
     const wallet = await provisionAgentWallet(travelerId);
@@ -112,14 +125,24 @@ router.post("/provision", async (c) => {
 // GET /wallet/:traveler_id - returns address & on-chain balance
 router.get("/:traveler_id", async (c) => {
   const travelerId = c.req.param("traveler_id");
+  const denied = await authorize(c, travelerId);
+  if (denied) return denied;
   try {
     const wallet = await provisionAgentWallet(travelerId);
-    let balanceCelo = "0";
+    let balanceCelo: string;
     try {
       const wei = await publicClient.getBalance({ address: wallet.address as Address });
       balanceCelo = formatEther(wei);
     } catch {
-      // If RPC is unreachable, default to 0
+      // An unreachable RPC must never read as an empty wallet.
+      return c.json(
+        {
+          error: "rpc_unreachable",
+          address: wallet.address,
+          network: wallet.network,
+        },
+        502
+      );
     }
 
     return c.json({

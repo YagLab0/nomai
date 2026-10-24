@@ -1010,6 +1010,25 @@ export async function openClaim(
 }
 
 // ---------------------------------------------------------------------------
+// Escrow keeper (ADR-0006) — process_escrow_releases() is executable by
+// service_role only (20261024150000), so it runs through this admin client.
+// Always the supabase backend, regardless of LISTINGS_DATA_SOURCE: the mock
+// has no Escrow ledger to advance.
+// ---------------------------------------------------------------------------
+
+export interface EscrowReleaseResult {
+  ok: boolean;
+  /** Booking ids that had a release (50% or final) posted this run. */
+  released: string[];
+}
+
+export async function processEscrowReleases(): Promise<EscrowReleaseResult> {
+  const { data, error } = await client().rpc("process_escrow_releases");
+  if (error) throw error;
+  return data as unknown as EscrowReleaseResult;
+}
+
+// ---------------------------------------------------------------------------
 // search helpers — copied from the mock repo (city norm, country codes) so the
 // supabase backend filters exactly like the in-memory one.
 // ---------------------------------------------------------------------------

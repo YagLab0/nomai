@@ -10,6 +10,7 @@
 //   7. GET /bookings                → 400 without guest_ref; [] for a fresh one
 //   8. GET /bookings/:id            → 404 for an unknown booking
 //   9. cancel / claim unknown id    → 404; claim with a bad reason → 400
+//  10. /wallet/*, /internal/keeper  → 401 without credentials
 //
 // A paid Booking needs a funded buyer wallet — exercise that with
 // `pnpm api:buy`, not here. Everything above is read-only, so re-runs are safe.
@@ -179,6 +180,16 @@ async function main() {
     reason: "bored",
   });
   assert(badReason.status === 400, `claim bad reason → ${badReason.status}`);
+
+  // 10 ─ auth gates: the smoke carries no token, so every one is a 401
+  step("unauthenticated wallet / keeper → expect 401");
+  const smokeTraveler = "00000000-0000-0000-0000-000000000000";
+  const provision = await post("/wallet/provision", { traveler_id: smokeTraveler });
+  assert(provision.status === 401, `wallet provision → ${provision.status}`);
+  const walletRead = await get(`/wallet/${smokeTraveler}`);
+  assert(walletRead.status === 401, `wallet read → ${walletRead.status}`);
+  const keeperRun = await post("/internal/keeper", {});
+  assert(keeperRun.status === 401, `keeper without secret → ${keeperRun.status}`);
 
   console.log(
     failures === 0

@@ -587,11 +587,12 @@ export function bookListing(slug: string, input: BookInput): BookResult {
     checkout: input.checkout,
     guests: input.guests,
     total_minor: qr.quote.total_minor,
-    status: "confirmed",
+    // Same lifecycle as book_stay(): the row lands pending_payment with the
+    // nights held and an unfunded Escrow; settleMockBooking() confirms it.
+    // The Cancellation deadline sits 5 days before check-in (ADR-0006).
+    status: "pending_payment",
     created_at: new Date().toISOString(),
-    // The mock books already-paid: the Escrow is funded on creation and the
-    // Cancellation deadline sits 5 days before check-in (ADR-0006).
-    escrow_status: "funded",
+    escrow_status: "unfunded",
     cancel_deadline: isoDay(addDays(new Date(`${input.checkin}T00:00:00Z`), -5)),
     first_release_at: null,
     final_release_at: null,
@@ -611,8 +612,52 @@ export function bookListing(slug: string, input: BookInput): BookResult {
   return { ok: true, booking, quote: qr.quote };
 }
 
+// ---------------------------------------------------------------------------
+// payment settle rehearsal. The supabase leg confirms a Booking in the x402
+// onAfterSettle hook (confirm_booking_payment: pending_payment → confirmed,
+// Escrow unfunded → funded) and releases it on settle failure
+// (release_booking). The mock mirrors both — book-payment.ts calls these on
+// the mock leg too — and, so the lifecycle stays deterministic without a
+// facilitator in the loop, a Booking still pending_payment is settled on its
+// FIRST READ after the insert (findBooking: GET /bookings[/:id], cancel,
+// claim). Net effect: POST /book answers 'pending_payment', the very next
+// read shows 'confirmed'. A released Booking is never resurrected.
+// ---------------------------------------------------------------------------
+
+/** pending_payment → confirmed, Escrow funded. No-op in any other status. */
+export function settleMockBooking(id: string): Booking | undefined {
+  const b = bookings.find((x) => x.id === id);
+  if (b?.status === "pending_payment") {
+    b.status = "confirmed";
+    b.escrow_status = "funded";
+  }
+  return b;
+}
+
+/** Settle failed: drop a pending Booking and free its held nights. */
+export function releaseMockBooking(id: string): void {
+  const b = bookings.find((x) => x.id === id);
+  if (b?.status !== "pending_payment") return;
+  b.status = "cancelled";
+  freeNights(b);
+}
+
+function freeNights(b: Booking): void {
+  for (const n of nightsBetween(b.checkin, b.checkout)) {
+    const row = nightIndex.get(`${b.listing_id}|${n}`);
+    if (!row) continue;
+    row.units_available += 1;
+    if (row.status === "booked") row.status = "open";
+  }
+}
+
+/** Every read path goes through here — the first one settles (see above). */
+function findBooking(id: string): Booking | undefined {
+  return settleMockBooking(id);
+}
+
 export function getBookingById(id: string): Booking | undefined {
-  return bookings.find((b) => b.id === id);
+  return findBooking(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -666,7 +711,7 @@ function platformDefaultPolicy() {
 }
 
 export function cancelBooking(id: string, input: CancelInput): CancelResult {
-  const booking = bookings.find((b) => b.id === id);
+  const booking = findBooking(id);
   if (!booking)
     return {
       ok: false,
@@ -728,12 +773,7 @@ export function cancelBooking(id: string, input: CancelInput): CancelResult {
 
   booking.status = "cancelled";
   booking.escrow_status = "refunded";
-  for (const n of nightsBetween(booking.checkin, booking.checkout)) {
-    const row = nightIndex.get(`${booking.listing_id}|${n}`);
-    if (!row) continue;
-    row.units_available += 1;
-    if (row.status === "booked") row.status = "open";
-  }
+  freeNights(booking);
 
   return {
     ok: true,
@@ -897,6 +937,7 @@ export function listBookings(owner: BookingOwner): BookingSummary[] {
   return [...bookings]
     .reverse()
     .filter((b) => mockOwns(b, owner))
+    .map((b) => findBooking(b.id)!)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((b) => toBookingSummary(mockRecord(b)));
 }
@@ -905,7 +946,7 @@ export function getBookingDetail(
   id: string,
   owner?: BookingOwner
 ): BookingDetailResult {
-  const b = bookings.find((x) => x.id === id);
+  const b = findBooking(id);
   if (!b)
     return { ok: false, error: { code: "not_found", message: "booking not found" } };
   if (owner && (owner.guest_ref != null || owner.traveler_id != null) && !mockOwns(b, owner))
@@ -914,7 +955,7 @@ export function getBookingDetail(
 }
 
 export function openClaim(id: string, input: ClaimInput): ClaimResult {
-  const b = bookings.find((x) => x.id === id);
+  const b = findBooking(id);
   if (!b)
     return { ok: false, error: { code: "not_found", message: "booking not found" } };
   if (!mockOwns(b, input))

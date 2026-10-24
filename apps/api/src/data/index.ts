@@ -26,7 +26,7 @@ export type {
   QuoteErrorCode,
   SearchParams,
 } from "./repo.js";
-export { formatMoney } from "./repo.js";
+export { formatMoney, releaseMockBooking, settleMockBooking } from "./repo.js";
 
 import {
   bookListing as mockBookListing,
