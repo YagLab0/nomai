@@ -1,5 +1,17 @@
 # Schema
 
+> **ADR-0005/0006 pivot (migration `…_service_fee_escrow_model.sql`):** Credits
+> are retired — `credit_ledger` is dropped; revenue is a fixed **Service fee**
+> per Booking (`bookings.service_fee_*`) plus the FX fee. Bookings now settle
+> through an **escrow** contract (`bookings.escrow_*`), released 50% at the
+> Cancellation deadline (`cancel_deadline`, default `check_in - 5`) and the
+> rest 24 h after check-in unless a **Claim** (`claim_*`) is open.
+> `payments.kind` distinguishes `charge`/`service_fee`/`fx_fee`/`release`/
+> `refund`. Lifecycle: `pending_payment → confirmed → in_progress → completed`,
+> `claim_open` may sit in between, `cancelled` before check-in. The RPC
+> functions (`book_stay`, `cancel_booking`, `confirm_booking_payment`) predate
+> escrow and need rework when the contract lands.
+
 Two halves living in `public`, all behind Row Level Security:
 
 1. **The publications model** — `businesses` → `properties` → `listings` plus
@@ -87,13 +99,12 @@ One row per `auth.users`. Verification tiers as timestamps (ADR-0002):
 One per Traveler (unique `traveler_id`, ADR-0003): `address`, `network`,
 `erc8004_agent_id`. No keys — custody is an open question.
 
-### `credit_ledger`
+### `credit_ledger` — REMOVED (ADR-0005)
 
-Credits (*monedas Nomai*) as a signed ledger: `amount` +/−, `kind`
-(`purchase`/`free_grant`/`spend`/`refund`/`adjustment`), `stage`
-(`conversation`/`cached_inventory`/`live_query`), optional `booking_id`,
-`reference`, `meta`. Balance = `sum(amount)`; grants are non-withdrawable —
-no transfer kind exists.
+Dropped by the service-fee pivot. Agent research is now free to the Traveler;
+revenue is the Service fee on `bookings` + the FX fee. ADR-0002's verification
+tiers and daily spend ceilings remain — they now gate free Agent usage
+(enforced in api code, not a credits table).
 
 ## RLS
 
