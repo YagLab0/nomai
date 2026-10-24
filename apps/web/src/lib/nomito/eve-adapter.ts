@@ -2,6 +2,8 @@ import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
 import { Client, ClientError } from 'eve/client';
 import type { ClientSession, MessageResponse } from 'eve/client';
 
+import { TOOL_STATUS_KEY, toolLabel } from '@/lib/nomito/tool-status';
+import type { ToolStatusEntry } from '@/lib/nomito/tool-status';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 import { hasSupabaseEnv } from '@/lib/supabase/env';
 
@@ -13,8 +15,10 @@ import { hasSupabaseEnv } from '@/lib/supabase/env';
  * first send and reused afterwards, so the Agent keeps context across Traveler
  * messages. The eve event stream is folded into cumulative assistant-ui
  * content updates. Agent tools stay internal — the narration text and its
- * OpenUI blocks carry the UX. Credits (monedas) were retired by ADR-0005:
- * chat turns are free and never meter or refuse on the ledger.
+ * OpenUI blocks carry the UX; tool calls only surface as a localized live
+ * status line (metadata.custom, see tool-status.ts) while the turn runs.
+ * Credits (monedas) were retired by ADR-0005: chat turns are free and never
+ * meter or refuse on the ledger.
  */
 
 // A path-prefix host makes eve's client issue same-origin relative fetches,
@@ -193,17 +197,20 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
 export const eveAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const steps = new Map<number, StepBuffer>();
-    let emittedText = '';
+    // Insertion-ordered by callId: one entry per action the model invoked.
+    const tools = new Map<string, ToolStatusEntry>();
+    let emittedKey = '';
 
     const snapshot = (): ChatModelRunResult => ({
       content: [{ type: 'text', text: fullText(steps) }],
+      metadata: { custom: { [TOOL_STATUS_KEY]: [...tools.values()] } },
     });
 
     /** Yields nothing twice: content replaces — emit on change only. */
     const pendingUpdate = (): ChatModelRunResult | null => {
-      const text = fullText(steps);
-      if (text === emittedText) return null;
-      emittedText = text;
+      const key = JSON.stringify([fullText(steps), [...tools.values()]]);
+      if (key === emittedKey) return null;
+      emittedKey = key;
       return snapshot();
     };
 
@@ -235,6 +242,18 @@ export const eveAdapter: ChatModelAdapter = {
           case 'message.completed':
             completeMessage(steps, ev.data.stepIndex, ev.data.message);
             break;
+          case 'actions.requested':
+            for (const action of ev.data.actions) {
+              if (action.kind === 'load-skill' || tools.has(action.callId)) continue;
+              const name = 'toolName' in action ? action.toolName : action.name;
+              tools.set(action.callId, { callId: action.callId, label: toolLabel(name), done: false });
+            }
+            break;
+          case 'action.result': {
+            const entry = tools.get(ev.data.result.callId);
+            if (entry) tools.set(entry.callId, { ...entry, done: true });
+            break;
+          }
           case 'turn.failed':
           case 'session.failed':
             outcome = 'failed';
@@ -249,7 +268,7 @@ export const eveAdapter: ChatModelAdapter = {
             outcome = 'completed';
             break;
           default:
-            // actions.requested, reasoning.*, step.*, input.*, task.*,
+            // reasoning.*, step.*, input.*, task.*, action.partial,
             // agent.started: internal to the agent, nothing to render.
             continue;
         }

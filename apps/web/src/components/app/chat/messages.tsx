@@ -3,6 +3,7 @@
 import { MessagePrimitive, useAuiState } from '@assistant-ui/react';
 
 import { OpenUIText } from '@/components/app/chat/openui-text';
+import { ToolStatus } from '@/components/app/chat/tool-status';
 import { NomitoAvatar } from '@/components/nomito-avatar';
 
 /** A failed turn's Traveler-facing notice. */
@@ -35,6 +36,7 @@ export function AssistantMessage() {
       <NomitoAvatar size="sm" className="mt-1" />
       <div className="flex min-w-0 max-w-[90%] flex-1 flex-col items-start gap-2">
         <MessagePrimitive.Parts components={{ Text: OpenUIText }} />
+        <ToolStatus />
         <MessageError />
       </div>
     </MessagePrimitive.Root>
