@@ -107,6 +107,14 @@ export interface CancellationPolicy {
   partial_refund_days: number;
 }
 
+/** ADR-0006: one global rule — full refund until 5 days before check-in, 50% after. */
+export const GLOBAL_CANCELLATION_POLICY = {
+  name: "Global · hasta 5 días antes",
+  full_refund_days: 5,
+  partial_refund_pct: 50,
+  partial_refund_days: 0,
+} as const;
+
 export interface Listing {
   id: string;
   property_id: string;

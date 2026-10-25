@@ -66,7 +66,14 @@ type ListingAmenityRow = Database["public"]["Tables"]["listing_amenities"]["Row"
 type ListingUnitRow = Database["public"]["Tables"]["listing_units"]["Row"];
 type RateRuleRow = Database["public"]["Tables"]["rate_rules"]["Row"];
 type AvailNightRow = Database["public"]["Tables"]["availability_nights"]["Row"];
-import { SERVICE_FEE_PCT } from "./types.js";
+import { GLOBAL_CANCELLATION_POLICY, SERVICE_FEE_PCT } from "./types.js";
+
+/** numeric(9,6) may arrive as a string from PostgREST — coerce, null-safe. */
+function toCoord(v: number | string | null | undefined): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -363,14 +370,6 @@ async function fetchOccupiedNights(listingId: string): Promise<string[]> {
   return (data ?? []).map((r) => r.night);
 }
 
-/** ADR-0006: one global rule — full refund until 5 days before check-in, 50% after. */
-const GLOBAL_POLICY = {
-  name: "nomai-global-5d",
-  full_refund_days: 5,
-  partial_refund_pct: 50,
-  partial_refund_days: 0,
-};
-
 // ---------------------------------------------------------------------------
 // quoting — same precedence + same errors as the mock: availability → rate_rule
 // (highest priority wins on overlap) → base price.
@@ -515,7 +514,6 @@ export async function getListingBySlug(slug: string): Promise<ListingDetail | nu
       )
     : null;
   if (!property || !business) return null;
-  const policy = GLOBAL_POLICY;
 
   const amenities = (
     await fetchListingAmenitiesByIds([listing.id]).then(
@@ -564,18 +562,13 @@ export async function getListingBySlug(slug: string): Promise<ListingDetail | nu
       timezone: property.timezone,
       checkin_time: property.checkin_time,
       checkout_time: property.checkout_time,
+      latitude: toCoord(property.latitude),
+      longitude: toCoord(property.longitude),
     },
     business: { name: business.name, slug: business.slug },
     amenities,
     photos,
-    cancellation_policy: policy
-      ? {
-          name: policy.name,
-          full_refund_days: policy.full_refund_days,
-          partial_refund_pct: policy.partial_refund_pct,
-          partial_refund_days: policy.partial_refund_days,
-        }
-      : undefined,
+    cancellation_policy: { ...GLOBAL_CANCELLATION_POLICY },
     units_available: unitsAvailable,
     occupied,
   };

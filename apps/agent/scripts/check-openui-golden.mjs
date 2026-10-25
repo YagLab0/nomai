@@ -105,6 +105,23 @@ metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", 
     name: "bare Stack (single inline TextContent child)",
     code: `root = Stack([TextContent("Solo una nota corta")])`,
   },
+  {
+    name: "cancel confirm (ApprovalCard with danger option + dismiss)",
+    code: `root = Stack([ask])
+ask = ApprovalCard("¿Cancelás la reserva bkg_12?", [{label: "Sí, cancelarla", value: "confirm", tone: "danger"}, {label: "No, mantenerla", value: "keep"}], @ToAssistant("Decidí sobre la cancelación de la reserva bkg_12"), "Recuperás US$ 208.65 — el Service fee no vuelve", @ToAssistant("Decidir después"))`,
+  },
+  {
+    name: "booking status live (BookingCard + TaskRows + MetricRow)",
+    code: `root = Stack([ticket, rows, escrow])
+ticket = BookingCard("Posada Los Cardones", "bkg_12", [{label: "Check-in", value: "2026-03-12"}, {label: "Check-out", value: "2026-03-15"}, {label: "Total", value: "US$ 208.65"}], "confirmed", @ToAssistant("cancelar reserva bkg_12"))
+rows = TaskRows([{label: "Reservada", status: "done"}, {label: "Pagada", status: "done", detail: "US$ 208.65"}, {label: "Check-in", status: "pending", detail: "2026-03-12"}, {label: "Estadía", status: "pending", detail: "2026-03-15"}, {label: "Fondos liberados", status: "pending", detail: "2026-03-13"}])
+escrow = MetricRow([{label: "Deadline de cancelación", value: "2026-03-07", note: "100% de reembolso hasta acá"}, {label: "1ª liberación", value: "2026-03-07", note: "50% al Owner"}, {label: "Liberación final", value: "2026-03-13", note: "si no hay Claim"}])`,
+  },
+  {
+    name: "top pick (RecommendationCard with alternatives)",
+    code: `root = Stack([pick])
+pick = RecommendationCard("Posada Los Cardones", "La mejor valorada de Cafayate y entra tu grupo de 4", 86, @ToAssistant("Quiero reservar Posada Los Cardones, Cafayate"), [{label: "Cabaña El Molino · US$ 74 / noche", action: @ToAssistant("Contame más de Cabaña El Molino")}, {label: "Hostería del Valle · US$ 95 / noche", action: @ToAssistant("Contame más de Hostería del Valle")}])`,
+  },
 ];
 
 /** Programs that MUST fail validation — guard against a vacuous check.
