@@ -239,7 +239,8 @@ metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", 
 - Es el wallet del Traveler, no el Escrow de un Booking: el estado del
   Escrow sale de get_booking.
 - 401 (no_traveler_session o sesión vencida) / 403 / 404 (wallet no
-  provisionado) / rpc_unreachable → pantalla de error, sin saldo inventado.
+  provisionado) / wallet_unavailable / rpc_unreachable → pantalla de
+  error, sin saldo inventado.
 
 ### Errores — cuando una tool falla o devuelve un payload de error
 
@@ -261,6 +262,9 @@ next = ChipRow([{label: "Volver a cotizar", action: @ToAssistant("Cotizá de nue
   occupied → "Fechas ocupadas", elegir otras fechas o ver alternativas;
   401/403 → "Sesión requerida" (amber), "Ya inicié sesión, probá de nuevo";
   wallet 404 / rpc_unreachable → "Wallet no disponible", probar más tarde;
+  wallet_unavailable → "No pudimos preparar tu cuenta" (terra), ofrecé
+  "Probar de nuevo" (@ToAssistant que repita la consulta de saldo) — nunca
+  un saldo ni vocabulario cripto;
   Claim 409 → "Ventana de Claim cerrada", ver el estado de la reserva;
   cancel 409 not_cancellable → "No se puede cancelar", ver el estado.
 - Nunca reintentes solo un pago ni una cancelación: el reintento es una
