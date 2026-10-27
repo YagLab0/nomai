@@ -71,12 +71,25 @@ _Avoid_: dispute, complaint, ticket
 **Agent wallet**:
 The wallet a Traveler's Agent pays Bookings from. One per Traveler, the same on
 every network, and it comes into existence the first time the Traveler needs it,
-not at signup. The Traveler funds it and sees its balance in local currency, but
-never operates it directly. The verifiable Agent identity belongs to the nomai
-project, not to each Agent wallet.
+not at signup. The Traveler funds it and sees its balances in the fiats the
+wFIAT mirror, but never operates it directly. The verifiable Agent identity
+belongs to the nomai project, not to each Agent wallet.
 _Avoid_: user wallet, account, custodial wallet
 
 ### Money
+
+**wFIAT**:
+Ripio's local-currency stablecoins on Celo, each mirroring its fiat 1:1: wARS,
+wBRL, wCLP, wCOP, wMXN and wPEN. The Traveler always sees balances and prices in
+the fiat, never the token.
+_Avoid_: stablecoins, tokens, crypto balance
+
+**Funding**:
+The Traveler converting local fiat into wFIAT inside their Agent wallet through
+Ripio's ramp. A Traveler may fund in any wFIAT, not only their country's. The
+first Funding marks the Traveler as funded for Tiered verification.
+Product Spanish: *carga*.
+_Avoid_: top-up, deposit, on-ramp (the ramp is the mechanism, not the concept)
 
 **Service fee**:
 The platform's fixed-percentage charge to the Traveler on every Booking, shown as
@@ -98,6 +111,6 @@ _Avoid_: markup, spread (also a market term — ambiguous)
 ### Verification
 
 **Tiered verification**:
-Identity checks that escalate with risk: phone at signup, first Ripio funding or a
+Identity checks that escalate with risk: phone at signup, first Funding or a
 Self passport proof for higher free Agent usage limits, government ID only at
 Booking time.

@@ -141,8 +141,14 @@ as a HeroUI drawer from a top-bar button; nav in the drawer too.
 
 - **Monedas Nomai**: balance (e.g. 42), progress through the verification ladder
   (step 2 of 3 pending: "Cargá saldo por primera vez y sumá 60 monedas").
-- **Tu saldo**: Agent wallet balance in local currency (`R$ 1.920 BRL`), button
-  "Cargar" (no-op toast "Pronto vas a poder cargar con Ripio").
+- **Tu saldo**: Agent wallet wFIAT balances shown as fiat — the Traveler's
+  country wFIAT (even at `$ 0`) plus any other wFIAT with a positive balance —
+  formatted per currency (`$ 25.000 ARS`, `R$ 1.920 BRL`). "Cargar" starts
+  Funding (§15): a step asks the amount and the wFIAT to load (default: the
+  Traveler's country's; all six selectable), asks the country itself the first
+  time (persisted to `travelers.country_code`), then opens the Ripio ramp deep
+  link in a new tab. Refocus/refetch shows the new balance; a first positive
+  balance on any wFIAT marks `travelers.funded_at` (Tiered verification).
 - **Reservas**: next Booking as a mini ticket (`FLN → SLA`, dates, alojamiento,
   "Confirmada"); link "Ver todas" (no-op).
 - **Búsquedas recientes**: 3 past conversations (title + date + monedas spent);
@@ -327,15 +333,26 @@ Destinations: **Argentina, Brasil, Chile, Colombia, México, Perú, Uruguay**.
 `RIPIO_COUNTRIES` in `lib/lodgings.ts` is the single list; `Fiat` is exactly
 their currencies (ARS, BRL, CLP, COP, MXN, PEN, UYU).
 
-**Funding tiers.** Countries where the Ripio Ramps API operates (per
-docs.ripio.com/ramps-api, checked 2026-10-24) — **Argentina, Brasil,
-Colombia, México** — are `RAMP_COUNTRIES`: the Traveler funds the Agent
-wallet through a fiat ramp (bank transfer, Mercado Pago, PSE, PIX). The
-rest — **Chile, Perú, Uruguay** — are `QR_FUNDING_COUNTRIES`, reached
-through the wFIAT stablecoin rail only: the Traveler must already hold a
-wallet (Ripio or any other) and funds with a manual QR transfer inside the
-app. Chile and Uruguay have registered entities but no ramp; Perú has
-neither. `fundingMethod(code)` returns the tier.
+**Funding.** Every Traveler funds the same way: a public deep link into
+Ripio's hosted ramp — `https://ramp.ripio.com/?country=<CC>&chain=42220&
+token=<wFIAT>&amount=<fiat>&address=<agent wallet>` (format confirmed by
+the hackathon sponsor docs, #38). The API builds the link server-side with
+the authenticated Traveler's Agent wallet; `country` is the payer country
+(the Traveler's `country_code`, asked once at the first "Cargar" and
+persisted), `token` is whichever of the six wFIAT the Traveler picks —
+their country's by default, but any is allowed, so a Traveler from a
+country without its own wFIAT (Uruguay) still funds. No partner API or
+credentials are involved: payment method and KYC happen on Ripio's side.
+Whether the ramp accepts every payer `country` is unverified — if it
+rejects one, the Traveler sees it on Ripio's side (known limitation). The
+older `RAMP_COUNTRIES`/`QR_FUNDING_COUNTRIES` split (ramp only for
+AR/BR/CO/MX, manual QR transfer elsewhere) is superseded: it assumed the
+B2B Ramps API and a Traveler-held wallet, which contradicts the no-web3
+model. `fundingMethod(code)` is retired.
+
+Paying a Booking in a wFIAT the Traveler doesn't hold (e.g. funded wARS,
+Booking priced in BRL) is a documented gap until the FX conversion flow
+(ADR-0001) exists — Funding always lands in the token the Traveler picked.
 
 | Destination (tab) | Country | Lodgings in the catalog |
 |---|---|---|

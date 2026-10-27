@@ -6,7 +6,7 @@ status: accepted, amended by ADR-0005 (Credits dropped; tiers and ceilings now g
 
 The Agent's free tier costs real money per search, so the free grant is released in
 tiers instead of all at once: a small amount on phone verification (WhatsApp/SMS,
-VoIP numbers rejected, captcha on web), the rest on first Ripio funding — which
+VoIP numbers rejected, captcha on web), the rest on first Funding — which
 reuses Ripio's own KYC, the only path that covers LATAM national IDs — or on a Self
 proof-of-human. Grants are non-transferable and non-withdrawable, so sybil accounts
 have nothing to resell. Government ID is collected at Booking time (Airbnb's
