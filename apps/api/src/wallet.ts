@@ -10,7 +10,7 @@ import {
 import { celoSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createSupabaseAdmin } from "./supabase.js";
-import { travelerIdFrom } from "./credits.js";
+import { travelerIdFrom } from "./auth.js";
 
 const router = new Hono();
 
@@ -93,7 +93,7 @@ export async function provisionAgentWallet(travelerId: string) {
   return inserted;
 }
 
-// Auth (same contract as /credits/*): `Authorization: Bearer <Supabase access
+// Auth (same contract as /usage/*): `Authorization: Bearer <Supabase access
 // token>`, verified through the Auth server. No/invalid token → 401; a valid
 // token for a different Traveler than the requested traveler_id → 403.
 async function authorize(c: Context, travelerId: string) {

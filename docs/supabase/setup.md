@@ -62,15 +62,21 @@ pnpm dev
 
 ## 6. Test users (e2e)
 
-`supabase/seed.sql` ends with two seeded accounts (kept by `gen-seed.ts`,
-idempotent):
+Two e2e accounts (idempotent):
 
 | Rol | Email | Password |
 |---|---|---|
 | Traveler | `viajera@nomai.dev` | `nomai123` |
 | Owner | `duena@nomai.dev` | `nomai123` |
 
+Auth users are created via the Admin API (SQL inserts into `auth.users`
+can't log in on hosted projects):
+
+```bash
+cd apps/api && node scripts/seed-test-users.mjs   # creates/resets both, links biz_test
+```
+
 The Traveler gets a `travelers` row via the `handle_new_user` trigger; the
-Owner owns `biz_test` → `prop_test` → published listing `posada-test-centro`.
-Apply: `supabase db query --linked --file supabase/seed.sql` (or `db reset`
-locally). The same credentials are listed under the login form.
+script links `biz_test` → `prop_test` → published listing `posada-test-centro`
+to the Owner. Apply `supabase db query --linked --file supabase/seed.sql` for
+inventory data. The same credentials are listed under the login form.

@@ -140,6 +140,8 @@ async function resolvePayTo(context: HTTPRequestContext): Promise<string> {
   const input = await bookingInput(context);
   if (!input) throw new Error("book: missing slug or stay fields");
   // The Owner's own wallet — the platform never holds booking funds.
+  // X402_PAY_TO (PAY_TO) is only the fallback payTo for listings without
+  // a business.payout_address of their own.
   const payTo = (await getListingPayTo(input.slug)) ?? PAY_TO;
   if (!payTo) throw new Error("listing has no payout address");
   return getAddress(payTo);

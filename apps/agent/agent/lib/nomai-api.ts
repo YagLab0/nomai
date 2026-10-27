@@ -9,9 +9,10 @@ const BASE = () =>
   (process.env.NOMAI_API_URL ?? "http://localhost:3001").replace(/\/+$/, "");
 
 // The Traveler's Supabase access token, sent as `Authorization: Bearer` on
-// user-scoped routes (/credits/*, /wallet/* — the API verifies it with the
-// Auth server and the verified user id IS the traveler id). Resolve the
-// Traveler with travelerAuth(ctx.session.auth.current) from ./traveler-auth:
+// user-scoped routes (/usage/*, /wallet/* — Credits were retired by ADR-0005).
+// The API verifies it with the Auth server and the verified user id IS the
+// traveler id. Resolve the Traveler with
+// travelerAuth(ctx.session.auth.current) from ./traveler-auth:
 // the token the web chat forwarded with this turn, or NOMAI_TRAVELER_TOKEN as
 // the dev override.
 export const travelerAuthHeaders = (traveler: TravelerAuth): Record<string, string> => ({

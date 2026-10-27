@@ -330,6 +330,9 @@ function RipioStep({
     setSubmitting(true);
     setErrorMsg(null);
     try {
+      // No payoutAddress: the form doesn't collect one (the Ripio "connect"
+      // above is mocked). The business is created with payout_address = null;
+      // the Owner sets it later from the dashboard (update-payout action).
       const res = await fetch('/api/owners/onboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -338,7 +341,6 @@ function RipioStep({
           kind: draft.kind,
           town: draft.town,
           capacity: draft.capacity,
-          payoutAddress: '0x3a5c7e9b1d2f4a6c8e0b2d4f6a8c0e2b4d6f8a1c',
         }),
       });
 
@@ -346,10 +348,17 @@ function RipioStep({
       if (res.ok && data.business) {
         onDone({ slug: data.business.slug, name: data.business.name });
       } else {
-        // If unauthenticated or warning, still advance gracefully
+        // Demo lever (D7): advance anyway pointing at the seeded Owner so the
+        // wizard can be walked end-to-end without a session — but surface the
+        // real failure instead of swallowing it.
+        console.warn('[owner-join] onboard failed, using demo owner fallback', {
+          status: res.status,
+          error: (data as { error?: string }).error ?? null,
+        });
         onDone({ slug: 'ramon-guaymas', name: draft.name || 'Tu alojamiento' });
       }
-    } catch {
+    } catch (err) {
+      console.warn('[owner-join] onboard request failed, using demo owner fallback', err);
       onDone({ slug: 'ramon-guaymas', name: draft.name || 'Tu alojamiento' });
     } finally {
       setSubmitting(false);
