@@ -564,6 +564,8 @@ export interface BookInput {
   checkout: string;
   guests: number;
   guest_ref?: string;
+  /** Verified Traveler id (supabase leg only — the mock Booking carries none). */
+  traveler_id?: string;
 }
 
 export type BookResult =

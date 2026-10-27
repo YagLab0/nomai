@@ -766,6 +766,7 @@ export async function bookListing(
     p_checkout: input.checkout,
     p_guests: input.guests,
     p_guest_ref: input.guest_ref,
+    p_traveler_id: input.traveler_id,
   });
   if (error) throw error;
   const r = data as unknown as BookStayPayload;

@@ -21,6 +21,7 @@ import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { Hono } from "hono";
 import { CAIP2, CONFIG, NETWORK, facilitator } from "./x402.js";
 import listings from "./listings.js";
+import mcp, { mcpWellKnown } from "./mcp.js";
 import bookings from "./cancellations.js";
 import usage from "./usage.js";
 import wallet from "./wallet.js";
@@ -54,6 +55,12 @@ const paidRoutes: RoutesConfig = {
   // listing's own business.payout_address, never a stale quote.
   [BOOKING_ROUTE_PATTERN]: bookingRouteConfig,
 };
+
+// Read-only MCP server — Bearer-authed (Supabase access token), plus the
+// RFC 9728 protected-resource metadata for OAuth clients. Mounted BEFORE the
+// x402 gate so these routes never see the payment middleware.
+app.route("/mcp", mcp);
+app.route("/", mcpWellKnown);
 
 // Hono runs handlers in registration order, so the gate MUST be registered
 // before the routers it protects — a book handler mounted earlier would

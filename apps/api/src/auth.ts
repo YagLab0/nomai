@@ -33,3 +33,23 @@ export async function travelerIdFrom(c: Context): Promise<string | null> {
   const { data, error } = await supabaseAdmin().auth.getUser(m[1]);
   return error || !data.user ? null : data.user.id;
 }
+
+/**
+ * Optional-Bearer variant for routes where auth enriches rather than gates
+ * (e.g. POST /listings/:slug/book linking the Booking to the caller). No
+ * Authorization header → null. Header present → the verified Traveler id, or
+ * a 401 Response when the token doesn't verify — the caller returns it as-is:
+ *
+ *   const who = await optionalTravelerId(c);
+ *   if (who instanceof Response) return who;
+ *   // who is the verified traveler_id or null
+ */
+export async function optionalTravelerId(
+  c: Context
+): Promise<string | Response | null> {
+  if (!/^Bearer\s+\S+$/i.test(c.req.header("authorization") ?? "")) return null;
+  // A token we cannot verify — bad signature, or no Supabase env on this leg —
+  // is a 401, never a silently-ignored one.
+  const id = await travelerIdFrom(c).catch(() => null);
+  return id ?? c.json({ error: "unauthorized" }, 401);
+}
