@@ -11,7 +11,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { createSupabaseAdmin } from "./supabase.js";
 import { supabaseAdmin, travelerIdFrom } from "./auth.js";
-import { CONFIG, WFIAT } from "./x402.js";
+import { CONFIG, COUNTRY_WFIAT, WFIAT } from "./x402.js";
 
 const router = new Hono();
 
@@ -218,6 +218,136 @@ router.get("/:traveler_id", async (c) => {
       country_code: traveler?.country_code ?? null,
       balances,
     });
+  } catch {
+    return c.json({ error: "wallet_unavailable" }, 503);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Funding — "Cargar" (issue #40)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ripio hosted-ramp base URL — the public deep link confirmed in #38. No
+ * partner credentials: payment method and KYC live on Ripio's side.
+ */
+const RAMP_URL = process.env.RIPIO_RAMP_URL ?? "https://ramp.ripio.com/";
+
+/**
+ * Minimum Funding amount per fiat currency, in fiat units (the ramp's
+ * `amount` is fiat). `FUNDING_MIN_<FIAT>` overrides per currency; the
+ * defaults sit near USD 5 so the Traveler meets the floor here, not after
+ * arriving at Ripio.
+ */
+const FUNDING_MIN: Record<string, number> = {
+  ARS: 5_000,
+  BRL: 25,
+  CLP: 5_000,
+  COP: 20_000,
+  MXN: 100,
+  PEN: 20,
+};
+
+const fundingMin = (fiat: string): number => {
+  const n = Number(process.env[`FUNDING_MIN_${fiat}`]);
+  return Number.isFinite(n) && n > 0 ? n : (FUNDING_MIN[fiat] ?? 1);
+};
+
+// POST /wallet/:traveler_id/funding-link — builds the Funding deep link.
+// Body: { amount, currency, country? }. `currency` is the fiat the Traveler
+// picked — any of the six wFIAT, not only their country's. `country` is the
+// payer country: persisted to travelers.country_code while it is still null
+// and never asked again; the stored value always wins. The answer is the
+// Ripio ramp URL with payer country, Celo chain id, chosen wFIAT, amount and
+// the Traveler's own Agent wallet as destination — the address exists only
+// server-side and inside that URL. Each issued link is logged with
+// traveler_id, amount, currency and network — never the full address nor
+// key material.
+router.post("/:traveler_id/funding-link", async (c) => {
+  const travelerId = c.req.param("traveler_id");
+  const denied = await authorize(c, travelerId);
+  if (denied) return denied;
+
+  const body = (await c.req.json().catch(() => null)) as {
+    amount?: number | string;
+    currency?: unknown;
+    country?: unknown;
+  } | null;
+
+  const amount = Number(body?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return c.json({ error: "invalid_amount" }, 400);
+  }
+
+  const fiat = String(body?.currency ?? "")
+    .trim()
+    .toUpperCase();
+  if (!Object.values(COUNTRY_WFIAT).some((w) => w.fiat === fiat)) {
+    return c.json({ error: "unsupported_currency" }, 400);
+  }
+  const wfiat = WFIAT.find((t) => t.fiat === fiat);
+  if (!wfiat) {
+    // No wFIAT exists off mainnet — a defined failure, not a 400.
+    return c.json(
+      { error: "currency_unavailable", network: CONFIG.name },
+      404
+    );
+  }
+  const min = fundingMin(fiat);
+  if (amount < min) {
+    return c.json({ error: "invalid_amount", min }, 400);
+  }
+
+  const rawCountry = body?.country;
+  const country =
+    rawCountry == null ? undefined : String(rawCountry).trim().toUpperCase();
+  if (country !== undefined && !/^[A-Z]{2}$/.test(country)) {
+    return c.json({ error: "invalid_country" }, 400);
+  }
+
+  try {
+    const { data: traveler, error: travelerError } = await supabaseAdmin()
+      .from("travelers")
+      .select("country_code")
+      .eq("id", travelerId)
+      .maybeSingle();
+    if (travelerError) throw travelerError;
+
+    // The payer country persists once — the conditional update keeps any
+    // value that landed first, so a repeated answer never rewrites it.
+    // Bookkeeping must not fail the link — a failed write only logs.
+    if (!traveler?.country_code && country) {
+      const { error: countryError } = await supabaseAdmin()
+        .from("travelers")
+        .update({ country_code: country })
+        .eq("id", travelerId)
+        .is("country_code", null);
+      if (countryError) {
+        console.error(
+          `country_code persist failed for traveler ${travelerId}: ${countryError.message}`
+        );
+      }
+    }
+    const payer = traveler?.country_code ?? country;
+    if (!payer) {
+      return c.json({ error: "country_required" }, 400);
+    }
+
+    // Tapping "Cargar" is a wallet action (ADR-0003): the Agent wallet is
+    // created here if the Traveler does not have one yet.
+    const wallet = await provisionAgentWallet(travelerId);
+
+    const url = new URL(RAMP_URL);
+    url.searchParams.set("country", payer);
+    url.searchParams.set("chain", String(CONFIG.chain.id));
+    url.searchParams.set("token", wfiat.token.toUpperCase());
+    url.searchParams.set("amount", String(amount));
+    url.searchParams.set("address", wallet.address);
+
+    console.log(
+      `funding link issued: traveler=${travelerId} amount=${amount} currency=${fiat} network=${CONFIG.name}`
+    );
+    return c.json({ ok: true, url: url.toString() });
   } catch {
     return c.json({ error: "wallet_unavailable" }, 503);
   }

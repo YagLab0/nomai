@@ -1,8 +1,8 @@
-// E2E smoke for the Agent wallet API (issues #33 and #39) — run with
+// E2E smoke for the Agent wallet API (issues #33, #39 and #40) — run with
 // `pnpm smoke:wallet` while `pnpm api:dev` is up (NOMAI_API_URL overrides
 // the base).
 //
-// Creates two throwaway auth users (the handle_new_user trigger makes their
+// Creates throwaway auth users (the handle_new_user trigger makes their
 // travelers rows), signs them in for Bearer tokens, then walks the surface:
 //
 //   1. fresh Traveler                     → no agent_wallets row yet
@@ -17,13 +17,20 @@
 //      balances → funded_at stays null; first positive wFIAT → funded_at
 //      marked; later reads never rewrite it; a pre-seeded funded_at survives;
 //      stub down → rpc_unreachable
-//   7. a second API spawned without AGENT_WALLET_MASTER_SECRET
-//      → wallet_unavailable, no row
+//   6b. POST /wallet/:id/funding-link on that same mainnet instance (#40):
+//      no token → 401; B's token on A's path → 403; bad amount/currency →
+//      400; first link persists travelers.country_code and answers the
+//      Ripio ramp URL (payer country, chain 42220, wFIAT, amount, A's own
+//      Agent wallet); the stored country wins on later links; a Traveler
+//      without an Agent wallet gets one.
+//   7. POST /funding-link on testnet → currency_unavailable, and on a
+//      mainnet API without AGENT_WALLET_MASTER_SECRET → wallet_unavailable,
+//      no row
 //
 // Extra instances spawn the API itself on the next ports: unsetting an env
 // var is not enough (dotenv would reload it from .env), so children get
 // explicit overrides — AGENT_WALLET_MASTER_SECRET="", X402_NETWORK=mainnet,
-// X402_RPC=<stub>. Cleanup deletes the wallet rows and both auth users
+// X402_RPC=<stub>. Cleanup deletes the wallet rows and all auth users
 // (cascades to travelers).
 
 import { createClient } from "@supabase/supabase-js";
@@ -71,11 +78,16 @@ const call = async (
   method: string,
   path: string,
   token?: string,
-  base = BASE
+  base = BASE,
+  body?: unknown
 ) => {
   const res = await fetch(`${base}${path}`, {
     method,
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, body: await res.json().catch(() => null) };
 };
@@ -94,6 +106,19 @@ const fundedAt = async (travelerId: string): Promise<string | null> => {
     .single();
   return data?.funded_at ?? null;
 };
+
+const countryCode = async (travelerId: string): Promise<string | null> => {
+  const { data } = await admin
+    .from("travelers")
+    .select("country_code")
+    .eq("id", travelerId)
+    .single();
+  return data?.country_code ?? null;
+};
+
+/** Parsed URL params of a funding-link response body (null when absent). */
+const linkParams = (body: { url?: string } | null) =>
+  body?.url ? new URL(body.url) : null;
 
 async function makeTraveler(email: string) {
   const password = `smoke-${Math.random().toString(36).slice(2)}A1!`;
@@ -347,6 +372,157 @@ async function main() {
         `no country needed: ${JSON.stringify(seededRead.body?.country_code)}`
       );
 
+      // -- funding-link (issue #40): the "Cargar" deep link -----------------
+      // The link route touches no chain — the stub only serves the GETs above.
+
+      step("funding-link without token → 401");
+      const linkNoAuth = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        undefined,
+        stubBase,
+        { amount: 95000, currency: "ARS" }
+      );
+      assert(linkNoAuth.status === 401, `got ${linkNoAuth.status}`);
+
+      step("funding-link with B's token on A's path → 403");
+      const linkWrong = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        b.token,
+        stubBase,
+        { amount: 95000, currency: "ARS" }
+      );
+      assert(linkWrong.status === 403, `got ${linkWrong.status}`);
+
+      step("funding-link: invalid amounts → 400");
+      for (const bad of [{ amount: -5 }, { amount: 0 }, { amount: "abc" }]) {
+        const res = await call(
+          "POST",
+          `/wallet/${a.id}/funding-link`,
+          a.token,
+          stubBase,
+          { ...bad, currency: "ARS" }
+        );
+        assert(
+          res.status === 400 && res.body?.error === "invalid_amount",
+          `amount ${JSON.stringify(bad.amount)}: got ${res.status} ${JSON.stringify(res.body)}`
+        );
+      }
+      const belowMin = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        a.token,
+        stubBase,
+        { amount: 100, currency: "ARS" }
+      );
+      assert(
+        belowMin.status === 400 && belowMin.body?.error === "invalid_amount",
+        `below min: got ${belowMin.status} ${JSON.stringify(belowMin.body)}`
+      );
+
+      step("funding-link: unsupported currency → 400");
+      const badCurrency = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        a.token,
+        stubBase,
+        { amount: 95000, currency: "EUR" }
+      );
+      assert(
+        badCurrency.status === 400 &&
+          badCurrency.body?.error === "unsupported_currency",
+        `got ${badCurrency.status} ${JSON.stringify(badCurrency.body)}`
+      );
+
+      step("funding-link: first link persists the payer country");
+      const link = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        a.token,
+        stubBase,
+        { amount: 95000, currency: "BRL", country: "UY" }
+      );
+      const linkUrl = linkParams(link.body);
+      assert(
+        link.status === 200 && link.body?.ok === true && linkUrl !== null,
+        `got ${link.status} ${JSON.stringify(link.body)}`
+      );
+      if (linkUrl) {
+        assert(
+          `${linkUrl.origin}${linkUrl.pathname}` === "https://ramp.ripio.com/" &&
+            linkUrl.searchParams.get("country") === "UY" &&
+            linkUrl.searchParams.get("chain") === "42220" &&
+            linkUrl.searchParams.get("token") === "WBRL" &&
+            linkUrl.searchParams.get("amount") === "95000" &&
+            linkUrl.searchParams.get("address") === address,
+          `url ${linkUrl.toString()}`
+        );
+      }
+      assert(
+        (await countryCode(a.id)) === "UY",
+        `country_code persisted: ${await countryCode(a.id)}`
+      );
+
+      step("funding-link: the stored country wins — never re-asked");
+      const relink = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        a.token,
+        stubBase,
+        // A later `country` must not rewrite the stored UY nor reach the URL.
+        { amount: 10000, currency: "ARS", country: "BR" }
+      );
+      const relinkUrl = linkParams(relink.body);
+      assert(
+        relink.status === 200 &&
+          relinkUrl?.searchParams.get("country") === "UY" &&
+          relinkUrl?.searchParams.get("token") === "WARS" &&
+          relinkUrl?.searchParams.get("amount") === "10000",
+        `got ${relink.status} ${JSON.stringify(relink.body)}`
+      );
+      assert(
+        (await countryCode(a.id)) === "UY",
+        `stored country overwritten: ${await countryCode(a.id)}`
+      );
+
+      step("funding-link: malformed country → 400");
+      const badCountry = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        a.token,
+        stubBase,
+        { amount: 95000, currency: "ARS", country: "XXL" }
+      );
+      assert(
+        badCountry.status === 400 &&
+          badCountry.body?.error === "invalid_country",
+        `got ${badCountry.status} ${JSON.stringify(badCountry.body)}`
+      );
+
+      step("funding-link: a Traveler without an Agent wallet gets one");
+      const d = await makeTraveler(`smoke-wallet-d-${stamp}@example.com`);
+      ids.push(d.id);
+      assert(
+        (await walletRows(d.id)).data?.length === 0,
+        "no wallet row before the link"
+      );
+      const dLink = await call(
+        "POST",
+        `/wallet/${d.id}/funding-link`,
+        d.token,
+        stubBase,
+        { amount: 6000, currency: "ARS", country: "AR" }
+      );
+      const dRows = await walletRows(d.id);
+      const dUrl = linkParams(dLink.body);
+      assert(
+        dLink.status === 200 &&
+          dRows.data?.length === 1 &&
+          dUrl?.searchParams.get("address") === dRows.data[0].address,
+        `got ${dLink.status} ${JSON.stringify(dLink.body)} rows ${JSON.stringify(dRows.data)}`
+      );
+
       step("stub: RPC down → rpc_unreachable, never a zero");
       stub.close();
       const down = await call("GET", `/wallet/${b.id}`, b.token, stubBase);
@@ -360,17 +536,39 @@ async function main() {
     }
 
     // -- testnet has no wFIAT: currency_unavailable ---------------------------
-    if (baseNetwork !== "testnet") {
-      step("forced testnet api → currency_unavailable");
+    const assertCurrencyUnavailable = async (base: string) => {
+      const res = await call("GET", `/wallet/${a.id}`, a.token, base);
+      assert(
+        res.status === 404 && res.body?.error === "currency_unavailable",
+        `GET got ${res.status} ${JSON.stringify(res.body)}`
+      );
+      const link = await call(
+        "POST",
+        `/wallet/${a.id}/funding-link`,
+        a.token,
+        base,
+        { amount: 95000, currency: "ARS", country: "AR" }
+      );
+      assert(
+        link.status === 404 && link.body?.error === "currency_unavailable",
+        `link got ${link.status} ${JSON.stringify(link.body)}`
+      );
+    };
+    if (baseNetwork === "testnet") {
+      step("testnet api → currency_unavailable (balance and link)");
+      await assertCurrencyUnavailable(BASE);
+    } else {
+      step("forced testnet api → currency_unavailable (balance and link)");
       const testnetPort = BASE_PORT + 3;
       const testnetBase = `http://localhost:${testnetPort}`;
-      const testnet = await spawnApi(testnetPort, { X402_NETWORK: "testnet" });
+      // X402_ASSETS must be re-declared: the local .env lists mainnet-only
+      // tokens, which x402.ts rejects at boot on a testnet instance.
+      const testnet = await spawnApi(testnetPort, {
+        X402_NETWORK: "testnet",
+        X402_ASSETS: "usdc",
+      });
       try {
-        const res = await call("GET", `/wallet/${a.id}`, a.token, testnetBase);
-        assert(
-          res.status === 404 && res.body?.error === "currency_unavailable",
-          `got ${res.status} ${JSON.stringify(res.body)}`
-        );
+        await assertCurrencyUnavailable(testnetBase);
       } finally {
         testnet.kill();
       }
@@ -379,20 +577,31 @@ async function main() {
     step(`API without AGENT_WALLET_MASTER_SECRET (:${BASE_PORT + 1}) → wallet_unavailable`);
     const nosecret = await spawnApi(BASE_PORT + 1, {
       AGENT_WALLET_MASTER_SECRET: "",
+      // wallet_unavailable must be reachable: on testnet the funding-link
+      // route stops at currency_unavailable before provisioning, so this
+      // instance runs mainnet (no RPC needed — provisioning fails first).
+      X402_NETWORK: "mainnet",
     });
     try {
       // A fresh traveler: the failed instance must not create a wallet row.
       const c = await makeTraveler(`smoke-wallet-c-${stamp}@example.com`);
       ids.push(c.id);
-      const res = await call(
-        "GET",
-        `/wallet/${c.id}`,
-        c.token,
-        `http://localhost:${BASE_PORT + 1}`
-      );
+      const nosecretBase = `http://localhost:${BASE_PORT + 1}`;
+      const res = await call("GET", `/wallet/${c.id}`, c.token, nosecretBase);
       assert(
         res.status === 503 && res.body?.error === "wallet_unavailable",
         `got ${res.status} ${JSON.stringify(res.body)}`
+      );
+      const link = await call(
+        "POST",
+        `/wallet/${c.id}/funding-link`,
+        c.token,
+        nosecretBase,
+        { amount: 95000, currency: "ARS", country: "AR" }
+      );
+      assert(
+        link.status === 503 && link.body?.error === "wallet_unavailable",
+        `link got ${link.status} ${JSON.stringify(link.body)}`
       );
       const rowsC = await walletRows(c.id);
       assert(
