@@ -10,6 +10,7 @@
     "buy": "tsx src/buyer.ts",
     "smoke:listings": "tsx scripts/smoke-listings.ts",
     "smoke:usage": "tsx scripts/smoke-usage.ts",
+    "seed:test-users": "node scripts/seed-test-users.mjs",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit"
   },

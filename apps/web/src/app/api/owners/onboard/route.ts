@@ -73,7 +73,14 @@ export async function POST(request: Request) {
     const action = body.action || (body.slug ? 'claim' : 'create');
 
     // -------------------------------------------------------------------------
-    // 1. Claim an existing business (e.g. seeded Ramon Guaymas)
+    // 1. Claim an existing business (e.g. seeded Ramon Guaymas).
+    //
+    // DEMO LEVER (decisions D7), kept knowingly: any authenticated user can
+    // attach themselves to ANY business whose user_id is null — there is no
+    // proof-of-ownership step. That is what lets the Owner wizard run
+    // end-to-end against seeded, unclaimed businesses, but it is not a
+    // production claim flow: a real one would verify the Owner controls the
+    // business (invite, e-mail domain, ops review) before setting user_id.
     // -------------------------------------------------------------------------
     if (action === 'claim') {
       const slug = body.slug || 'ramon-guaymas';

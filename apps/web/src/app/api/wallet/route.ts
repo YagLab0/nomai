@@ -19,6 +19,9 @@ export async function GET() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -44,15 +47,19 @@ export async function GET() {
       // Auto-provision via API
       await fetch(`${API_URL}/wallet/provision`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
         body: JSON.stringify({ traveler_id: user.id }),
       }).catch(() => null);
     }
 
-    // Fetch on-chain balance via API
+    // Fetch on-chain balance via API (Bearer-gated on traveler_id).
+    const bearer = { Authorization: `Bearer ${session?.access_token ?? ''}` };
     let balanceNumber = 0;
     try {
-      const res = await fetch(`${API_URL}/wallet/${user.id}`, { cache: 'no-store' });
+      const res = await fetch(`${API_URL}/wallet/${user.id}`, { cache: 'no-store', headers: bearer });
       if (res.ok) {
         const info = await res.json();
         balanceNumber = parseFloat(info.balance ?? '0') || 0;

@@ -12,10 +12,9 @@
 > `claim_open` may sit in between, `cancelled` before check-in. All RPCs are
 > escrow-aware and locked down: EXECUTE is revoked from PUBLIC/anon/
 > authenticated and granted to `service_role` only (migrations
-> `…_escrow_rpcs_restore_and_lockdown.sql` and
-> `…_agent_usage_currencies.sql`), so every call goes through `apps/api` —
-> except `cancel_booking`, which stays callable and self-authorizes via
-> `guest_ref`/`traveler_id`.
+> `…_escrow_rpcs_restore_and_lockdown.sql`, `…_agent_usage_currencies.sql`
+> and `…_cancel_booking_lockdown.sql`), so every call goes through
+> `apps/api`.
 
 Two halves living in `public`, all behind Row Level Security:
 
@@ -170,9 +169,12 @@ secret key, which bypasses RLS — that's why most tables carry no
 insert/update policies.
 
 The same lockdown applies to the `security definer` RPCs: EXECUTE on
-`book_stay`, `confirm_booking_payment`, `release_booking`, `open_claim`,
-`resolve_claim` and `process_escrow_releases` is revoked from
+`book_stay`, `cancel_booking`, `confirm_booking_payment`, `release_booking`,
+`open_claim`, `resolve_claim` and `process_escrow_releases` is revoked from
 PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST
 can't reach them; `apps/api` calls them with the secret key.
-`cancel_booking` is the exception (Traveler-initiated): it stays callable
-and checks `p_guest_ref`/`p_traveler_id` against the booking itself.
+Traveler-initiated cancellation (ADR-0004) goes through
+`POST /bookings/:id/cancel`, where the Bearer token is verified and matched
+to the Traveler before `cancel_booking` runs — the function's own
+`p_guest_ref`/`p_traveler_id` check stays as a second layer inside the same
+transaction.

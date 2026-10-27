@@ -12,6 +12,9 @@ export async function POST() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     // A wallet can only be provisioned for the signed-in Traveler — the
     // session user id IS the traveler id. Any traveler_id in the request
@@ -23,7 +26,11 @@ export async function POST() {
 
     const res = await fetch(`${API_URL}/wallet/provision`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // The API verifies the Traveler via Bearer token (src/auth.ts).
+        Authorization: `Bearer ${session?.access_token ?? ''}`,
+      },
       body: JSON.stringify({ traveler_id: user.id }),
     });
 
