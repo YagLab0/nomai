@@ -72,7 +72,7 @@ const listingCardProps = z.object({
   city: z.string(),
   /** Display-ready nightly price, e.g. "US$ 76 / noche" or "$ 95.000 / noche". */
   price: z.string(),
-  /** Trust chip, e.g. "directo con el dueño". */
+  /** Trust chip, e.g. "pago en garantía". */
   badge: z.string().optional(),
   choose: action(),
   blurb: z.string().optional(),

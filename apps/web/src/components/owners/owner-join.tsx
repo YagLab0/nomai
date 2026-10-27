@@ -369,8 +369,8 @@ function RipioStep({
     <div>
       <h2 className="font-brand text-3xl font-medium leading-tight text-ink">Conectá tu cuenta de Ripio</h2>
       <p className="mt-2 text-ink-muted">
-        Las reservas de {draft.name || 'tu alojamiento'} se pagan directo en tu cuenta de Ripio. nomai no toca la plata
-        en ningún momento.
+        Las reservas de {draft.name || 'tu alojamiento'} se liberan en tu cuenta de Ripio por etapas. nomai no toca la
+        plata en ningún momento.
       </p>
 
       {errorMsg && (
@@ -399,7 +399,7 @@ function RipioStep({
               </span>
               <div>
                 <p className="font-brand text-xl font-medium text-ink">Cuenta de Ripio conectada</p>
-                <p className="mt-0.5 text-sm text-ink-muted">0x3a5c…8a1c · Cada reserva te llega acá al instante.</p>
+                <p className="mt-0.5 text-sm text-ink-muted">0x3a5c…8a1c · Cada reserva se libera acá por etapas.</p>
               </div>
             </div>
             <button

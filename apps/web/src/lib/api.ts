@@ -85,6 +85,8 @@ export interface ApiListingDetail {
     partial_refund_days: number;
   };
   units_available?: number;
+  /** Unavailable nights (YYYY-MM-DD) from today on — blocked or sold out. */
+  occupied?: string[];
   rating?: number;
   reviews?: number;
   owner_name?: string;

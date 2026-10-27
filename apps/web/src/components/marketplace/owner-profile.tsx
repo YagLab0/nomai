@@ -57,10 +57,10 @@ export function OwnerProfile({
 
       <aside className="relative rounded-card border-2 border-dashed border-sand bg-paper p-5">
         <p className="font-brand text-lg font-medium leading-snug text-ink">
-          Cobra directo, sin comisión, al instante en su moneda
+          Cobra sin comisión, en su moneda
         </p>
         <p className="mt-2 text-sm text-ink-muted">
-          Tu reserva se paga a {owner.name.split(' ')[0]}, no a nosotros.
+          Tu pago queda en garantía y se libera a {owner.name.split(' ')[0]} por etapas.
         </p>
       </aside>
     </section>

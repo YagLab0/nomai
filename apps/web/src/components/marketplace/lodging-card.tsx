@@ -130,7 +130,7 @@ export function LodgingCard({
               </span>
             </p>
             <p className="mt-1 inline-flex rounded-full bg-agua-soft px-2 py-0.5 text-xs font-medium text-agua">
-              directo con el dueño
+              pago en garantía
             </p>
           </div>
           <Link

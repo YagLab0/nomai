@@ -31,9 +31,9 @@ cortas, nunca la respuesta completa.
 
 \`\`\`openui-lang
 root = Stack([note, card1, card2, refinements])
-note = TextContent("3 opciones en Cafayate, todas directo con el dueño", "small")
-card1 = ListingCard("Posada Los Cardones", "Cafayate", "US$ 60 / noche", "directo con el dueño", @ToAssistant("Quiero reservar Posada Los Cardones, Cafayate"), "Patio interno con parrilla", "CRD", "https://ejemplo.com/cover1.jpg")
-card2 = ListingCard("Cabaña El Molino", "Cafayate", "US$ 74 / noche", "directo con el dueño", @ToAssistant("Quiero reservar Cabaña El Molino, Cafayate"), "Molino restaurado con vista a la quebrada", "MOL", "https://ejemplo.com/cover2.jpg")
+note = TextContent("3 opciones en Cafayate, todas pago en garantía", "small")
+card1 = ListingCard("Posada Los Cardones", "Cafayate", "US$ 60 / noche", "pago en garantía", @ToAssistant("Quiero reservar Posada Los Cardones, Cafayate"), "Patio interno con parrilla", "CRD", "https://ejemplo.com/cover1.jpg")
+card2 = ListingCard("Cabaña El Molino", "Cafayate", "US$ 74 / noche", "pago en garantía", @ToAssistant("Quiero reservar Cabaña El Molino, Cafayate"), "Molino restaurado con vista a la quebrada", "MOL", "https://ejemplo.com/cover2.jpg")
 refinements = ChipRow([{label: "Solo posadas", action: @ToAssistant("Mostrame solo posadas en Cafayate")}, {label: "Otra zona", action: @ToAssistant("Buscame opciones en otra zona")}])
 \`\`\`
 

@@ -4,11 +4,13 @@ import {
   formatAmount,
   formatLocalPrice,
   isNorte,
+  LODGINGS,
   type Lodging,
 } from '@/lib/lodgings';
 import { apiCardToLodging } from '@/lib/api-mapping';
 import type { ApiListingCard, ApiQuote } from '@/lib/api';
 import { catalog } from '@/lib/catalog';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
 
 /**
  * Mock Nomito chat adapter: streams responses with OpenUI Lang programs.
@@ -62,14 +64,18 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
 }
 
 async function fetchCatalog(): Promise<Lodging[]> {
+  // In Supabase mode the API list is the inventory — the browser catalog
+  // stays a pure no-Supabase fallback so stale localStorage can't leak in.
   try {
     const res = await fetch('/api/listings');
-    if (!res.ok) return catalog.all();
+    if (!res.ok) return hasSupabaseEnv ? LODGINGS : catalog.all();
     const body = (await res.json()) as { results?: ApiListingCard[] };
-    // Lodgings the Owner created, edited or deleted in this browser merge over the API list.
-    return catalog.overlay((body?.results ?? []).map(apiCardToLodging));
+    // Lodgings the Owner created, edited or deleted in this browser merge
+    // over the API list (no-Supabase mode only).
+    const results = (body?.results ?? []).map(apiCardToLodging);
+    return hasSupabaseEnv ? results : catalog.overlay(results);
   } catch {
-    return catalog.all();
+    return hasSupabaseEnv ? LODGINGS : catalog.all();
   }
 }
 
@@ -114,7 +120,7 @@ function shortlistProgram(options: Lodging[]): string {
   const cards = options
     .map(
       (l, i) =>
-        `c${i} = ListingCard("${esc(l.name)}", "${esc(l.city)}", "${esc(formatLocalPrice(l))} / noche", "directo con el dueño", @ToAssistant("Quiero reservar ${esc(l.name)}, ${esc(l.city)}"), "${esc(l.blurb)}", "${esc(l.code ?? l.city)}")`,
+        `c${i} = ListingCard("${esc(l.name)}", "${esc(l.city)}", "${esc(formatLocalPrice(l))} / noche", "pago en garantía", @ToAssistant("Quiero reservar ${esc(l.name)}, ${esc(l.city)}"), "${esc(l.blurb)}", "${esc(l.code ?? l.city)}")`,
     )
     .join('\n');
   return `root = Stack([${refs}])\n${cards}`;
@@ -181,12 +187,12 @@ async function plan(text: string, isFirstTurn: boolean): Promise<string> {
       const checkout = outDate.toISOString().slice(0, 10);
 
       const quote = await fetchQuoteApi(lodging.id, checkin, checkout, lodging.guests || 2);
-      return `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle; el pago va directo al dueño y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging, quote, 3))}`;
+      return `Buenísimo, ${lodging.name} en ${lodging.city}. Te armé el detalle; el pago queda en garantía y la comisión de conversión figura aparte.${langBlock(quoteProgram(lodging, quote, 3))}`;
     }
   }
 
   const options = shortlistFor(text, inventory);
-  return `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.${langBlock(shortlistProgram(options))}`;
+  return `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas con el pago en garantía.${langBlock(shortlistProgram(options))}`;
 }
 
 export const mockAdapter: ChatModelAdapter = {

@@ -26,6 +26,7 @@ import {
   formatNightPrice,
   formatStayEstimate,
   KIND_LABEL,
+  LODGINGS,
   ownerBySlug,
   type Fiat,
   type FxRates,
@@ -34,6 +35,7 @@ import {
 import { MOCK_TODAY } from '@/lib/mock/owner';
 import { askHrefPublic } from '@/lib/nomito/ask';
 import { PHOTOS } from '@/lib/photos';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
 import { useFxRates } from '@/lib/use-fx-rates';
 import { useLodgings } from '@/lib/use-lodgings';
 
@@ -139,9 +141,11 @@ function OwnerBlock({ lodging }: { lodging: Lodging }) {
         </div>
       </div>
       <p className="mt-4 font-brand text-lg font-medium leading-snug text-ink">
-        Cobra directo, sin comisión, al instante en su moneda
+        Cobra sin comisión, en su moneda
       </p>
-      <p className="mt-1 text-sm text-ink-muted">Tu reserva se paga a {owner.name.split(' ')[0]}, no a nosotros.</p>
+      <p className="mt-1 text-sm text-ink-muted">
+        Tu pago queda en garantía y se libera a {owner.name.split(' ')[0]} por etapas.
+      </p>
       <Link
         href={`/owners/${owner.slug}`}
         className="mt-4 inline-flex rounded-md text-sm font-medium text-terra-deep underline decoration-terra/40 underline-offset-[5px] hover:decoration-terra focus-visible:outline-2 focus-visible:outline-terra"
@@ -156,7 +160,21 @@ function OwnerBlock({ lodging }: { lodging: Lodging }) {
  * Availability plus the single action (traveler-views §16): pick a stay, see
  * an estimate in the Traveler's currency, hand it to Nomito. No checkout here.
  */
-function BookingSection({ lodging, fiat, rates }: { lodging: Lodging; fiat?: Fiat; rates: FxRates }) {
+function BookingSection({
+  lodging,
+  fiat,
+  rates,
+  occupied,
+  today,
+}: {
+  lodging: Lodging;
+  fiat?: Fiat;
+  rates: FxRates;
+  /** Unavailable nights from the data source behind this ficha. */
+  occupied: string[];
+  /** The source's "today" — real for the API, fixed for the mock catalog. */
+  today: string;
+}) {
   const [checkIn, setCheckIn] = useState<string | null>(null);
   const [checkOut, setCheckOut] = useState<string | null>(null);
   const stay = checkIn && checkOut ? { checkIn, checkOut } : undefined;
@@ -186,8 +204,8 @@ function BookingSection({ lodging, fiat, rates }: { lodging: Lodging; fiat?: Fia
       </h2>
       <div className="mt-4 grid gap-6 rounded-card bg-white p-4 sm:p-6 md:grid-cols-[minmax(0,20rem)_1fr]">
         <AvailabilityCalendar
-          occupied={catalog.occupiedNights(lodging.id)}
-          today={MOCK_TODAY}
+          occupied={occupied}
+          today={today}
           checkIn={checkIn}
           checkOut={checkOut}
           onChange={(i, o) => {
@@ -237,8 +255,8 @@ function BookingSection({ lodging, fiat, rates }: { lodging: Lodging; fiat?: Fia
             Reservar con Nomito
           </Link>
           <p className="text-xs text-ink-muted">
-            {stay ? 'Nomito arma la reserva con estas fechas.' : 'Sin fechas, Nomito te sugiere algunas.'} Pagás en tu
-            moneda, directo al dueño.
+            {stay ? 'Nomito arma la reserva con estas fechas.' : 'Sin fechas, Nomito te sugiere algunas.'} Pagás en
+            tu moneda y el pago queda en garantía hasta tu estadía.
           </p>
         </div>
       </div>
@@ -267,24 +285,41 @@ function LodgingNotFound() {
 }
 
 /**
- * The public Lodging ficha (traveler-views §16). Resolves the id against the
- * listings API — enriched by the seed's coordinates when the API doesn't
- * carry them — and against this browser's catalog: created Lodgings and
- * edits win, tombstones and unknown ids show not-found.
+ * The public Lodging ficha (traveler-views §16). Resolves the id (the
+ * listing's slug) against the listings API — enriched by the seed's
+ * coordinates when the API doesn't carry them. With Supabase configured the
+ * API is the only source (Owner-created Lodgings live there); without it this
+ * browser's catalog overlays the API list: created Lodgings and edits win,
+ * tombstones and unknown ids show not-found.
  */
+/**
+ * 'loading' while the API request is in flight; 'missing' on an
+ * authoritative 404 (not published — paused, archived or unknown);
+ * 'down' when the API can't answer — the seed/catalog still render.
+ */
+type ApiState =
+  | { status: 'loading' }
+  | { status: 'missing' }
+  | { status: 'down' }
+  | { status: 'ok'; detail: ApiListingDetail };
+
 export function LodgingDetail({ id }: { id: string }) {
   const lodgings = useLodgings();
-  /** undefined while the API request is in flight, null when it has no detail for this id. */
-  const [api, setApi] = useState<Lodging | null | undefined>(undefined);
+  const [apiState, setApiState] = useState<ApiState>({ status: 'loading' });
   useEffect(() => {
     let alive = true;
     fetch(`/api/listings/${encodeURIComponent(id)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: ApiListingDetail | null) => {
-        if (alive) setApi(d ? apiDetailToLodging(d) : null);
+      .then(async (r) => {
+        if (r.status === 404) return { status: 'missing' } as ApiState;
+        if (!r.ok) return { status: 'down' } as ApiState;
+        const detail = (await r.json().catch(() => null)) as ApiListingDetail | null;
+        return (detail ? { status: 'ok', detail } : { status: 'missing' }) as ApiState;
+      })
+      .then((s) => {
+        if (alive) setApiState(s);
       })
       .catch(() => {
-        if (alive) setApi(null);
+        if (alive) setApiState({ status: 'down' });
       });
     return () => {
       alive = false;
@@ -294,21 +329,30 @@ export function LodgingDetail({ id }: { id: string }) {
   const [fiat, setFiat] = useState<Fiat | undefined>(undefined);
   const { rates } = useFxRates();
 
-  const seed = lodgings.find((l) => l.id === id);
-  const lodging = catalog.isRemoved(id)
-    ? undefined
-    : (catalog.localOf(id) ??
-      (api
-        ? {
-            ...api,
-            address: api.address ?? seed?.address,
-            lat: api.lat ?? seed?.lat,
-            lng: api.lng ?? seed?.lng,
-            photos: api.photos?.length ? api.photos : seed?.photos,
-          }
-        : seed));
+  const apiDetail = apiState.status === 'ok' ? apiState.detail : null;
+  const api = apiDetail ? apiDetailToLodging(apiDetail) : null;
+  // Without Supabase the browser catalog overlays the API list (created,
+  // edited and tombstoned Lodgings live in localStorage); with Supabase the
+  // API detail is the source — Owner-created Lodgings resolve by their slug.
+  const catalogBase = hasSupabaseEnv ? LODGINGS : lodgings;
+  const seed = catalogBase.find((l) => l.id === id);
+  const local = hasSupabaseEnv ? undefined : catalog.localOf(id);
+  const removed = !hasSupabaseEnv && catalog.isRemoved(id);
+  const lodging =
+    removed || (apiState.status === 'missing' && !local)
+      ? undefined
+      : (local ??
+        (api
+          ? {
+              ...api,
+              address: api.address ?? seed?.address,
+              lat: api.lat ?? seed?.lat,
+              lng: api.lng ?? seed?.lng,
+              photos: api.photos?.length ? api.photos : seed?.photos,
+            }
+          : seed));
   if (!lodging) {
-    return api === undefined && !seed ? (
+    return apiState.status === 'loading' && !seed ? (
       <p className="px-4 py-32 text-center text-ink-muted">Cargando…</p>
     ) : (
       <LodgingNotFound />
@@ -316,6 +360,11 @@ export function LodgingDetail({ id }: { id: string }) {
   }
 
   const hasCoords = lodging.lat !== undefined && lodging.lng !== undefined;
+  // The calendar reads the same source the ficha did: in Supabase mode the
+  // API's occupied nights and the real today; in the localStorage fallback,
+  // the mock catalog's booking window anchored at MOCK_TODAY.
+  const occupied = hasSupabaseEnv ? (apiDetail?.occupied ?? []) : catalog.occupiedNights(lodging.id);
+  const today = hasSupabaseEnv ? new Date().toISOString().slice(0, 10) : MOCK_TODAY;
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-5 md:pt-12">
@@ -402,7 +451,14 @@ export function LodgingDetail({ id }: { id: string }) {
             )}
           </section>
 
-          <BookingSection key={lodging.id} lodging={lodging} fiat={fiat} rates={rates} />
+          <BookingSection
+            key={lodging.id}
+            lodging={lodging}
+            fiat={fiat}
+            rates={rates}
+            occupied={occupied}
+            today={today}
+          />
         </div>
 
         <aside className="flex flex-col gap-5 lg:pt-2">
@@ -414,7 +470,7 @@ export function LodgingDetail({ id }: { id: string }) {
               </span>
             </p>
             <p className="mt-2 inline-flex rounded-full bg-agua-soft px-2.5 py-1 text-xs font-medium text-agua">
-              directo con el dueño
+              pago en garantía
             </p>
             <CurrencySelect value={fiat} onChange={setFiat} className="mt-4 w-full" />
           </div>

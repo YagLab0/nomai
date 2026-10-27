@@ -129,7 +129,7 @@ export function Destinations({ lodgings }: { lodgings?: Lodging[] }) {
           <h2 className="brand-display text-5xl font-medium leading-[0.95] text-ink sm:text-6xl">De la Quebrada al Caribe</h2>
           <p className="mt-4 max-w-xl text-lg text-ink-muted">
             Alojamientos de dueños en los siete países donde funciona Ripio. El precio es el del dueño, en su moneda, y
-            el pago le llega directo.
+            el cobro se libera a su cuenta por etapas.
           </p>
         </Reveal>
 

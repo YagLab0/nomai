@@ -7,7 +7,7 @@ import { PHOTOS } from '@/lib/photos';
 export const metadata: Metadata = {
   title: 'Sumá tu alojamiento · nomai',
   description:
-    'Sumá tu alojamiento a nomai: los viajeros llegan con Nomito y cobrás cada reserva al instante en tu cuenta de Ripio, sin comisión.',
+    'Sumá tu alojamiento a nomai: los viajeros llegan con Nomito y cobrás cada reserva en tu cuenta de Ripio, sin comisión.',
 };
 
 const photo = PHOTOS.purmamarcaAdobe;
@@ -20,8 +20,8 @@ export default function OwnerJoinPage() {
           Sumá tu alojamiento
         </h1>
         <p className="mb-10 mt-5 max-w-xl text-lg leading-relaxed text-ink-muted">
-          Cuatro pasos y listo. Los viajeros llegan con Nomito y cada reserva se paga directo en tu cuenta de Ripio. Cero
-          comisión, siempre.
+          Cuatro pasos y listo. Los viajeros llegan con Nomito y cada reserva se libera en tu cuenta de Ripio por
+          etapas. Cero comisión, siempre.
         </p>
         <OwnerJoin />
       </div>
