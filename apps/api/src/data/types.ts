@@ -39,6 +39,21 @@ export type BookingStatus =
   | "cancelled"
   | "completed"
   | "refunded";
+/** ADR-0006 Escrow lifecycle — mirrors the escrow_status enum in Postgres. */
+export type EscrowStatus =
+  | "unfunded"
+  | "funded"
+  | "partially_released"
+  | "released"
+  | "refunded"
+  | "claimed";
+export const CLAIM_REASONS = [
+  "no_access",
+  "not_as_described",
+  "owner_no_show",
+] as const;
+export type ClaimReason = (typeof CLAIM_REASONS)[number];
+export type ClaimResolution = "full_refund" | "partial_refund" | "full_release";
 
 /**
  * ADR-0005 Service fee — the platform's revenue line on every Booking,
@@ -91,6 +106,14 @@ export interface CancellationPolicy {
   partial_refund_pct: number;
   partial_refund_days: number;
 }
+
+/** ADR-0006: one global rule — full refund until 5 days before check-in, 50% after. */
+export const GLOBAL_CANCELLATION_POLICY = {
+  name: "Global · hasta 5 días antes",
+  full_refund_days: 5,
+  partial_refund_pct: 50,
+  partial_refund_days: 0,
+} as const;
 
 export interface Listing {
   id: string;
@@ -182,4 +205,13 @@ export interface Booking {
   total_minor: number;
   status: BookingStatus;
   created_at: string;
+  // Escrow + Claim state (ADR-0006). The mock store fills these in memory;
+  // the supabase leg reads them straight off the bookings row.
+  escrow_status?: EscrowStatus;
+  cancel_deadline?: string | null;
+  first_release_at?: string | null;
+  final_release_at?: string | null;
+  claim_reason?: ClaimReason | null;
+  claim_resolution?: ClaimResolution | null;
+  claim_evidence?: unknown;
 }

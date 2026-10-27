@@ -102,7 +102,7 @@ function toCents(amount: string | number): number {
 }
 
 /** Verified Traveler id from the request's Bearer token (see file header). */
-async function travelerIdFrom(c: Context): Promise<string | null> {
+export async function travelerIdFrom(c: Context): Promise<string | null> {
   const m = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "");
   if (!m) return null;
   const { data, error } = await client().auth.getUser(m[1]);

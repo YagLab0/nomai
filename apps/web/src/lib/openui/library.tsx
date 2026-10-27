@@ -26,10 +26,19 @@ import {
   type ComponentRenderProps,
   type PromptOptions,
 } from '@openuidev/react-lang';
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { z } from 'zod/v4';
 
 import { ProseText } from '@/components/app/chat/prose-text';
+import { CheckIcon, XIcon } from '@/components/icons';
+import { AvailabilityCalendar } from '@/components/marketplace/availability-calendar';
+
+// Leaflet touches `window` at import — the map body only ever loads client-side.
+const MapCardMap = dynamic(() => import('./map-card-map'), {
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-sand/60" />,
+});
 
 const GAP_CLASS = { sm: 'gap-2', md: 'gap-3', lg: 'gap-5' } as const;
 
@@ -135,10 +144,20 @@ const quoteCardProps = z.object({
     }),
   ),
   confirm: action(),
+  /** Display-ready Service fee from quote_booking, e.g. "US$ 6" — its own line before the total. */
+  serviceFee: z.string().optional(),
 });
+
+type QuoteLine = z.infer<typeof quoteCardProps>['lines'][number];
 
 function QuoteCardView({ props }: ComponentRenderProps<z.infer<typeof quoteCardProps>>) {
   const triggerAction = useTriggerAction();
+  let lines: QuoteLine[] = props.lines;
+  if (props.serviceFee) {
+    const fee: QuoteLine = { label: 'Service fee nomai', value: props.serviceFee };
+    const at = lines.findIndex((l) => l.kind === 'total');
+    lines = at === -1 ? [...lines, fee] : [...lines.slice(0, at), fee, ...lines.slice(at)];
+  }
   return (
     <section
       aria-label={`Detalle de reserva: ${props.title}`}
@@ -148,7 +167,7 @@ function QuoteCardView({ props }: ComponentRenderProps<z.infer<typeof quoteCardP
         {props.title}
       </p>
       <dl className="divide-y divide-sand px-4">
-        {props.lines.map((line) => (
+        {lines.map((line) => (
           <div
             key={line.label}
             className={`flex items-baseline justify-between gap-4 py-2.5 text-sm ${
@@ -188,7 +207,7 @@ const QuoteCard = defineComponent({
   name: 'QuoteCard',
   props: quoteCardProps,
   description:
-    'An itemized booking quote (subtotal, conversion, FX fee, total) with a dashed ticket footer and a "Confirmar reserva" button. Only render after a real quote_booking result — never invent lines.',
+    'An itemized booking quote (subtotal, conversion, FX fee, total) with a dashed ticket footer and a "Confirmar reserva" button. Only render after a real quote_booking result — never invent lines. serviceFee = the quote\'s Service fee amount verbatim (rendered automatically as a "Service fee nomai" line right before the total — do NOT also add it to lines); omit it if the quote has none.',
   component: QuoteCardView,
 });
 
@@ -443,6 +462,457 @@ const QuoteForm = defineComponent({
   component: QuoteFormView,
 });
 
+const TONE_CLASS = {
+  agua: 'bg-agua-soft text-agua',
+  terra: 'bg-terra-soft text-terra-deep',
+  amber: 'bg-amber-100 text-amber-800',
+  neutral: 'bg-sand/60 text-ink-muted',
+} as const;
+
+const statusBadgeProps = z.object({
+  label: z.string(),
+  tone: z.enum(['agua', 'terra', 'amber', 'neutral']),
+});
+
+function Badge({ label, tone }: z.infer<typeof statusBadgeProps>) {
+  return (
+    <span
+      className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${TONE_CLASS[tone]}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StatusBadgeView({ props }: ComponentRenderProps<z.infer<typeof statusBadgeProps>>) {
+  return <Badge label={props.label} tone={props.tone} />;
+}
+
+const StatusBadge = defineComponent({
+  name: 'StatusBadge',
+  props: statusBadgeProps,
+  description:
+    'Small status pill. label = a short state taken from real tool data (e.g. a booking or claim status) — never invent a state. tone: agua = done/ok, terra = active/in progress, amber = needs attention (pending payment, open claim), neutral = closed/inactive.',
+  component: StatusBadgeView,
+});
+
+const stepperProps = z.object({
+  steps: z.array(
+    z.object({
+      label: z.string(),
+      status: z.enum(['done', 'current', 'next']),
+    }),
+  ),
+});
+
+function StepperView({ props }: ComponentRenderProps<z.infer<typeof stepperProps>>) {
+  return (
+    <ol className="flex flex-wrap gap-2" aria-label="Pasos">
+      {props.steps.map((step, i) => (
+        <li
+          key={`${step.label}-${i}`}
+          aria-current={step.status === 'current' ? 'step' : undefined}
+          className={`flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-xs font-medium ${
+            step.status === 'current'
+              ? 'bg-terra text-white'
+              : step.status === 'done'
+                ? 'bg-agua-soft text-agua'
+                : 'bg-sand/60 text-ink-muted'
+          }`}
+        >
+          <span
+            className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
+              step.status === 'current'
+                ? 'bg-white text-terra-deep'
+                : step.status === 'done'
+                  ? 'bg-agua text-white'
+                  : 'bg-paper text-ink-muted'
+            }`}
+          >
+            {step.status === 'done' ? <CheckIcon className="h-3 w-3" /> : i + 1}
+          </span>
+          {step.label}
+          {step.status === 'done' && <span className="sr-only">(listo)</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const Stepper = defineComponent({
+  name: 'Stepper',
+  props: stepperProps,
+  description:
+    'Pill progress stepper for a Booking lifecycle (e.g. Pago → Confirmada → Estadía → Finalizada). Exactly one step is "current"; steps before it are "done", after it "next" — derive the current step from the real booking status, never guess.',
+  component: StepperView,
+});
+
+const metricRowProps = z.object({
+  items: z.array(
+    z.object({
+      label: z.string(),
+      value: z.string(),
+      note: z.string().optional(),
+    }),
+  ),
+});
+
+function MetricRowView({ props }: ComponentRenderProps<z.infer<typeof metricRowProps>>) {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
+      {props.items.map((item, i) => (
+        <div
+          key={`${item.label}-${i}`}
+          className={
+            i === 0
+              ? 'rounded-2xl bg-terra p-3.5 text-white'
+              : 'rounded-2xl border border-sand bg-white p-3.5'
+          }
+        >
+          <p className={`text-xs ${i === 0 ? 'text-white/80' : 'text-ink-muted'}`}>{item.label}</p>
+          <p
+            className={`mt-1 font-mono text-lg font-semibold tracking-tight ${i === 0 ? '' : 'text-ink'}`}
+          >
+            {item.value}
+          </p>
+          {item.note ? (
+            <p className={`mt-0.5 text-xs ${i === 0 ? 'text-white/70' : 'text-ink-muted'}`}>
+              {item.note}
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const MetricRow = defineComponent({
+  name: 'MetricRow',
+  props: metricRowProps,
+  description:
+    'Row of small stat tiles; the first tile is terra-filled as the headline metric. Every value must come verbatim from a tool result (totals, nights, counts) — never compute or invent figures. note = optional short caption under the value.',
+  component: MetricRowView,
+});
+
+const approvalCardProps = z.object({
+  /** The decision to confirm, e.g. "¿Cancelás la reserva bkg_12?". */
+  question: z.string(),
+  /** 2-4 choices; tone "danger" marks the destructive one (e.g. confirm a cancel). */
+  options: z.array(
+    z.object({
+      label: z.string(),
+      /** Semantic value sent back in the form values — defaults to label. */
+      value: z.string().optional(),
+      tone: z.enum(['default', 'danger']).optional(),
+    }),
+  ),
+  /** Fired by the "Confirmar" button; the picked option arrives as form values choice + value. */
+  submit: action(),
+  /** Context line under the question, e.g. "Recuperás US$ 195 — el Service fee no vuelve". */
+  description: z.string().optional(),
+  /** Optional ghost "Ahora no" that fires instead of a choice. */
+  dismiss: action().optional(),
+});
+
+function ApprovalCardView({
+  props,
+}: ComponentRenderProps<z.infer<typeof approvalCardProps>>) {
+  const triggerAction = useTriggerAction();
+  const setFieldValue = useSetFieldValue();
+  const [picked, setPicked] = useState<number | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const send = () => {
+    if (picked === null || sent) return;
+    const option = props.options[picked];
+    // Same flat formState keys as QuoteForm — the host appends them to the
+    // action's message as "Form values: {json}". choice = the label the
+    // Traveler saw, value = the semantic option value (or the label again).
+    setFieldValue(undefined, undefined, 'choice', option.label);
+    setFieldValue(undefined, undefined, 'value', option.value ?? option.label);
+    setSent(true);
+    void triggerAction(option.label, undefined, props.submit);
+  };
+
+  if (sent) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-agua-soft px-2.5 py-1 text-xs font-medium text-agua">
+        <CheckIcon className="h-3 w-3" />
+        Respuesta enviada
+      </span>
+    );
+  }
+
+  return (
+    <section className="w-full max-w-80 rounded-2xl border border-sand bg-white p-4">
+      <p className="font-brand text-[15px] font-medium text-ink">{props.question}</p>
+      {props.description ? (
+        <p className="mt-1 text-[13px] leading-snug text-ink-muted">{props.description}</p>
+      ) : null}
+      <div className="mt-3 flex flex-col gap-1" role="radiogroup" aria-label={props.question}>
+        {props.options.map((option, i) => {
+          const on = picked === i;
+          return (
+            <button
+              key={`${option.label}-${i}`}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => setPicked(i)}
+              className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 text-left transition-colors hover:bg-sand/50"
+            >
+              <span
+                aria-hidden
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${
+                  on
+                    ? option.tone === 'danger'
+                      ? 'bg-terra-deep'
+                      : 'bg-terra'
+                    : 'border-[1.5px] border-sand bg-white'
+                }`}
+              >
+                {on ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+              </span>
+              <span
+                className={`text-[13px] leading-none ${on ? 'text-ink' : 'text-ink-muted'}`}
+              >
+                {option.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex items-center justify-end gap-1.5 border-t border-sand pt-3">
+        {props.dismiss ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-ink-muted"
+            onPress={() => {
+              setSent(true);
+              void triggerAction('Ahora no', undefined, props.dismiss);
+            }}
+          >
+            Ahora no
+          </Button>
+        ) : null}
+        <Button size="sm" isDisabled={picked === null} onPress={send}>
+          Confirmar
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+const ApprovalCard = defineComponent({
+  name: 'ApprovalCard',
+  props: approvalCardProps,
+  description:
+    'Human-in-the-loop confirm: one question, 2-4 radio options, a "Confirmar" button and an optional "Ahora no" dismiss. The pick reaches you as form values {choice: <label>, value: <value>}. Use it for destructive or money-moving decisions (cancel a Booking, confirm before paying) — never to ask for data a tool already returned.',
+  component: ApprovalCardView,
+});
+
+const taskRowsProps = z.object({
+  /** Live status rows — at most one "running" while a stage is in flight. */
+  rows: z.array(
+    z.object({
+      label: z.string(),
+      status: z.enum(['done', 'running', 'failed', 'pending']),
+      /** Right-side mono detail (a date, amount or count from tool data, verbatim). */
+      detail: z.string().optional(),
+    }),
+  ),
+});
+
+const TASK_ROW_PILL = {
+  done: { label: 'Listo', className: 'bg-agua-soft text-agua' },
+  failed: { label: 'Falló', className: 'bg-terra-deep/10 text-terra-deep' },
+} as const;
+
+function TaskRowsView({ props }: ComponentRenderProps<z.infer<typeof taskRowsProps>>) {
+  return (
+    <div className="flex w-full max-w-md flex-col gap-2">
+      {props.rows.map((row, i) => {
+        const pill = row.status === 'done' || row.status === 'failed' ? TASK_ROW_PILL[row.status] : null;
+        return (
+          <div
+            key={`${row.label}-${i}`}
+            className="flex h-11 items-center gap-2.5 rounded-2xl border border-sand bg-white px-2.5"
+          >
+            <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center">
+              {row.status === 'done' ? (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-agua text-white">
+                  <CheckIcon className="h-3 w-3" />
+                </span>
+              ) : row.status === 'failed' ? (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-terra-deep text-white">
+                  <XIcon className="h-2.5 w-2.5" />
+                </span>
+              ) : row.status === 'running' ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-sand border-t-ink-muted" />
+              ) : (
+                <span className="h-4 w-4 rounded-full border-[1.5px] border-sand" />
+              )}
+            </span>
+            <span
+              className={`min-w-0 flex-1 truncate text-[13px] font-medium ${
+                row.status === 'pending' ? 'text-ink-muted' : 'text-ink'
+              }`}
+            >
+              {row.label}
+            </span>
+            {row.detail ? (
+              <span className="shrink-0 font-mono text-[12.5px] tabular-nums text-ink-muted">
+                {row.detail}
+              </span>
+            ) : null}
+            {pill ? (
+              <span
+                className={`inline-flex h-5.5 shrink-0 items-center rounded-full px-2 text-[11.5px] font-medium ${pill.className}`}
+              >
+                {pill.label}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const TaskRows = defineComponent({
+  name: 'TaskRows',
+  props: taskRowsProps,
+  description:
+    'Live status list — one row per stage of a Booking lifecycle (Reservada → Pagada → Check-in → Estadía → Fondos liberados) or of in-flight work. status: done = finished, running = in flight right now, failed = ended badly (cancelled, payment failed), pending = still ahead. detail = a date/amount/count from tool data, verbatim.',
+  component: TaskRowsView,
+});
+
+const recommendationCardProps = z.object({
+  /** The recommended option, e.g. "Posada Los Cardones". */
+  title: z.string(),
+  /** Why this pick — grounded in real tool data (rating, price, fit for dates/guests). */
+  description: z.string(),
+  /** Honest confidence 0-100 judged from rating and fit — never inflated. */
+  confidence: z.number().min(0).max(100),
+  /** Fired by the "Elegir" CTA. */
+  accept: action(),
+  /** Other real options — each fires its own action when tapped. */
+  alternatives: z
+    .array(
+      z.object({
+        label: z.string(),
+        action: action(),
+      }),
+    )
+    .optional(),
+});
+
+function RecommendationCardView({
+  props,
+}: ComponentRenderProps<z.infer<typeof recommendationCardProps>>) {
+  const triggerAction = useTriggerAction();
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(false);
+  const bars = Math.max(0, Math.min(3, Math.round((props.confidence / 100) * 3)));
+  const tone =
+    props.confidence >= 67 ? 'bg-agua' : props.confidence >= 34 ? 'bg-terra' : 'bg-ink-muted';
+  return (
+    <section className="w-full max-w-sm overflow-hidden rounded-2xl border border-sand bg-white">
+      <div className="p-4">
+        <p className="font-brand text-[15px] font-medium text-ink">{props.title}</p>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">{props.description}</p>
+      </div>
+      {props.alternatives?.length ? (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-300"
+          style={{
+            gridTemplateRows: open ? '1fr' : '0fr',
+            opacity: open ? 1 : 0,
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="border-t border-sand px-2 py-2">
+              <p className="px-1.5 pb-1 text-[11px] font-medium text-ink-muted">Otras opciones</p>
+              {props.alternatives.map((alt, i) => (
+                <button
+                  key={`${alt.label}-${i}`}
+                  type="button"
+                  onClick={() => {
+                    setDone(true);
+                    void triggerAction(alt.label, undefined, alt.action);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-full px-1.5 py-1.5 text-left transition-colors hover:bg-sand/50"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">
+                    {alt.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between gap-3 border-t border-sand px-4 py-3">
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="flex items-end gap-0.5">
+            {[0, 1, 2].map((bar) => (
+              <span
+                key={bar}
+                className={`w-1 rounded-full ${bar < bars ? tone : 'bg-sand'}`}
+                style={{ height: 10 }}
+              />
+            ))}
+          </span>
+          <span className="text-[12.5px] font-medium text-ink-muted">
+            {props.confidence}% confianza
+          </span>
+        </span>
+        <span className="flex items-center gap-2">
+          {props.alternatives?.length ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={open}
+              onPress={() => setOpen((current) => !current)}
+            >
+              Alternativas
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            isDisabled={done}
+            onPress={() => {
+              setDone(true);
+              void triggerAction('Elegir', undefined, props.accept);
+            }}
+          >
+            {done ? 'Aceptado' : 'Elegir'}
+          </Button>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+const RecommendationCard = defineComponent({
+  name: 'RecommendationCard',
+  props: recommendationCardProps,
+  description:
+    'One top pick after a search: title + why, a 0-100 confidence meter, an "Elegir" CTA and an "Alternativas" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented.',
+  component: RecommendationCardView,
+});
+
+const BOOKING_STATUS = {
+  pending_payment: { label: 'Pago pendiente', tone: 'amber' },
+  confirmed: { label: 'Confirmada', tone: 'agua' },
+  in_progress: { label: 'En curso', tone: 'terra' },
+  completed: { label: 'Finalizada', tone: 'neutral' },
+  claim_open: { label: 'Reclamo abierto', tone: 'amber' },
+  cancelled: { label: 'Cancelada', tone: 'neutral' },
+  refunded: { label: 'Reembolsada', tone: 'neutral' },
+} as const;
+
 const bookingCardProps = z.object({
   /** e.g. "Departamento familiar en San Blas". */
   title: z.string(),
@@ -454,12 +924,20 @@ const bookingCardProps = z.object({
       value: z.string(),
     }),
   ),
+  /** The Booking's real status; omitted = freshly confirmed. */
+  status: z
+    .enum(['pending_payment', 'confirmed', 'in_progress', 'completed', 'claim_open', 'cancelled', 'refunded'])
+    .optional(),
+  /** Fired by the "Cancelar reserva" button — only for a cancellable Booking. */
+  cancel: action().optional(),
 });
 
 function BookingCardView({ props }: ComponentRenderProps<z.infer<typeof bookingCardProps>>) {
+  const triggerAction = useTriggerAction();
+  const status = BOOKING_STATUS[props.status ?? 'confirmed'];
   return (
     <section
-      aria-label={`Reserva confirmada: ${props.title}`}
+      aria-label={`Reserva ${status.label.toLowerCase()}: ${props.title}`}
       className="overflow-hidden rounded-2xl border border-sand bg-white"
     >
       <div className="flex items-start justify-between gap-3 px-4 pt-3.5">
@@ -467,9 +945,7 @@ function BookingCardView({ props }: ComponentRenderProps<z.infer<typeof bookingC
           <p className="font-brand text-lg font-medium leading-tight text-ink">{props.title}</p>
           <p className="mt-0.5 font-mono text-xs tracking-widest text-ink-muted">{props.code}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-agua-soft px-2.5 py-0.5 text-xs font-medium text-agua">
-          Confirmada
-        </span>
+        <Badge label={status.label} tone={status.tone} />
       </div>
       <dl className="mt-1 divide-y divide-sand px-4 pb-2">
         {props.lines.map((line) => (
@@ -482,6 +958,18 @@ function BookingCardView({ props }: ComponentRenderProps<z.infer<typeof bookingC
           </div>
         ))}
       </dl>
+      {props.cancel ? (
+        <div className="border-t-2 border-dashed border-sand px-4 py-2.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-ink-muted"
+            onPress={() => void triggerAction('Cancelar reserva', undefined, props.cancel)}
+          >
+            Cancelar reserva
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -490,8 +978,165 @@ const BookingCard = defineComponent({
   name: 'BookingCard',
   props: bookingCardProps,
   description:
-    'Confirmed booking ticket — only after a real book_listing result. code = the booking id (e.g. bkg_1).',
+    'Booking ticket — only after a real book_listing / booking-status result. code = the booking id (e.g. bkg_1). status = the Booking\'s status field verbatim (omit right after booking = confirmed); never invent one. cancel = only when the Booking is still cancellable (pending_payment or confirmed, before check-in); omit it otherwise.',
   component: BookingCardView,
+});
+
+const mapCardProps = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  label: z.string(),
+  zoom: z.number().optional(),
+});
+
+function MapCardView({ props }: ComponentRenderProps<z.infer<typeof mapCardProps>>) {
+  return (
+    <figure className="overflow-hidden rounded-2xl border border-sand bg-white">
+      <div className="relative z-0 h-44">
+        <MapCardMap lat={props.lat} lng={props.lng} label={props.label} zoom={props.zoom ?? 15} />
+      </div>
+      <figcaption className="px-4 py-2.5 text-sm text-ink-muted">{props.label}</figcaption>
+    </figure>
+  );
+}
+
+const MapCard = defineComponent({
+  name: 'MapCard',
+  props: mapCardProps,
+  description:
+    'Map with a terra pin at a listing\'s exact location. lat/lng = the listing\'s lat/lng from get_listing verbatim — if the listing has no coordinates, do NOT render a MapCard (never estimate them). label = listing name or address. zoom optional (default 15).',
+  component: MapCardView,
+});
+
+const availabilityPickerProps = z.object({
+  /** ISO nights already taken, from the listing's availability. */
+  occupied: z.array(z.string()),
+  /** Fired once a check-in → check-out range is picked; dates ride along as formState. */
+  submit: action(),
+});
+
+function AvailabilityPickerView({
+  props,
+}: ComponentRenderProps<z.infer<typeof availabilityPickerProps>>) {
+  const triggerAction = useTriggerAction();
+  const setFieldValue = useSetFieldValue();
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
+  const [range, setRange] = useState<{ checkIn: string | null; checkOut: string | null }>({
+    checkIn: null,
+    checkOut: null,
+  });
+  const occupied = [...props.occupied].sort();
+
+  const onChange = (checkIn: string | null, checkOut: string | null) => {
+    setRange({ checkIn, checkOut });
+    if (!checkIn || !checkOut) return;
+    // Same flat top-level keys as QuoteForm: {checkIn: {value}, checkOut: {value}}.
+    setFieldValue(undefined, undefined, 'checkIn', checkIn);
+    setFieldValue(undefined, undefined, 'checkOut', checkOut);
+    void triggerAction(`Fechas: ${checkIn} → ${checkOut}`, undefined, props.submit);
+  };
+
+  return (
+    <section className="max-w-sm rounded-2xl border border-sand bg-white p-3">
+      <AvailabilityCalendar
+        occupied={occupied}
+        today={today}
+        checkIn={range.checkIn}
+        checkOut={range.checkOut}
+        onChange={onChange}
+      />
+    </section>
+  );
+}
+
+const AvailabilityPicker = defineComponent({
+  name: 'AvailabilityPicker',
+  props: availabilityPickerProps,
+  description:
+    'Month calendar to pick check-in → check-out on a listing\'s real availability; occupied nights are grayed and a range can\'t cross one. occupied = the listing\'s occupied ISO nights (YYYY-MM-DD) from the availability tool verbatim — pass [] only if the tool returned none, never invent dates. On a completed range it fires submit with formState checkIn + checkOut.',
+  component: AvailabilityPickerView,
+});
+
+const CLAIM_REASONS = [
+  { value: 'no_access', label: 'No pude acceder al alojamiento' },
+  { value: 'not_as_described', label: 'No es como se describía' },
+  { value: 'owner_no_show', label: 'El dueño no se presentó' },
+] as const;
+
+const claimCardProps = z.object({
+  /** Booking id the Claim is opened against, e.g. "bkg_12". */
+  bookingId: z.string(),
+  /** Fired on send; reason + evidence ride along as formState. */
+  submit: action(),
+});
+
+function ClaimCardView({ props }: ComponentRenderProps<z.infer<typeof claimCardProps>>) {
+  const triggerAction = useTriggerAction();
+  const setFieldValue = useSetFieldValue();
+  const [reason, setReason] = useState<string | null>(null);
+  const [evidence, setEvidence] = useState('');
+
+  const onSubmit = () => {
+    if (!reason) return;
+    setFieldValue(undefined, undefined, 'reason', reason);
+    setFieldValue(undefined, undefined, 'evidence', evidence.trim());
+    void triggerAction('Abrir reclamo', undefined, props.submit);
+  };
+
+  return (
+    <section
+      aria-label={`Reclamo para la reserva ${props.bookingId}`}
+      className="rounded-2xl border border-sand bg-white p-4"
+    >
+      <p className="font-brand text-lg font-medium leading-tight text-ink">Abrir un reclamo</p>
+      <p className="mt-0.5 font-mono text-xs tracking-widest text-ink-muted">{props.bookingId}</p>
+      <fieldset className="mt-3">
+        <legend className="text-xs text-ink-muted">¿Qué pasó?</legend>
+        <div className="mt-1.5 flex flex-col gap-2">
+          {CLAIM_REASONS.map((r) => (
+            <label
+              key={r.value}
+              className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 text-sm transition-colors ${
+                reason === r.value ? 'border-terra bg-terra-soft text-terra-deep' : 'border-sand text-ink hover:bg-paper'
+              }`}
+            >
+              <input
+                type="radio"
+                name={`claim-reason-${props.bookingId}`}
+                value={r.value}
+                checked={reason === r.value}
+                onChange={() => setReason(r.value)}
+                className="accent-terra"
+              />
+              {r.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className="mt-3 block">
+        <span className="text-xs text-ink-muted">Contanos qué pasó (evidencia)</span>
+        <textarea
+          rows={3}
+          value={evidence}
+          onChange={(e) => setEvidence(e.target.value)}
+          className={`${inputClass} resize-none`}
+        />
+      </label>
+      <div className="mt-4">
+        <Button fullWidth isDisabled={!reason} onPress={onSubmit}>
+          Abrir reclamo
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+const ClaimCard = defineComponent({
+  name: 'ClaimCard',
+  props: claimCardProps,
+  description:
+    'Claim form for a Booking: the Traveler picks one of 3 fixed reasons (no_access, not_as_described, owner_no_show) and writes evidence; fires submit with formState reason + evidence. bookingId = the real booking id (e.g. bkg_12) — only render for a Booking the Traveler actually has, within the Claim window.',
+  component: ClaimCardView,
 });
 
 const tableProps = z.object({
@@ -555,6 +1200,15 @@ const stackProps = z.object({
       QuoteForm.ref,
       BookingCard.ref,
       Table.ref,
+      MapCard.ref,
+      StatusBadge.ref,
+      Stepper.ref,
+      AvailabilityPicker.ref,
+      ClaimCard.ref,
+      MetricRow.ref,
+      ApprovalCard.ref,
+      TaskRows.ref,
+      RecommendationCard.ref,
     ]),
   ),
   direction: z.enum(['column', 'row']).optional(),
@@ -596,6 +1250,15 @@ export const library = createLibrary({
     QuoteForm,
     BookingCard,
     Table,
+    MapCard,
+    StatusBadge,
+    Stepper,
+    AvailabilityPicker,
+    ClaimCard,
+    MetricRow,
+    ApprovalCard,
+    TaskRows,
+    RecommendationCard,
   ],
   componentGroups: [
     { name: 'Layout', components: ['Stack', 'TextContent'] },
@@ -612,6 +1275,15 @@ export const library = createLibrary({
         'QuoteForm',
         'BookingCard',
         'Table',
+        'MapCard',
+        'StatusBadge',
+        'Stepper',
+        'AvailabilityPicker',
+        'ClaimCard',
+        'MetricRow',
+        'ApprovalCard',
+        'TaskRows',
+        'RecommendationCard',
       ],
     },
   ],

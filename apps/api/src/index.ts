@@ -32,6 +32,7 @@ import listings from "./listings.js";
 import bookings from "./cancellations.js";
 import credits from "./credits.js";
 import wallet from "./wallet.js";
+import keeper from "./keeper.js";
 import {
   BOOKING_ROUTE_PATTERN,
   bookingPrecheck,
@@ -136,8 +137,13 @@ app.route("/bookings", bookings);
 // truth for balances; every route here is Bearer-scoped to the Traveler.
 app.route("/credits", credits);
 
-// Agent wallet provisioning and balance — issue #16 (ADR-0003).
+// Agent wallet provisioning and balance — issue #16 (ADR-0003). Bearer-scoped
+// like /credits: the token's Traveler must match the requested traveler_id.
 app.route("/wallet", wallet);
+
+// Ops-only Escrow keeper (ADR-0006) — POST /internal/keeper, Bearer
+// KEEPER_SECRET. Cron/manual trigger for process_escrow_releases().
+app.route("/internal", keeper);
 
 /** The paid route. Everything here runs only after a settled payment. */
 app.post("/paid", (c) =>

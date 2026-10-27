@@ -7,7 +7,7 @@ const spec = {
   "root": "Stack",
   "components": {
     "Stack": {
-      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
+      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow | ApprovalCard | TaskRows | RecommendationCard)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
       "description": "Root layout container every program starts with: stacks children vertically (default) or horizontally with a gap."
     },
     "TextContent": {
@@ -19,8 +19,8 @@ const spec = {
       "description": "A lodging option as a ticket-stub card: name, city and optional blurb on the left; a perforated stub with the nightly price and an \"Elegir\" button on the right. Only with real data from the listings tools."
     },
     "QuoteCard": {
-      "signature": "QuoteCard(title: string, lines: {label: string, value: string, kind?: \"fee\" | \"total\"}[], confirm: ActionExpression)",
-      "description": "An itemized booking quote (subtotal, conversion, FX fee, total) with a dashed ticket footer and a \"Confirmar reserva\" button. Only render after a real quote_booking result — never invent lines."
+      "signature": "QuoteCard(title: string, lines: {label: string, value: string, kind?: \"fee\" | \"total\"}[], confirm: ActionExpression, serviceFee?: string)",
+      "description": "An itemized booking quote (subtotal, conversion, FX fee, total) with a dashed ticket footer and a \"Confirmar reserva\" button. Only render after a real quote_booking result — never invent lines. serviceFee = the quote's Service fee amount verbatim (rendered automatically as a \"Service fee nomai\" line right before the total — do NOT also add it to lines); omit it if the quote has none."
     },
     "ImageGrid": {
       "signature": "ImageGrid(images: string[], alt?: string)",
@@ -47,12 +47,48 @@ const spec = {
       "description": "Interactive quote form: check-in/check-out dates and guest count. Render INSTEAD of asking for dates in prose when the Traveler has not given them."
     },
     "BookingCard": {
-      "signature": "BookingCard(title: string, code: string, lines: {label: string, value: string}[])",
-      "description": "Confirmed booking ticket — only after a real book_listing result. code = the booking id (e.g. bkg_1)."
+      "signature": "BookingCard(title: string, code: string, lines: {label: string, value: string}[], status?: \"pending_payment\" | \"confirmed\" | \"in_progress\" | \"completed\" | \"claim_open\" | \"cancelled\" | \"refunded\", cancel?: ActionExpression)",
+      "description": "Booking ticket — only after a real book_listing / booking-status result. code = the booking id (e.g. bkg_1). status = the Booking's status field verbatim (omit right after booking = confirmed); never invent one. cancel = only when the Booking is still cancellable (pending_payment or confirmed, before check-in); omit it otherwise."
     },
     "Table": {
       "signature": "Table(columns: string[], rows: string[][])",
       "description": "Compare 2-4 listings side by side — first column is the row label."
+    },
+    "MapCard": {
+      "signature": "MapCard(lat: number, lng: number, label: string, zoom?: number)",
+      "description": "Map with a terra pin at a listing's exact location. lat/lng = the listing's lat/lng from get_listing verbatim — if the listing has no coordinates, do NOT render a MapCard (never estimate them). label = listing name or address. zoom optional (default 15)."
+    },
+    "StatusBadge": {
+      "signature": "StatusBadge(label: string, tone: \"agua\" | \"terra\" | \"amber\" | \"neutral\")",
+      "description": "Small status pill. label = a short state taken from real tool data (e.g. a booking or claim status) — never invent a state. tone: agua = done/ok, terra = active/in progress, amber = needs attention (pending payment, open claim), neutral = closed/inactive."
+    },
+    "Stepper": {
+      "signature": "Stepper(steps: {label: string, status: \"done\" | \"current\" | \"next\"}[])",
+      "description": "Pill progress stepper for a Booking lifecycle (e.g. Pago → Confirmada → Estadía → Finalizada). Exactly one step is \"current\"; steps before it are \"done\", after it \"next\" — derive the current step from the real booking status, never guess."
+    },
+    "AvailabilityPicker": {
+      "signature": "AvailabilityPicker(occupied: string[], submit: ActionExpression)",
+      "description": "Month calendar to pick check-in → check-out on a listing's real availability; occupied nights are grayed and a range can't cross one. occupied = the listing's occupied ISO nights (YYYY-MM-DD) from the availability tool verbatim — pass [] only if the tool returned none, never invent dates. On a completed range it fires submit with formState checkIn + checkOut."
+    },
+    "ClaimCard": {
+      "signature": "ClaimCard(bookingId: string, submit: ActionExpression)",
+      "description": "Claim form for a Booking: the Traveler picks one of 3 fixed reasons (no_access, not_as_described, owner_no_show) and writes evidence; fires submit with formState reason + evidence. bookingId = the real booking id (e.g. bkg_12) — only render for a Booking the Traveler actually has, within the Claim window."
+    },
+    "MetricRow": {
+      "signature": "MetricRow(items: {label: string, value: string, note?: string}[])",
+      "description": "Row of small stat tiles; the first tile is terra-filled as the headline metric. Every value must come verbatim from a tool result (totals, nights, counts) — never compute or invent figures. note = optional short caption under the value."
+    },
+    "ApprovalCard": {
+      "signature": "ApprovalCard(question: string, options: {label: string, value?: string, tone?: \"default\" | \"danger\"}[], submit: ActionExpression, description?: string, dismiss?: ActionExpression)",
+      "description": "Human-in-the-loop confirm: one question, 2-4 radio options, a \"Confirmar\" button and an optional \"Ahora no\" dismiss. The pick reaches you as form values {choice: <label>, value: <value>}. Use it for destructive or money-moving decisions (cancel a Booking, confirm before paying) — never to ask for data a tool already returned."
+    },
+    "TaskRows": {
+      "signature": "TaskRows(rows: {label: string, status: \"done\" | \"running\" | \"failed\" | \"pending\", detail?: string}[])",
+      "description": "Live status list — one row per stage of a Booking lifecycle (Reservada → Pagada → Check-in → Estadía → Fondos liberados) or of in-flight work. status: done = finished, running = in flight right now, failed = ended badly (cancelled, payment failed), pending = still ahead. detail = a date/amount/count from tool data, verbatim."
+    },
+    "RecommendationCard": {
+      "signature": "RecommendationCard(title: string, description: string, confidence: number, accept: ActionExpression, alternatives?: {label: string, action: ActionExpression}[])",
+      "description": "One top pick after a search: title + why, a 0-100 confidence meter, an \"Elegir\" CTA and an \"Alternativas\" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented."
     }
   },
   "componentGroups": [
@@ -75,7 +111,16 @@ const spec = {
         "AmenityChips",
         "QuoteForm",
         "BookingCard",
-        "Table"
+        "Table",
+        "MapCard",
+        "StatusBadge",
+        "Stepper",
+        "AvailabilityPicker",
+        "ClaimCard",
+        "MetricRow",
+        "ApprovalCard",
+        "TaskRows",
+        "RecommendationCard"
       ]
     }
   ],
@@ -118,6 +163,33 @@ const spec = {
       },
       "Table": {
         "$ref": "#/$defs/Table"
+      },
+      "MapCard": {
+        "$ref": "#/$defs/MapCard"
+      },
+      "StatusBadge": {
+        "$ref": "#/$defs/StatusBadge"
+      },
+      "Stepper": {
+        "$ref": "#/$defs/Stepper"
+      },
+      "AvailabilityPicker": {
+        "$ref": "#/$defs/AvailabilityPicker"
+      },
+      "ClaimCard": {
+        "$ref": "#/$defs/ClaimCard"
+      },
+      "MetricRow": {
+        "$ref": "#/$defs/MetricRow"
+      },
+      "ApprovalCard": {
+        "$ref": "#/$defs/ApprovalCard"
+      },
+      "TaskRows": {
+        "$ref": "#/$defs/TaskRows"
+      },
+      "RecommendationCard": {
+        "$ref": "#/$defs/RecommendationCard"
       }
     },
     "required": [
@@ -132,7 +204,16 @@ const spec = {
       "AmenityChips",
       "QuoteForm",
       "BookingCard",
-      "Table"
+      "Table",
+      "MapCard",
+      "StatusBadge",
+      "Stepper",
+      "AvailabilityPicker",
+      "ClaimCard",
+      "MetricRow",
+      "ApprovalCard",
+      "TaskRows",
+      "RecommendationCard"
     ],
     "additionalProperties": false,
     "$defs": {
@@ -178,6 +259,33 @@ const spec = {
                 },
                 {
                   "$ref": "#/$defs/Table"
+                },
+                {
+                  "$ref": "#/$defs/MapCard"
+                },
+                {
+                  "$ref": "#/$defs/StatusBadge"
+                },
+                {
+                  "$ref": "#/$defs/Stepper"
+                },
+                {
+                  "$ref": "#/$defs/AvailabilityPicker"
+                },
+                {
+                  "$ref": "#/$defs/ClaimCard"
+                },
+                {
+                  "$ref": "#/$defs/MetricRow"
+                },
+                {
+                  "$ref": "#/$defs/ApprovalCard"
+                },
+                {
+                  "$ref": "#/$defs/TaskRows"
+                },
+                {
+                  "$ref": "#/$defs/RecommendationCard"
                 }
               ]
             }
@@ -352,6 +460,9 @@ const spec = {
           },
           "confirm": {
             "$ref": "#/$defs/ActionExpression"
+          },
+          "serviceFee": {
+            "type": "string"
           }
         },
         "required": [
@@ -360,7 +471,7 @@ const spec = {
           "confirm"
         ],
         "additionalProperties": false,
-        "description": "An itemized booking quote (subtotal, conversion, FX fee, total) with a dashed ticket footer and a \"Confirmar reserva\" button. Only render after a real quote_booking result — never invent lines."
+        "description": "An itemized booking quote (subtotal, conversion, FX fee, total) with a dashed ticket footer and a \"Confirmar reserva\" button. Only render after a real quote_booking result — never invent lines. serviceFee = the quote's Service fee amount verbatim (rendered automatically as a \"Service fee nomai\" line right before the total — do NOT also add it to lines); omit it if the quote has none."
       },
       "ImageGrid": {
         "type": "object",
@@ -513,6 +624,21 @@ const spec = {
               ],
               "additionalProperties": false
             }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_payment",
+              "confirmed",
+              "in_progress",
+              "completed",
+              "claim_open",
+              "cancelled",
+              "refunded"
+            ]
+          },
+          "cancel": {
+            "$ref": "#/$defs/ActionExpression"
           }
         },
         "required": [
@@ -521,7 +647,7 @@ const spec = {
           "lines"
         ],
         "additionalProperties": false,
-        "description": "Confirmed booking ticket — only after a real book_listing result. code = the booking id (e.g. bkg_1)."
+        "description": "Booking ticket — only after a real book_listing / booking-status result. code = the booking id (e.g. bkg_1). status = the Booking's status field verbatim (omit right after booking = confirmed); never invent one. cancel = only when the Booking is still cancellable (pending_payment or confirmed, before check-in); omit it otherwise."
       },
       "Table": {
         "type": "object",
@@ -548,6 +674,289 @@ const spec = {
         ],
         "additionalProperties": false,
         "description": "Compare 2-4 listings side by side — first column is the row label."
+      },
+      "MapCard": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          },
+          "zoom": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "label"
+        ],
+        "additionalProperties": false,
+        "description": "Map with a terra pin at a listing's exact location. lat/lng = the listing's lat/lng from get_listing verbatim — if the listing has no coordinates, do NOT render a MapCard (never estimate them). label = listing name or address. zoom optional (default 15)."
+      },
+      "StatusBadge": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "agua",
+              "terra",
+              "amber",
+              "neutral"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "tone"
+        ],
+        "additionalProperties": false,
+        "description": "Small status pill. label = a short state taken from real tool data (e.g. a booking or claim status) — never invent a state. tone: agua = done/ok, terra = active/in progress, amber = needs attention (pending payment, open claim), neutral = closed/inactive."
+      },
+      "Stepper": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "current",
+                    "next"
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "additionalProperties": false,
+        "description": "Pill progress stepper for a Booking lifecycle (e.g. Pago → Confirmada → Estadía → Finalizada). Exactly one step is \"current\"; steps before it are \"done\", after it \"next\" — derive the current step from the real booking status, never guess."
+      },
+      "AvailabilityPicker": {
+        "type": "object",
+        "properties": {
+          "occupied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "submit": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        "required": [
+          "occupied",
+          "submit"
+        ],
+        "additionalProperties": false,
+        "description": "Month calendar to pick check-in → check-out on a listing's real availability; occupied nights are grayed and a range can't cross one. occupied = the listing's occupied ISO nights (YYYY-MM-DD) from the availability tool verbatim — pass [] only if the tool returned none, never invent dates. On a completed range it fires submit with formState checkIn + checkOut."
+      },
+      "ClaimCard": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "submit": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        "required": [
+          "bookingId",
+          "submit"
+        ],
+        "additionalProperties": false,
+        "description": "Claim form for a Booking: the Traveler picks one of 3 fixed reasons (no_access, not_as_described, owner_no_show) and writes evidence; fires submit with formState reason + evidence. bookingId = the real booking id (e.g. bkg_12) — only render for a Booking the Traveler actually has, within the Claim window."
+      },
+      "MetricRow": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Row of small stat tiles; the first tile is terra-filled as the headline metric. Every value must come verbatim from a tool result (totals, nights, counts) — never compute or invent figures. note = optional short caption under the value."
+      },
+      "ApprovalCard": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "tone": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "danger"
+                  ]
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "submit": {
+            "$ref": "#/$defs/ActionExpression"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dismiss": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        "required": [
+          "question",
+          "options",
+          "submit"
+        ],
+        "additionalProperties": false,
+        "description": "Human-in-the-loop confirm: one question, 2-4 radio options, a \"Confirmar\" button and an optional \"Ahora no\" dismiss. The pick reaches you as form values {choice: <label>, value: <value>}. Use it for destructive or money-moving decisions (cancel a Booking, confirm before paying) — never to ask for data a tool already returned."
+      },
+      "TaskRows": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "running",
+                    "failed",
+                    "pending"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "Live status list — one row per stage of a Booking lifecycle (Reservada → Pagada → Check-in → Estadía → Fondos liberados) or of in-flight work. status: done = finished, running = in flight right now, failed = ended badly (cancelled, payment failed), pending = still ahead. detail = a date/amount/count from tool data, verbatim."
+      },
+      "RecommendationCard": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "accept": {
+            "$ref": "#/$defs/ActionExpression"
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "action": {
+                  "$ref": "#/$defs/ActionExpression"
+                }
+              },
+              "required": [
+                "label",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "confidence",
+          "accept"
+        ],
+        "additionalProperties": false,
+        "description": "One top pick after a search: title + why, a 0-100 confidence meter, an \"Elegir\" CTA and an \"Alternativas\" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented."
       }
     }
   },

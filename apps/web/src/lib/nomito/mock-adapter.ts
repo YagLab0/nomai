@@ -9,18 +9,11 @@ import {
 import { apiCardToLodging } from '@/lib/api-mapping';
 import type { ApiListingCard, ApiQuote } from '@/lib/api';
 import { catalog } from '@/lib/catalog';
-import { creditFailureMessage, spendCredits } from '@/lib/nomito/credits';
-import { MONEDAS_SPENT_KEY } from '@/lib/nomito/tools';
 
 /**
  * Mock Nomito chat adapter: streams responses with OpenUI Lang programs.
  * Calls real `/api/listings` and `/api/listings/:slug/quote` endpoints.
- *
- * Credits (issue #17): every turn posts a `conversation` spend, and a turn
- * that touches real /listings data posts `live_query` BEFORE the fetch — the
- * ADR-0002 ceilings are meant to gate the query, not to bill it after the
- * fact. A 402/429 refusal ends the run with a `credits:*` error the message
- * UI translates.
+ * Credits (monedas) were retired by ADR-0005 — turns are never gated.
  */
 
 const TOKEN_DELAY_MS = 28;
@@ -196,43 +189,10 @@ async function plan(text: string, isFirstTurn: boolean): Promise<string> {
   return `Dale, me pongo a buscar. Miré precios y disponibilidad, y estas son las ${options.length} que mejor te quedan. Todas son directo con el dueño.${langBlock(shortlistProgram(options))}`;
 }
 
-/** End the run with a credits error the message UI translates. */
-function refused(code: 'no-credits' | 'daily-cap', spent: number) {
-  return {
-    status: {
-      type: 'incomplete',
-      reason: 'error',
-      error: creditFailureMessage(code),
-    },
-    ...(spent > 0 ? { metadata: { custom: { [MONEDAS_SPENT_KEY]: spent } } } : {}),
-  } as const;
-}
-
 export const mockAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const userText = lastUserText(messages);
     const isFirstTurn = messages.filter((m) => m.role === 'user').length <= 1;
-    let spent = 0;
-
-    // Conversation cover — same contract as eveAdapter.
-    const cover = await spendCredits('conversation');
-    if (cover.ok) {
-      spent += cover.amount;
-    } else if (cover.code === 'no-credits' || cover.code === 'daily-cap') {
-      yield refused(cover.code, spent);
-      return;
-    }
-
-    // Live stage paid before touching /listings (ADR-0002).
-    if (needsLiveQuery(userText.toLowerCase())) {
-      const live = await spendCredits('live_query', { adapter: 'mock' });
-      if (live.ok) {
-        spent += live.amount;
-      } else if (live.code === 'no-credits' || live.code === 'daily-cap') {
-        yield refused(live.code, spent);
-        return;
-      }
-    }
 
     const text = await plan(userText, isFirstTurn);
 
@@ -244,13 +204,6 @@ export const mockAdapter: ChatModelAdapter = {
       acc += tok;
       yield { content: [{ type: 'text', text: acc }] };
       await sleep(TOKEN_DELAY_MS, abortSignal);
-    }
-
-    if (spent > 0 && !abortSignal.aborted) {
-      yield {
-        content: [{ type: 'text', text: acc }],
-        metadata: { custom: { [MONEDAS_SPENT_KEY]: spent } },
-      };
     }
   },
 };

@@ -49,6 +49,8 @@ import {
   LISTINGS_DATA_SOURCE,
   getListingPayTo,
   quoteStay,
+  releaseMockBooking,
+  settleMockBooking,
   type DomainErrorCode,
 } from "./data/index.js";
 
@@ -231,8 +233,8 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
 
 // ---------------------------------------------------------------------------
 // settle hooks — pending_payment → confirmed + payments row, or release.
-// Only when the supabase backend owns the bookings; the mock's bookings are
-// in-memory and already 'confirmed'.
+// The supabase leg goes through the RPCs; the mock leg flips its in-memory
+// row the same way (no payments table — state only, see repo.ts).
 // ---------------------------------------------------------------------------
 
 function isBookingSettle(context: SettleContext): boolean {
@@ -256,10 +258,14 @@ function bookingIdFromResponse(context: SettleContext): string | null {
 }
 
 async function onAfterSettle(context: SettleResultContext): Promise<void> {
-  if (LISTINGS_DATA_SOURCE !== "supabase" || !isBookingSettle(context)) return;
+  if (!isBookingSettle(context)) return;
   const bookingId = bookingIdFromResponse(context);
   if (!bookingId) {
     console.error("book settle: no booking_id in handler response — cannot confirm");
+    return;
+  }
+  if (LISTINGS_DATA_SOURCE !== "supabase") {
+    settleMockBooking(bookingId);
     return;
   }
   try {
@@ -288,9 +294,13 @@ async function onAfterSettle(context: SettleResultContext): Promise<void> {
 }
 
 async function releasePending(context: SettleContext): Promise<void> {
-  if (LISTINGS_DATA_SOURCE !== "supabase" || !isBookingSettle(context)) return;
+  if (!isBookingSettle(context)) return;
   const bookingId = bookingIdFromResponse(context);
   if (!bookingId) return; // book_stay failed atomically — nothing was held
+  if (LISTINGS_DATA_SOURCE !== "supabase") {
+    releaseMockBooking(bookingId);
+    return;
+  }
   try {
     const { error } = await createSupabaseAdmin().rpc("release_booking", {
       p_booking_id: bookingId,
