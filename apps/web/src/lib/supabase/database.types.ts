@@ -760,6 +760,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_lodging: {
+        Args: { p_listing_id: string; p_user_id: string }
+        Returns: Json
+      }
       book_stay: {
         Args: {
           p_checkin: string
@@ -791,6 +795,33 @@ export type Database = {
         }
         Returns: Json
       }
+      create_lodging: {
+        Args: {
+          p_address: string
+          p_amenities?: Json
+          p_base_price_minor: number
+          p_bathrooms: number
+          p_bedrooms: number
+          p_blurb?: string
+          p_city: string
+          p_country_code: string
+          p_currency: string
+          p_guests: number
+          p_latitude: number
+          p_listing_id?: string
+          p_longitude: number
+          p_name: string
+          p_photos?: Json
+          p_property_id?: string
+          p_property_type: Database["public"]["Enums"]["property_type"]
+          p_region: string
+          p_slug?: string
+          p_timezone: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      ensure_amenity: { Args: { p_label: string }; Returns: string }
       open_claim: {
         Args: {
           p_booking_id: string
@@ -809,6 +840,30 @@ export type Database = {
           p_booking_id: string
           p_refund_pct?: number
           p_resolution: Database["public"]["Enums"]["claim_resolution"]
+        }
+        Returns: Json
+      }
+      update_lodging: {
+        Args: {
+          p_address: string
+          p_amenities?: Json
+          p_base_price_minor: number
+          p_bathrooms: number
+          p_bedrooms: number
+          p_blurb?: string
+          p_city: string
+          p_country_code: string
+          p_currency: string
+          p_guests: number
+          p_latitude: number
+          p_listing_id: string
+          p_longitude: number
+          p_name: string
+          p_photos?: Json
+          p_property_type: Database["public"]["Enums"]["property_type"]
+          p_region: string
+          p_timezone: string
+          p_user_id: string
         }
         Returns: Json
       }

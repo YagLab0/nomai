@@ -79,6 +79,21 @@ to agents and the public (enforced by RLS).
 | `rate_rules` | Seasonal `nightly_price_minor` over a date range; `priority` breaks overlaps |
 | `availability_nights` | PK `(listing_id, night)` — `open`/`blocked`/`booked`, `units_available`, `price_minor` override (null → rate_rule → base_price) |
 
+### Owner Lodging writes (`…_owner_lodging_writes.sql`)
+
+The Owner's wizard persists through three `security definer` RPCs, each one
+transaction: `create_lodging` (property + `published` listing + photos +
+amenities + 365 `open` nights — `book_stay` needs a row per night),
+`update_lodging` (blocks relocating while there is an Upcoming Booking;
+replaces photos/amenities, tops up missing nights) and `archive_lodging`
+(soft delete to `archived`, refused with an Upcoming Booking). They take
+`p_user_id` and resolve the Owner as `businesses.user_id = p_user_id`; the
+web route (`/api/owners/lodgings`) verifies the session first and calls
+them with the secret key. `ensure_amenity(label)` maps free-text amenity
+lines to `amenities` (by code, then name, else a new `servicios` row).
+Photos live in the public Storage bucket `listing-photos` under
+`<business_id>/<listing_id>/`; `listing_photos.url` stores the public URL.
+
 ### `bookings`
 
 Mock shape plus platform columns: `traveler_id` (→ `travelers`, for RLS
@@ -170,7 +185,8 @@ insert/update policies.
 
 The same lockdown applies to the `security definer` RPCs: EXECUTE on
 `book_stay`, `cancel_booking`, `confirm_booking_payment`, `release_booking`,
-`open_claim`, `resolve_claim` and `process_escrow_releases` is revoked from
+`open_claim`, `resolve_claim`, `process_escrow_releases`, `create_lodging`,
+`update_lodging` and `archive_lodging` is revoked from
 PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST
 can't reach them; `apps/api` calls them with the secret key.
 Traveler-initiated cancellation (ADR-0004) goes through
