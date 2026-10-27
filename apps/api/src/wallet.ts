@@ -236,11 +236,11 @@ const RAMP_URL = process.env.RIPIO_RAMP_URL ?? "https://ramp.ripio.com/";
 /**
  * Minimum Funding amount per fiat currency, in fiat units (the ramp's
  * `amount` is fiat). `FUNDING_MIN_<FIAT>` overrides per currency; the
- * defaults sit near USD 5 so the Traveler meets the floor here, not after
- * arriving at Ripio.
+ * defaults sit at the ramp's observed floor so the Traveler meets it
+ * here, not after arriving at Ripio.
  */
 const FUNDING_MIN: Record<string, number> = {
-  ARS: 5_000,
+  ARS: 2_100,
   BRL: 25,
   CLP: 5_000,
   COP: 20_000,
