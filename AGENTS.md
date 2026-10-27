@@ -63,6 +63,10 @@ Booking, Service fee, Escrow, Claim, FX fee) in issues, specs and code comments.
 ### Issue tracker
 
 Issues and specs live as GitHub issues on `YagLab0/nomai`; use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+The issues are the backlog, the single list of pending work. A change is done only
+once the issues it touches are current: close each finished one with a comment
+naming where it landed, rewrite the scope of each partly done one, and open an
+issue for every new gap or bug you found.
 
 ### Domain docs
 
