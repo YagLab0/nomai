@@ -10,22 +10,8 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      const travelerId = data?.user?.id;
-      const accessToken = data?.session?.access_token;
-      if (travelerId) {
-        const apiUrl = process.env.NOMAI_API_URL ?? 'http://localhost:3001';
-        fetch(`${apiUrl}/wallet/provision`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          },
-          body: JSON.stringify({ traveler_id: travelerId }),
-        }).catch(() => null);
-      }
-
       const forwardedHost = request.headers.get('x-forwarded-host');
       const isLocalEnv = process.env.NODE_ENV === 'development';
       const target = next.startsWith('/') && !next.startsWith('//') ? next : '/app';

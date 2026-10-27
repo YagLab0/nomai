@@ -176,7 +176,7 @@ export function AuthForm({ mode, onVerified }: { mode: keyof typeof COPY; onVeri
 
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -185,14 +185,6 @@ export function AuthForm({ mode, onVerified }: { mode: keyof typeof COPY; onVeri
         setErrorMsg(error.message === 'Invalid login credentials' ? 'Email o contraseña incorrectos.' : error.message);
         setBusy(null);
         return;
-      }
-
-      if (data?.user?.id) {
-        fetch('/api/wallet/provision', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ traveler_id: data.user.id }),
-        }).catch(() => null);
       }
 
       router.push(nextDestination);
@@ -241,14 +233,6 @@ export function AuthForm({ mode, onVerified }: { mode: keyof typeof COPY; onVeri
         setErrorMsg(error.message);
         setBusy(null);
         return;
-      }
-
-      if (data?.user?.id) {
-        fetch('/api/wallet/provision', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ traveler_id: data.user.id }),
-        }).catch(() => null);
       }
 
       if (data?.session) {

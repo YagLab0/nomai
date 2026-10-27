@@ -10,9 +10,10 @@
     "buy": "tsx src/buyer.ts",
     "smoke:listings": "tsx scripts/smoke-listings.ts",
     "smoke:usage": "tsx scripts/smoke-usage.ts",
+    "smoke:wallet": "tsx scripts/smoke-wallet.ts",
     "seed:test-users": "node scripts/seed-test-users.mjs",
     "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit && tsc -p tsconfig.scripts.json"
   },
   "dependencies": {
     "@hono/mcp": "0.3.2",

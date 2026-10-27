@@ -7,18 +7,16 @@ import {
   formatEther,
   type Address,
 } from "viem";
-import { celoSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createSupabaseAdmin } from "./supabase.js";
 import { travelerIdFrom } from "./auth.js";
+import { CONFIG } from "./x402.js";
 
 const router = new Hono();
 
-export const CELO_SEPOLIA_RPC = "https://forno.celo-sepolia.celo-testnet.org";
-
 export const publicClient = createPublicClient({
-  chain: celoSepolia,
-  transport: http(CELO_SEPOLIA_RPC),
+  chain: CONFIG.chain,
+  transport: http(CONFIG.rpc),
 });
 
 /**
@@ -31,9 +29,10 @@ export const publicClient = createPublicClient({
  * - The keyRef conceptual identifier documents the derivation path.
  */
 export function deriveAgentWallet(travelerId: string): { address: Address; keyRef: string } {
-  const masterSecret =
-    process.env.AGENT_WALLET_MASTER_SECRET ||
-    "nomai-testnet-master-secret-key-celo-sepolia";
+  const masterSecret = process.env.AGENT_WALLET_MASTER_SECRET;
+  if (!masterSecret) {
+    throw new Error("AGENT_WALLET_MASTER_SECRET is not set");
+  }
   const seed = `${masterSecret}:${travelerId}`;
   const privateKey = keccak256(stringToHex(seed));
   const account = privateKeyToAccount(privateKey);
@@ -48,49 +47,59 @@ export function deriveAgentWallet(travelerId: string): { address: Address; keyRe
  * Idempotent (unique constraint on traveler_id).
  */
 export async function provisionAgentWallet(travelerId: string) {
-  const supabase = createSupabaseAdmin();
+  try {
+    const supabase = createSupabaseAdmin();
 
-  // Check if wallet already exists
-  const { data: existing, error: fetchError } = await supabase
-    .from("agent_wallets")
-    .select("id, traveler_id, address, network, created_at")
-    .eq("traveler_id", travelerId)
-    .maybeSingle();
+    // Check if wallet already exists
+    const { data: existing, error: fetchError } = await supabase
+      .from("agent_wallets")
+      .select("id, traveler_id, address, network, created_at")
+      .eq("traveler_id", travelerId)
+      .maybeSingle();
 
-  if (fetchError) {
-    throw new Error(`Failed to query agent_wallets: ${fetchError.message}`);
-  }
-
-  if (existing) {
-    return existing;
-  }
-
-  const { address } = deriveAgentWallet(travelerId);
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("agent_wallets")
-    .insert({
-      traveler_id: travelerId,
-      address,
-      network: "celo-sepolia",
-    })
-    .select("id, traveler_id, address, network, created_at")
-    .single();
-
-  if (insertError) {
-    // In case of concurrent race condition, check again
-    if (insertError.code === "23505") {
-      const { data: raceExisting } = await supabase
-        .from("agent_wallets")
-        .select("id, traveler_id, address, network, created_at")
-        .eq("traveler_id", travelerId)
-        .single();
-      if (raceExisting) return raceExisting;
+    if (fetchError) {
+      throw new Error(`Failed to query agent_wallets: ${fetchError.message}`);
     }
-    throw new Error(`Failed to insert agent_wallet: ${insertError.message}`);
-  }
 
-  return inserted;
+    if (existing) {
+      return existing;
+    }
+
+    const { address } = deriveAgentWallet(travelerId);
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("agent_wallets")
+      .insert({
+        traveler_id: travelerId,
+        address,
+        network: CONFIG.name,
+      })
+      .select("id, traveler_id, address, network, created_at")
+      .single();
+
+    if (insertError) {
+      // In case of concurrent race condition, check again
+      if (insertError.code === "23505") {
+        const { data: raceExisting } = await supabase
+          .from("agent_wallets")
+          .select("id, traveler_id, address, network, created_at")
+          .eq("traveler_id", travelerId)
+          .single();
+        if (raceExisting) return raceExisting;
+      }
+      throw new Error(`Failed to insert agent_wallet: ${insertError.message}`);
+    }
+
+    return inserted;
+  } catch (err) {
+    // Every creation failure lands in the server log with traveler_id and
+    // cause — never key material, which derivation keeps out of errors.
+    const cause = err instanceof Error ? err.message : String(err);
+    console.error(
+      `agent wallet creation failed for traveler ${travelerId}: ${cause}`
+    );
+    throw err;
+  }
 }
 
 // Auth (same contract as /usage/*): `Authorization: Bearer <Supabase access
@@ -116,9 +125,8 @@ router.post("/provision", async (c) => {
   try {
     const wallet = await provisionAgentWallet(travelerId);
     return c.json({ ok: true, wallet });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: message }, 500);
+  } catch {
+    return c.json({ error: "wallet_unavailable" }, 503);
   }
 });
 
@@ -151,9 +159,8 @@ router.get("/:traveler_id", async (c) => {
       network: wallet.network,
       balance: balanceCelo,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: message }, 500);
+  } catch {
+    return c.json({ error: "wallet_unavailable" }, 503);
   }
 });
 
