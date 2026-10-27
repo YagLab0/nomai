@@ -298,7 +298,7 @@ export const OWNERS: Owner[] = [
     wallet: '0x8f3cb91d4c2a7e05f6a1b3d5e9c0a2b4d6f8a1c3',
     verified: true,
     responseTime: '~1 h',
-    bio: 'Posada familiar frente a Praia Brava y una casa en Ingleses. Recibo huéspedes hace 12 años; con nomai cobro al instante y en reales.',
+    bio: 'Posada familiar frente a Praia Brava y una casa en Ingleses. Recibo huéspedes hace 12 años; con nomai cobro sin comisión y en reales.',
   },
   {
     slug: 'valentina-herrera',

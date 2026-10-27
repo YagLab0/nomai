@@ -243,7 +243,7 @@ export function LodgingWizard({
     'Nombre, tipo y cuánta gente entra.',
     `Tu cuenta de Ripio es de ${owner.country}, así que el alojamiento tiene que estar ahí.`,
     'Lo que el viajero lee antes de pedirle a Nomito.',
-    `Lo primero que ve el viajero. El precio va en ${FIAT_META[fiat].name.toLowerCase()} y lo cobrás directo, sin comisión.`,
+    `Lo primero que ve el viajero. El precio va en ${FIAT_META[fiat].name.toLowerCase()} y lo cobrás sin comisión.`,
   ];
 
   // Each step swaps the panel's content: move focus there so it's announced.

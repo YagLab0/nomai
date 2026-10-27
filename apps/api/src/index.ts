@@ -26,6 +26,7 @@ import bookings from "./cancellations.js";
 import usage from "./usage.js";
 import wallet from "./wallet.js";
 import keeper from "./keeper.js";
+import owners from "./owners.js";
 import {
   BOOKING_ROUTE_PATTERN,
   bookingPrecheck,
@@ -95,6 +96,12 @@ app.route("/usage", usage);
 // Agent wallet provisioning and balance — issue #16 (ADR-0003). Bearer-scoped
 // like /usage: the token's Traveler must match the requested traveler_id.
 app.route("/wallet", wallet);
+
+// Owner write surface — the Lodging CRUD, status flips and onboarding that
+// used to run as Next.js route handlers with the secret key in apps/web.
+// Bearer-scoped to the verified user id; the web /api/owners/* routes are
+// now thin proxies that forward the session token.
+app.route("/owners", owners);
 
 // Ops-only Escrow keeper (ADR-0006) — POST /internal/keeper, Bearer
 // KEEPER_SECRET. Cron/manual trigger for process_escrow_releases().

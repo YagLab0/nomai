@@ -5,7 +5,7 @@ import { LodgingExplorer } from '@/components/marketplace/lodging-explorer';
 export const metadata: Metadata = {
   title: 'Alojamientos · nomai',
   description:
-    'Alojamientos de dueños verificados en Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay. Pagás en tu moneda, directo al dueño, sin comisión.',
+    'Alojamientos de dueños verificados en Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay. Pagás en tu moneda; el pago queda en garantía hasta tu estadía.',
 };
 
 export default function LodgingsPage() {
@@ -14,8 +14,8 @@ export default function LodgingsPage() {
       <header className="mb-10 max-w-2xl">
         <h1 className="brand-display text-6xl font-medium leading-[0.9] tracking-[-0.03em] text-ink sm:text-7xl">Alojamientos</h1>
         <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-          Cada alojamiento es de un dueño. Elegí uno y pedile a Nomito que lo reserve: pagás en tu moneda y el pago va
-          directo al dueño, sin comisión.
+          Cada alojamiento es de un dueño. Elegí uno y pedile a Nomito que lo reserve: pagás en tu moneda y el pago
+          queda en garantía hasta tu estadía.
         </p>
       </header>
       <LodgingExplorer mode="public" />

@@ -10,8 +10,8 @@ const STEPS = [
     text: 'Revisa alojamientos y te trae una lista corta con el precio final en tu moneda.',
   },
   {
-    title: 'Pagás en tu moneda, directo al dueño',
-    text: 'Elegís, confirmás y listo. El dinero va al dueño del alojamiento, sin intermediarios.',
+    title: 'Pagás en tu moneda, con garantía',
+    text: 'Elegís, confirmás y listo. El dinero queda en garantía y se libera al dueño por etapas.',
   },
 ];
 

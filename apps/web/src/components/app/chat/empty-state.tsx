@@ -16,7 +16,7 @@ export function EmptyState() {
       <NomitoAvatar size="lg" shape="icon" className="h-24 w-24" />
       <h2 className="brand-display text-4xl font-medium text-ink">¿A dónde querés ir?</h2>
       <p className="max-w-sm text-ink-muted">
-        Contale a Nomito y te busca alojamiento directo con el dueño, en tu moneda.
+        Contale a Nomito y te busca alojamiento con pago en garantía, en tu moneda.
       </p>
       <div className="mt-2 flex flex-wrap justify-center gap-2">
         {SUGGESTIONS.map((prompt) => (

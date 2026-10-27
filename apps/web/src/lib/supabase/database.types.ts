@@ -843,6 +843,14 @@ export type Database = {
         }
         Returns: Json
       }
+      set_lodging_status: {
+        Args: {
+          p_listing_id: string
+          p_status: Database["public"]["Enums"]["listing_status"]
+          p_user_id: string
+        }
+        Returns: Json
+      }
       update_lodging: {
         Args: {
           p_address: string

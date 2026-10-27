@@ -113,7 +113,7 @@ export function LodgingExplorer({ mode }: { mode: 'public' | 'app' }) {
         <p className="text-sm text-ink-muted" aria-live="polite">
           {lodgings === null
             ? 'Buscando alojamientos…'
-            : `${results.length} ${results.length === 1 ? 'alojamiento' : 'alojamientos'} · el pago va directo al dueño`}
+            : `${results.length} ${results.length === 1 ? 'alojamiento' : 'alojamientos'} · pago en garantía`}
           {fiat && (
             <span className="block text-xs">
               ≈ estimado al cambio {fxSource === 'static' || !fxSource ? '· cotización de referencia' : '· cotización en vivo'}

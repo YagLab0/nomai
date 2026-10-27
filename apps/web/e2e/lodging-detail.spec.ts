@@ -35,7 +35,7 @@ test('the ficha shows gallery, facts, blurb, amenities, address, map and the Own
   // Owner block with the link to the storefront.
   await expect(page.getByText('Ramón Guaymás')).toBeVisible();
   await expect(page.getByText('Dueño verificado')).toBeVisible();
-  await expect(page.getByText(/Cobra directo, sin comisión/)).toBeVisible();
+  await expect(page.getByText(/Cobra sin comisión/)).toBeVisible();
   const storefront = page.getByRole('link', { name: /escaparate/ });
   await expect(storefront).toBeVisible();
   await storefront.click();

@@ -45,7 +45,7 @@ function QuoteCard({ quote }: { quote: BookingQuoteArgs }) {
             <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-agua text-xs text-white">
               ✓
             </span>
-            Reserva confirmada · pagada directo al dueño
+            Reserva confirmada · pago en garantía
           </p>
         ) : (
           <Button fullWidth size="lg" isPending={state === 'loading'} onPress={confirm}>
