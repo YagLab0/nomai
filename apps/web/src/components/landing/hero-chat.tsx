@@ -204,7 +204,7 @@ export function HeroChat({
 
         <Row show={at('reply')}>
           <p className="w-fit max-w-[88%] rounded-2xl rounded-tl-md bg-terra-soft px-4 py-2.5 text-ink">
-            Dale, Lucas. Miré lo que hay y esta casa en Cafayate es la que mejor te queda, directo con el dueño.
+            Dale, Lucas. Miré lo que hay y esta casa en Cafayate es la que mejor te queda, con el pago en garantía.
           </p>
         </Row>
 
@@ -214,7 +214,7 @@ export function HeroChat({
               <p className="font-brand text-base font-medium leading-tight text-ink">{lodging.name}</p>
               <p className="text-xs text-ink-muted">{lodging.city}</p>
               <span className="mt-2 inline-flex rounded-full bg-agua-soft px-2 py-0.5 text-xs font-medium text-agua">
-                directo con el dueño
+                pago en garantía
               </span>
             </div>
             <div className="relative flex w-28 flex-col items-center justify-center gap-0.5 border-l-2 border-dashed border-sand p-3 text-center">
@@ -250,7 +250,7 @@ export function HeroChat({
             {at('done') && (
               <p className="m-2 flex animate-[rise_0.45s_ease-out] items-center gap-2 rounded-xl bg-agua-soft px-3 py-2 text-[13px] font-medium text-agua">
                 <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center rounded-full bg-agua text-[10px] text-white">✓</span>
-                Reserva confirmada · pagada directo al dueño
+                Reserva confirmada · pago en garantía
               </p>
             )}
           </div>

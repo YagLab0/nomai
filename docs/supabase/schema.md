@@ -88,11 +88,17 @@ amenities + 365 `open` nights — `book_stay` needs a row per night),
 replaces photos/amenities, tops up missing nights) and `archive_lodging`
 (soft delete to `archived`, refused with an Upcoming Booking). They take
 `p_user_id` and resolve the Owner as `businesses.user_id = p_user_id`; the
-web route (`/api/owners/lodgings`) verifies the session first and calls
-them with the secret key. `ensure_amenity(label)` maps free-text amenity
+api route (`POST /owners/lodgings` — the web `/api/owners/*` handlers are
+thin proxies) verifies the Bearer session first and calls them with the
+secret key. `ensure_amenity(label)` maps free-text amenity
 lines to `amenities` (by code, then name, else a new `servicios` row).
 Photos live in the public Storage bucket `listing-photos` under
 `<business_id>/<listing_id>/`; `listing_photos.url` stores the public URL.
+
+`set_lodging_status` (`…_owner_lodging_status.sql`) toggles a non-archived
+listing between `published` and `paused` — the dashboard's pause/republish.
+Same `p_user_id` ownership check; pausing is allowed with Upcoming Bookings
+(existing Bookings stand) and the first publish stamps `published_at`.
 
 ### `bookings`
 
@@ -170,8 +176,10 @@ RLS `for all using (false)` — service_role only.
 
 | Table | Read | Write |
 |---|---|---|
-| `businesses`, `properties`, `amenities`, `listing_amenities`, `listing_photos`, `listing_units`, `rate_rules`, `availability_nights`, `currencies` | Public | Owner via `owns_business(business_id)` on `businesses`/`properties`/`listings`; rest api-only |
-| `listings` | `status='published'`, or the owner | Owner via property→business chain |
+| `businesses` | Public | Owner — `auth.uid() = user_id` (insert + update) |
+| `properties` | Public | Owner `insert` only — `owns_business(business_id)`; later writes via the lodging RPCs |
+| `listings` | `status='published'`, or the owner | Owner `insert` only — `status='draft'` + the property→business chain; later writes via the lodging RPCs |
+| `amenities`, `listing_amenities`, `listing_photos`, `listing_units`, `rate_rules`, `availability_nights`, `currencies` | Public | api only |
 | `travelers`, `agent_wallets`, `agent_usage` | Own rows | Own profile only (`travelers`); rest api-only |
 | `bookings`, `payments` | Traveler's own; owner of the listing | api only |
 | `platform_settings` | — (no policies grant access) | api only |
@@ -186,7 +194,7 @@ insert/update policies.
 The same lockdown applies to the `security definer` RPCs: EXECUTE on
 `book_stay`, `cancel_booking`, `confirm_booking_payment`, `release_booking`,
 `open_claim`, `resolve_claim`, `process_escrow_releases`, `create_lodging`,
-`update_lodging` and `archive_lodging` is revoked from
+`update_lodging`, `archive_lodging` and `set_lodging_status` is revoked from
 PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST
 can't reach them; `apps/api` calls them with the secret key.
 Traveler-initiated cancellation (ADR-0004) goes through

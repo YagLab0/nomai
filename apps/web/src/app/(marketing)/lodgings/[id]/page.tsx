@@ -10,14 +10,21 @@ export function generateStaticParams() {
   return LODGINGS.map((l) => ({ id: l.id }));
 }
 
+// DB-only slugs (Owner-created Lodgings live in Supabase, not in the seed)
+// render on demand — the ficha resolves them through the listings API.
+export const dynamicParams = true;
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const detail = await fetchListing(id).catch(() => null);
-  const lodging = detail ? apiDetailToLodging(detail) : catalog.byId(id);
+  // null = authoritative 404 (paused/archived/unknown) — no catalog fallback;
+  // a throw means the API can't answer and the seed still describes the id.
+  const detail = await fetchListing(id).catch(() => undefined);
+  const lodging =
+    detail === null ? null : detail ? apiDetailToLodging(detail) : catalog.byId(id);
   return {
     title: lodging ? `${lodging.name} · nomai` : 'Alojamiento · nomai',
     description: lodging
@@ -28,7 +35,8 @@ export async function generateMetadata({
 
 /**
  * The public ficha (traveler-views §16). Seeded ids prerender here; ids only
- * known to this browser's catalog resolve client-side inside LodgingDetail.
+ * known to the database (Owner-created Lodgings) or to this browser's catalog
+ * resolve client-side inside LodgingDetail.
  */
 export default async function LodgingPage({
   params,

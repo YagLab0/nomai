@@ -13,7 +13,7 @@ const brand = Fraunces({
 export const metadata: Metadata = {
   title: 'nomai — Viajá por Latinoamérica pagando en tu moneda',
   description:
-    'Contale a Nomito a dónde querés ir y te busca alojamiento en Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay. Pagás en tu moneda, directo al dueño, sin dólar tarjeta.',
+    'Contale a Nomito a dónde querés ir y te busca alojamiento en Argentina, Brasil, Chile, Colombia, México, Perú y Uruguay. Pagás en tu moneda, sin dólar tarjeta.',
 };
 
 export default function RootLayout({

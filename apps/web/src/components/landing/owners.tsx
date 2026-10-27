@@ -6,8 +6,8 @@ import { PHOTOS } from '@/lib/photos';
 
 const POINTS = [
   {
-    title: 'Cobrás al instante, en tu moneda',
-    text: 'Sin esperar 30 o 60 días. La reserva se paga directo a tu cuenta de Ripio.',
+    title: 'Cobrás en tu moneda',
+    text: 'Sin esperar 30 o 60 días. La reserva se libera a tu cuenta de Ripio por etapas.',
   },
   {
     title: 'Importamos tu perfil',

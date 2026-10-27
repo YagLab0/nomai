@@ -44,7 +44,7 @@ export function Hero() {
             Viajá por Latinoamérica pagando en tu moneda
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-paper/85 sm:text-lg lg:mt-6">
-            Contale a Nomito a dónde vas. Busca alojamiento, compara y reserva directo con el dueño. Vos pagás en
+            Contale a Nomito a dónde vas. Busca alojamiento, compara y reserva con el dueño. Vos pagás en
             pesos, reales o la moneda que uses, sin dólar tarjeta.
           </p>
 

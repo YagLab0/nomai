@@ -22,7 +22,7 @@ function TicketCard({ lodging }: { lodging: Lodging }) {
         <p className="mt-0.5 text-sm text-ink-muted">{lodging.city}</p>
         <p className="mt-2 text-sm leading-snug text-ink">{lodging.blurb}</p>
         <span className="mt-3 inline-flex rounded-full bg-agua-soft px-2.5 py-0.5 text-xs font-medium text-agua">
-          directo con el dueño
+          pago en garantía
         </span>
       </div>
 

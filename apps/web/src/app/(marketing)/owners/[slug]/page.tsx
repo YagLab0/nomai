@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: owner ? `Alojamientos de ${owner.name} · nomai` : 'Alojamientos · nomai',
     description: owner
-      ? `${owner.name} ofrece alojamientos en ${owner.city}, ${owner.country}. Pagás en tu moneda, directo al dueño y sin comisión.`
+      ? `${owner.name} ofrece alojamientos en ${owner.city}, ${owner.country}. Pagás en tu moneda; el pago queda en garantía hasta tu estadía.`
       : undefined,
   };
 }

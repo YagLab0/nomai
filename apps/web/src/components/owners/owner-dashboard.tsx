@@ -271,17 +271,19 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     loadData();
   }, [loadData]);
 
-  // Action: toggle listing status (published <-> paused). `listingSlug` is the
-  // Lodging's id on this surface — the public slug, like the marketplace API.
+  // Action: toggle listing status (published <-> paused) through the service
+  // route — `set_lodging_status` re-checks ownership server-side and is the
+  // only self-serve transition; `listingSlug` is the Lodging's id on this
+  // surface — the public slug, like the marketplace API.
   async function toggleListingStatus(listingSlug: string, newStatus: 'published' | 'paused') {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('listings')
-      .update({ status: newStatus })
-      .eq('slug', listingSlug);
-
-    if (error) {
-      toast(`Error al actualizar estado: ${error.message}`);
+    const res = await fetch(`/api/owners/lodgings/${encodeURIComponent(listingSlug)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast(`Error al actualizar estado: ${data.error ?? res.status}`);
       return;
     }
 
@@ -472,7 +474,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
             {formatMoney(totalIncomeMinor, currency)}
           </p>
           <p className="mt-2 text-xs text-white/70">
-            neto · al instante en tu billetera Ripio
+            neto · liberado por etapas en tu billetera Ripio
           </p>
         </div>
 
@@ -519,7 +521,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
               Reservas
             </h2>
             <p className="mt-1 text-sm text-ink-muted">
-              Cada reserva confirmada se cobra al instante en tu cuenta de Ripio.
+              El pago de cada reserva queda en garantía y se libera a tu cuenta de Ripio por etapas.
             </p>
           </div>
           <span className="rounded-full bg-sand/60 px-3 py-1 font-mono text-xs font-medium text-ink">

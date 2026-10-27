@@ -71,7 +71,7 @@ export function OwnerCatalogPanel() {
           <p className="mt-2 font-mono text-4xl font-semibold tracking-tight">
             $ {formatNumber(monthNetARS)}
           </p>
-          <p className="mt-2 text-xs text-white/70">neto de devoluciones · al instante en tu Ripio</p>
+          <p className="mt-2 text-xs text-white/70">neto de devoluciones · liberado por etapas en tu Ripio</p>
         </div>
         {nextArrival && nextLodging && (
           <div className="rounded-card border border-sand bg-white p-6">
