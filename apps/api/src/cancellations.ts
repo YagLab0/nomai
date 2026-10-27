@@ -27,7 +27,7 @@ import {
   type ClaimErrorCode,
   type ClaimReason,
 } from "./data/index.js";
-import { travelerIdFrom } from "./credits.js";
+import { travelerIdFrom } from "./auth.js";
 
 const bookings = new Hono();
 

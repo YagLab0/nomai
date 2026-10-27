@@ -9,9 +9,10 @@ const BASE = () =>
   (process.env.NOMAI_API_URL ?? "http://localhost:3001").replace(/\/+$/, "");
 
 // The Traveler's Supabase access token, sent as `Authorization: Bearer` on
-// user-scoped routes (/credits/*, /wallet/* — the API verifies it with the
-// Auth server and the verified user id IS the traveler id). Resolve the
-// Traveler with travelerAuth(ctx.session.auth.current) from ./traveler-auth:
+// user-scoped routes (/usage/*, /wallet/* — Credits were retired by ADR-0005).
+// The API verifies it with the Auth server and the verified user id IS the
+// traveler id. Resolve the Traveler with
+// travelerAuth(ctx.session.auth.current) from ./traveler-auth:
 // the token the web chat forwarded with this turn, or NOMAI_TRAVELER_TOKEN as
 // the dev override.
 export const travelerAuthHeaders = (traveler: TravelerAuth): Record<string, string> => ({
@@ -77,9 +78,12 @@ export const apiGet = <T>(
   headers?: Record<string, string>
 ) => request<T>(path, headers ? { headers } : undefined, params);
 
-const postInit = (body: unknown): RequestInit => ({
+const postInit = (
+  body: unknown,
+  headers?: Record<string, string>
+): RequestInit => ({
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", ...headers },
   body: JSON.stringify(body),
 });
 
@@ -94,7 +98,11 @@ export type PaidApiResult<T> =
 // as `payment`. Wallet/signing failures (no CELO_PRIVATE_KEY, unfunded wallet,
 // rejected settlement) come back as ok:false with code "payment_failed" —
 // never as a success.
-export async function apiPaidPost<T>(path: string, body: unknown): Promise<PaidApiResult<T>> {
+export async function apiPaidPost<T>(
+  path: string,
+  body: unknown,
+  headers?: Record<string, string>
+): Promise<PaidApiResult<T>> {
   let payFetch: typeof fetch;
   try {
     payFetch = paymentFetch();
@@ -122,7 +130,7 @@ export async function apiPaidPost<T>(path: string, body: unknown): Promise<PaidA
   };
 
   try {
-    const { result, res } = await send<T>(path, postInit(body), undefined, wrapped);
+    const { result, res } = await send<T>(path, postInit(body, headers), undefined, wrapped);
     const payment = res ? readSettlementReceipt(res) : null;
     if (result.ok) return { ...result, payment };
     // Still 402 after the paid retry: the facilitator rejected the payment

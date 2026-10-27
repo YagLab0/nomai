@@ -1,9 +1,11 @@
 // nomai — an x402 seller.
 //
-// `GET /free` is open. `POST /paid` charges the caller USDC on Celo before it answers.
+// `GET /free` is open. The only paid route is the Booking endpoint
+// `POST /listings/:slug/book` — the generic `POST /paid` probe is retired
+// (D4); Booking payments are how the API earns.
 //
 // The flow, once:
-//   1. An agent calls POST /paid with no payment header.
+//   1. An agent calls the Booking route with no payment header.
 //   2. This server answers 402 with what it will accept (asset, amount, payTo, network).
 //   3. The agent signs an EIP-3009 authorization for exactly that and calls again.
 //   4. The facilitator verifies the signature, submits the transfer, and pays the gas.
@@ -17,20 +19,11 @@ import { serve } from "@hono/node-server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { Hono } from "hono";
-import { getAddress, parseUnits } from "viem";
-import {
-  ACCEPTED_TOKENS,
-  CAIP2,
-  CONFIG,
-  NEEDS_PERMIT2_SPONSORING,
-  NETWORK,
-  PAY_TO,
-  PRICE,
-  facilitator,
-} from "./x402.js";
+import { CAIP2, CONFIG, NETWORK, facilitator } from "./x402.js";
 import listings from "./listings.js";
+import mcp, { mcpWellKnown } from "./mcp.js";
 import bookings from "./cancellations.js";
-import credits from "./credits.js";
+import usage from "./usage.js";
 import wallet from "./wallet.js";
 import keeper from "./keeper.js";
 import {
@@ -39,6 +32,7 @@ import {
   bookingRouteConfig,
   registerBookingHooks,
 } from "./book-payment.js";
+import { LISTINGS_DATA_SOURCE } from "./data/index.js";
 import type { RoutesConfig } from "@x402/core/server";
 
 const app = new Hono();
@@ -48,10 +42,10 @@ app.get("/free", (c) =>
   c.json({ ok: true, network: NETWORK, facilitator: CONFIG.facilitator })
 );
 
-// One resource server settles both paid routes: the flat-fee /paid probe and
-// the Owner-priced Booking endpoint. The booking hooks (issue #14) live on
-// this server — pending_payment → confirmed + the payments row post-settle,
-// release on settle failure.
+// One resource server settles the only paid route — the Owner-priced
+// Booking endpoint. The booking hooks (issue #14) live on this server —
+// pending_payment → confirmed + the payments row post-settle, release on
+// settle failure.
 const server = new x402ResourceServer(facilitator);
 server.register("eip155:*", new ExactEvmScheme());
 registerBookingHooks(server);
@@ -62,50 +56,11 @@ const paidRoutes: RoutesConfig = {
   [BOOKING_ROUTE_PATTERN]: bookingRouteConfig,
 };
 
-if (PAY_TO) {
-  const payTo = getAddress(PAY_TO);
-  paidRoutes["POST /paid"] = {
-    // One entry per accepted asset — the buyer pays in whichever it holds.
-    // For permit2 assets (the Ripio wFIAT tokens) the EIP-712 domain rides
-    // in `extra` and the route advertises eip2612GasSponsoring so the
-    // client signs the sponsored permit instead of an EIP-3009 auth.
-    accepts: ACCEPTED_TOKENS.map((token) => ({
-      scheme: "exact",
-      network: CAIP2,
-      payTo,
-      price: {
-        amount: parseUnits(PRICE, token.decimals).toString(),
-        asset: token.address,
-        extra: {
-          ...token.domain,
-          ...(token.transferMethod === "permit2"
-            ? { assetTransferMethod: "permit2" }
-            : {}),
-        },
-      },
-    })),
-    // What the caller is buying. This is shown to the paying agent, so it
-    // should describe the resource, not the project.
-    description: `One call to the nomai paid API — ${PRICE} ${ACCEPTED_TOKENS.map((t) => t.symbol.toUpperCase()).join("/")} on ${NETWORK}`,
-    ...(NEEDS_PERMIT2_SPONSORING
-      ? {
-          extensions: {
-            eip2612GasSponsoring: {
-              info: {
-                description:
-                  "The facilitator sponsors the EIP-2612 permit to Permit2.",
-                version: "1",
-              },
-            },
-          },
-        }
-      : {}),
-  };
-} else {
-  console.warn(
-    "⚠️  X402_PAY_TO is not set — /paid is running FREE. Set it in .env to charge."
-  );
-}
+// Read-only MCP server — Bearer-authed (Supabase access token), plus the
+// RFC 9728 protected-resource metadata for OAuth clients. Mounted BEFORE the
+// x402 gate so these routes never see the payment middleware.
+app.route("/mcp", mcp);
+app.route("/", mcpWellKnown);
 
 // Hono runs handlers in registration order, so the gate MUST be registered
 // before the routers it protects — a book handler mounted earlier would
@@ -138,32 +93,21 @@ app.route("/listings", listings);
 // back from the Owner's wallet).
 app.route("/bookings", bookings);
 
-// Credits (monedas Nomai) — issue #17. The ledger is the only source of
-// truth for balances; every route here is Bearer-scoped to the Traveler.
-app.route("/credits", credits);
+// Agent usage metering — ADR-0002 free-tier daily budgets (D9). No
+// balance: every route here is Bearer-scoped to the Traveler.
+app.route("/usage", usage);
 
 // Agent wallet provisioning and balance — issue #16 (ADR-0003). Bearer-scoped
-// like /credits: the token's Traveler must match the requested traveler_id.
+// like /usage: the token's Traveler must match the requested traveler_id.
 app.route("/wallet", wallet);
 
 // Ops-only Escrow keeper (ADR-0006) — POST /internal/keeper, Bearer
 // KEEPER_SECRET. Cron/manual trigger for process_escrow_releases().
 app.route("/internal", keeper);
 
-/** The paid route. Everything here runs only after a settled payment. */
-app.post("/paid", (c) =>
-  c.json({
-    message: "You paid for this response.",
-    network: NETWORK,
-    servedAt: new Date().toISOString(),
-  })
-);
-
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port });
 console.log(`nomai x402 seller listening on http://localhost:${port}`);
 console.log(`  network:     ${NETWORK} (${CAIP2})`);
 console.log(`  facilitator: ${CONFIG.facilitator}`);
-console.log(
-  `  price:       ${PRICE} in ${ACCEPTED_TOKENS.map((t) => t.symbol.toUpperCase()).join(", ")}`
-);
+console.log(`  data source: ${LISTINGS_DATA_SOURCE}`);

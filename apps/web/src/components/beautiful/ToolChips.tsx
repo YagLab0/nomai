@@ -26,6 +26,8 @@ const Icons: Record<string, React.ReactNode> = {
 export type ToolDetailLine = { text: string; tone?: "add" };
 
 export type ToolStep = {
+  /** Stable row identity — the same label may repeat across calls. */
+  id?: string;
   icon: string;
   label: string;
   chip: string;
@@ -159,11 +161,11 @@ export default function ToolChips({
     return () => clearTimeout(t);
   }, [step, total]);
 
-  const toggleRow = (label: string) =>
+  const toggleRow = (id: string) =>
     setOpenRows((current) => {
       const next = new Set(current);
-      next.has(label) ? next.delete(label) : next.add(label);
-      onToggleRow?.(label, next.has(label));
+      next.has(id) ? next.delete(id) : next.add(id);
+      onToggleRow?.(id, next.has(id));
       return next;
     });
 
@@ -194,13 +196,14 @@ export default function ToolChips({
         <div className="-mx-1 overflow-hidden px-1.5 pb-1">
         <div className="mt-1.5 flex flex-col gap-1">
           {steps.slice(0, step).map((row) => {
-            const rowOpen = openRows.has(row.label);
+            const rowId = row.id ?? row.label;
+            const rowOpen = openRows.has(rowId);
             return (
-            <div key={row.label} style={{ animation: "bui-fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}>
+            <div key={rowId} style={{ animation: "bui-fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}>
               <button
                 type="button"
                 aria-expanded={rowOpen}
-                onClick={() => toggleRow(row.label)}
+                onClick={() => toggleRow(rowId)}
                 className={`${focusRing} group/row -mx-[3px] flex h-7 w-[calc(100%+6px)] min-w-0 items-center gap-2 rounded-lg px-[3px] text-left transition-colors duration-100 hover:bg-sand/40`}
               >
                 <span aria-hidden className="relative flex size-4 shrink-0 items-center justify-center text-ink-muted">
@@ -235,9 +238,9 @@ export default function ToolChips({
               >
                 <div className="min-h-0 overflow-hidden">
                   <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-sand py-0.5 pl-3.5">
-                    {row.detail.map((line) => (
+                    {row.detail.map((line, i) => (
                       <span
-                        key={line.text}
+                        key={i}
                         className={`truncate text-[11.5px] leading-[1.6] ${row.detailMono ? "font-mono" : ""} ${line.tone === "add" ? "text-agua" : "text-ink-muted"}`}
                       >
                         {line.text}

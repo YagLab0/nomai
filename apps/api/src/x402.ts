@@ -126,13 +126,10 @@ export const CONFIG = X402[NETWORK];
 export const CAIP2 = CONFIG.caip2;
 
 /**
- * Price in WHOLE tokens (e.g. "0.01" = 0.01 USDC / 0.01 wARS), converted per
- * asset by its decimals at accept time. Quoting whole tokens rather than raw
- * units is what makes a multi-asset `accepts` list possible at all.
+ * Fallback payTo for the Booking endpoint (book-payment.ts) — used only
+ * when a listing has no business.payout_address of its own. There is no
+ * generic paid route anymore (D4), so no X402_PRICE.
  */
-export const PRICE = process.env.X402_PRICE ?? "0.01";
-
-/** Where settled payments land. Unset means /paid answers for free. */
 export const PAY_TO = process.env.X402_PAY_TO;
 
 /**

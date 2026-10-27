@@ -10,6 +10,7 @@ import {
   ListBox,
   Modal,
   Select,
+  Spinner,
   TextArea,
   TextField,
   toast,
@@ -21,6 +22,7 @@ import { PlaceSearch } from '@/components/owners/place-search';
 import type { Pin } from '@/components/owners/pin-picker-map';
 import { catalog, CatalogFullError, type LodgingDraft } from '@/lib/catalog';
 import { type Place } from '@/lib/geocode';
+import { hasSupabaseEnv } from '@/lib/supabase/env';
 import {
   FIAT_META,
   KIND_LABEL,
@@ -41,6 +43,11 @@ const LodgingMap = dynamic(() => import('@/components/marketplace/lodging-map'),
  * Publicar writes to the catalog — the Lodging is born published. In edit mode
  * it saves changes, locks the location and can delete, both per the
  * Upcoming Booking rule.
+ *
+ * With Supabase configured, writes go through `/api/owners/lodgings` — the
+ * server enforces the same rules — and `rules` carries the server's
+ * canRelocate/canRemove verdict. Without it (the mock panel), the browser
+ * catalog stays the backend, like LISTINGS_DATA_SOURCE=mock on the API.
  */
 
 const STEP_LABELS = ['Básico', 'Ubicación', 'Detalles', 'Fotos y precio'] as const;
@@ -199,14 +206,20 @@ function prefill(l: Lodging): Draft {
 export function LodgingWizard({
   owner,
   lodging,
+  rules,
   isOpen,
   onOpenChange,
+  onSaved,
 }: {
   owner: Owner;
   /** Edit mode: the Lodging to prefill. Without it the wizard creates one. */
   lodging?: Lodging;
+  /** The server's canRelocate/canRemove verdict for `lodging` (Supabase mode). */
+  rules?: { canRelocate: boolean; canRemove: boolean };
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after a Lodging is saved or archived so the panel can refresh. */
+  onSaved?: () => void;
 }) {
   const [step, setStep] = useState(0);
   const [touched, setTouched] = useState(false);
@@ -214,8 +227,12 @@ export function LodgingWizard({
   const [error, setError] = useState<string | null>(null);
   const [preparingPhotos, setPreparingPhotos] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
-  const locationLocked = !!lodging && !catalog.canRelocate(lodging.id);
-  const removable = !!lodging && catalog.canRemove(lodging.id);
+  const [saving, setSaving] = useState(false);
+  const viaApi = hasSupabaseEnv;
+  const locationLocked =
+    !!lodging && !(viaApi ? (rules?.canRelocate ?? false) : catalog.canRelocate(lodging.id));
+  const removable =
+    !!lodging && (viaApi ? (rules?.canRemove ?? false) : catalog.canRemove(lodging.id));
   const panel = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
 
@@ -267,9 +284,9 @@ export function LodgingWizard({
     setStep(step - 1);
   }
 
-  function save() {
+  async function save() {
     setTouched(true);
-    if (priceInvalid || !draft.pin) return;
+    if (priceInvalid || !draft.pin || saving) return;
     const fields: LodgingDraft = {
       name: draft.name,
       kind: draft.kind,
@@ -288,31 +305,80 @@ export function LodgingWizard({
         .filter(Boolean),
       photos: draft.photos,
     };
+    setSaving(true);
     try {
-      if (lodging) catalog.update(lodging.id, fields);
-      else catalog.create(owner.slug, fields);
-    } catch (e) {
-      setError(
-        e instanceof CatalogFullError
-          ? 'No hay más espacio en este navegador para guardar las fotos. Quitá alguna o elegí otras y probá de nuevo: lo demás queda como lo dejaste.'
-          : 'No se pudo guardar. Revisá los datos y probá de nuevo.',
-      );
-      return;
+      if (viaApi) {
+        const res = await fetch(
+          lodging
+            ? `/api/owners/lodgings/${encodeURIComponent(lodging.id)}`
+            : '/api/owners/lodgings',
+          {
+            method: lodging ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fields),
+          },
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(
+            res.status === 409
+              ? 'Tenés reservas confirmadas o en curso en este alojamiento: la ubicación no se puede cambiar.'
+              : (data.error ?? 'No se pudo guardar. Revisá los datos y probá de nuevo.'),
+          );
+          return;
+        }
+      } else {
+        try {
+          if (lodging) catalog.update(lodging.id, fields);
+          else catalog.create(owner.slug, fields);
+        } catch (e) {
+          setError(
+            e instanceof CatalogFullError
+              ? 'No hay más espacio en este navegador para guardar las fotos. Quitá alguna o elegí otras y probá de nuevo: lo demás queda como lo dejaste.'
+              : 'No se pudo guardar. Revisá los datos y probá de nuevo.',
+          );
+          return;
+        }
+      }
+      toast(lodging ? 'Alojamiento actualizado' : 'Alojamiento publicado');
+      onSaved?.();
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
     }
-    toast(lodging ? 'Alojamiento actualizado' : 'Alojamiento publicado');
-    onOpenChange(false);
   }
 
-  function remove() {
-    if (!lodging) return;
+  async function remove() {
+    if (!lodging || saving) return;
+    setSaving(true);
     try {
-      catalog.remove(lodging.id);
-    } catch {
-      setError('No se pudo eliminar. Probá de nuevo.');
-      return;
+      if (viaApi) {
+        const res = await fetch(`/api/owners/lodgings/${encodeURIComponent(lodging.id)}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(
+            res.status === 409
+              ? 'Tenés reservas confirmadas o en curso en este alojamiento: no se puede eliminar.'
+              : (data.error ?? 'No se pudo eliminar. Probá de nuevo.'),
+          );
+          return;
+        }
+      } else {
+        try {
+          catalog.remove(lodging.id);
+        } catch {
+          setError('No se pudo eliminar. Probá de nuevo.');
+          return;
+        }
+      }
+      toast('Alojamiento eliminado');
+      onSaved?.();
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
     }
-    toast('Alojamiento eliminado');
-    onOpenChange(false);
   }
 
   return (
@@ -570,8 +636,13 @@ export function LodgingWizard({
                         puede deshacer.
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button variant="danger" size="sm" onPress={remove}>
-                          Sí, eliminar
+                        <Button variant="danger" size="sm" isPending={saving} onPress={remove}>
+                          {({ isPending }) => (
+                            <>
+                              {isPending && <Spinner color="current" size="sm" />}
+                              {isPending ? 'Eliminando…' : 'Sí, eliminar'}
+                            </>
+                          )}
                         </Button>
                         <Button variant="secondary" size="sm" onPress={() => setConfirmingRemove(false)}>
                           No, conservarlo
@@ -601,8 +672,13 @@ export function LodgingWizard({
                   Siguiente
                 </Button>
               ) : (
-                <Button className="flex-1" onPress={save} isDisabled={preparingPhotos}>
-                  {lodging ? 'Guardar cambios' : 'Publicar'}
+                <Button className="flex-1" onPress={save} isPending={saving} isDisabled={preparingPhotos}>
+                  {({ isPending }) => (
+                    <>
+                      {isPending && <Spinner color="current" size="sm" />}
+                      {isPending ? 'Guardando…' : lodging ? 'Guardar cambios' : 'Publicar'}
+                    </>
+                  )}
                 </Button>
               )}
             </Modal.Footer>

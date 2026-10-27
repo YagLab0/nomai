@@ -39,6 +39,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_usage: {
+        Row: {
+          cost_units: number
+          created_at: string
+          id: string
+          kind: string
+          meta: Json
+          reference: string | null
+          stage: string | null
+          traveler_id: string
+        }
+        Insert: {
+          cost_units: number
+          created_at?: string
+          id?: string
+          kind: string
+          meta?: Json
+          reference?: string | null
+          stage?: string | null
+          traveler_id: string
+        }
+        Update: {
+          cost_units?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          meta?: Json
+          reference?: string | null
+          stage?: string | null
+          traveler_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_ledger_traveler_id_fkey"
+            columns: ["traveler_id"]
+            isOneToOne: false
+            referencedRelation: "travelers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_wallets: {
         Row: {
           address: string
@@ -211,6 +252,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bookings_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
             foreignKeyName: "bookings_listing_id_fkey"
             columns: ["listing_id"]
             isOneToOne: false
@@ -271,56 +319,26 @@ export type Database = {
         }
         Relationships: []
       }
-      credit_ledger: {
+      currencies: {
         Row: {
-          amount: number
-          booking_id: string | null
-          created_at: string
-          id: string
-          kind: string
-          meta: Json
-          reference: string | null
-          stage: string | null
-          traveler_id: string
+          code: string
+          decimals: number
+          name: string
+          wfiat_address: Json
         }
         Insert: {
-          amount: number
-          booking_id?: string | null
-          created_at?: string
-          id?: string
-          kind: string
-          meta?: Json
-          reference?: string | null
-          stage?: string | null
-          traveler_id: string
+          code: string
+          decimals?: number
+          name: string
+          wfiat_address?: Json
         }
         Update: {
-          amount?: number
-          booking_id?: string | null
-          created_at?: string
-          id?: string
-          kind?: string
-          meta?: Json
-          reference?: string | null
-          stage?: string | null
-          traveler_id?: string
+          code?: string
+          decimals?: number
+          name?: string
+          wfiat_address?: Json
         }
-        Relationships: [
-          {
-            foreignKeyName: "credit_ledger_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_ledger_traveler_id_fkey"
-            columns: ["traveler_id"]
-            isOneToOne: false
-            referencedRelation: "travelers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       listing_amenities: {
         Row: {
@@ -505,6 +523,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "listings_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "listings_property_id_fkey"
             columns: ["property_id"]
@@ -735,6 +760,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_lodging: {
+        Args: { p_listing_id: string; p_user_id: string }
+        Returns: Json
+      }
       book_stay: {
         Args: {
           p_checkin: string
@@ -766,6 +795,33 @@ export type Database = {
         }
         Returns: Json
       }
+      create_lodging: {
+        Args: {
+          p_address: string
+          p_amenities?: Json
+          p_base_price_minor: number
+          p_bathrooms: number
+          p_bedrooms: number
+          p_blurb?: string
+          p_city: string
+          p_country_code: string
+          p_currency: string
+          p_guests: number
+          p_latitude: number
+          p_listing_id?: string
+          p_longitude: number
+          p_name: string
+          p_photos?: Json
+          p_property_id?: string
+          p_property_type: Database["public"]["Enums"]["property_type"]
+          p_region: string
+          p_slug?: string
+          p_timezone: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      ensure_amenity: { Args: { p_label: string }; Returns: string }
       open_claim: {
         Args: {
           p_booking_id: string
@@ -784,6 +840,30 @@ export type Database = {
           p_booking_id: string
           p_refund_pct?: number
           p_resolution: Database["public"]["Enums"]["claim_resolution"]
+        }
+        Returns: Json
+      }
+      update_lodging: {
+        Args: {
+          p_address: string
+          p_amenities?: Json
+          p_base_price_minor: number
+          p_bathrooms: number
+          p_bedrooms: number
+          p_blurb?: string
+          p_city: string
+          p_country_code: string
+          p_currency: string
+          p_guests: number
+          p_latitude: number
+          p_listing_id: string
+          p_longitude: number
+          p_name: string
+          p_photos?: Json
+          p_property_type: Database["public"]["Enums"]["property_type"]
+          p_region: string
+          p_timezone: string
+          p_user_id: string
         }
         Returns: Json
       }

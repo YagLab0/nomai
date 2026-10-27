@@ -118,4 +118,24 @@ lines.push(
   ""
 );
 
+/**
+ * Test fixture for e2e: business + property + published listing.
+ * Auth users are NOT seeded here — SQL-inserted auth.users rows can't log in
+ * on hosted Supabase (and would collide on email once created). Create them
+ * with `node scripts/seed-test-users.mjs` (admin API, idempotent, links
+ * biz_test to the owner user). See docs/supabase/setup.md §6.
+ */
+const TEST_USERS_SQL = `insert into public.businesses (id, name, slug, payout_address, email, status, user_id) values
+  ('biz_test','Posada Test','posada-test','0x0000000000000000000000000000000000000001','duena@nomai.dev','active',null)
+on conflict (id) do nothing;
+
+insert into public.properties (id, business_id, name, property_type, description, city, region, country_code, timezone, checkin_time, checkout_time) values
+  ('prop_test','biz_test','Posada Test — Centro','posada','Propiedad de prueba para e2e.','Mendoza','Mendoza','AR','America/Argentina/Mendoza','15:00','11:00')
+on conflict (id) do nothing;
+
+insert into public.listings (id, property_id, slug, title, kind, max_guests, base_price_minor, currency, status) values
+  ('lst_test','prop_test','posada-test-centro','Posada Test — habitación doble','entire_place',2,3800000,'ARS','published')
+on conflict (id) do nothing;`;
+
 console.log(lines.join("\n"));
+console.log(TEST_USERS_SQL);

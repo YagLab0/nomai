@@ -13,15 +13,56 @@ import {
   toast,
 } from '@heroui/react';
 
-import { AlojamientoCard, type AlojamientoDraft } from '@/components/owners/alojamiento-card';
+import { AlojamientoCard } from '@/components/owners/alojamiento-card';
+import { LodgingWizard } from '@/components/owners/lodging-wizard';
 import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
 import { formatMoney, formatShortDate } from '@/lib/format';
-import { apiCityCode, apiKind, apiTone, FALLBACK_PHOTOS_BY_SLUG } from '@/lib/api-mapping';
-import type { Fiat, Lodging } from '@/lib/lodgings';
+import {
+  apiCityCode,
+  apiKind,
+  apiTone,
+  FALLBACK_PHOTOS_BY_SLUG,
+  initialsFor,
+} from '@/lib/api-mapping';
+import { RIPIO_COUNTRIES, type Fiat, type Lodging, type Owner } from '@/lib/lodgings';
 import { createClient } from '@/lib/supabase/client';
 import type { Database } from '@/lib/supabase/database.types';
 
 type BusinessRow = Database['public']['Tables']['businesses']['Row'];
+
+/** One Lodging as `GET /api/owners/lodgings` serves it: row + rules. */
+interface OwnerLodgingRow {
+  id: string;
+  slug: string;
+  title: string;
+  status: Lodging['status'];
+  base_price_minor: number;
+  currency: string;
+  kind: string;
+  max_guests: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  summary: string | null;
+  description: string | null;
+  rating: number | null;
+  reviews: number | null;
+  canRelocate: boolean;
+  canRemove: boolean;
+  property: {
+    id: string;
+    name: string;
+    city: string;
+    region: string | null;
+    country_code: string;
+    address_line1: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    timezone: string;
+    property_type: string;
+  } | null;
+  photos: { url: string; alt_text: string | null; position: number; is_cover: boolean }[];
+  amenities: { code: string; name: string }[];
+}
 
 interface OwnerDashboardProps {
   userId: string;
@@ -109,103 +150,84 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
   const [loading, setLoading] = useState(true);
   const [business, setBusiness] = useState<BusinessRow | null>(null);
   const [lodgings, setLodgings] = useState<Lodging[]>([]);
+  const [lodgingRules, setLodgingRules] = useState<
+    Record<string, { canRelocate: boolean; canRemove: boolean }>
+  >({});
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [payoutModalOpen, setPayoutModalOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [ownerCountryCode, setOwnerCountryCode] = useState('AR');
+  /** The open wizard: `{}` creates, `{ lodging }` edits. */
+  const [wizard, setWizard] = useState<{ lodging?: Lodging } | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const supabase = createClient();
 
-      // 1. Fetch business owned by current user
-      const { data: bus, error: busErr } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      // 1. Business + Lodgings come from the server: it resolves the Owner by
+      // auth.uid() and stamps each Lodging with its Upcoming Booking rules.
+      const res = await fetch('/api/owners/lodgings', { cache: 'no-store' });
+      const payload = await res.json().catch(() => ({}));
 
-      if (busErr) {
-        toast(`Error cargando negocio: ${busErr.message}`);
+      if (res.status === 401 || !res.ok) {
+        toast(`Error cargando negocio: ${payload.error ?? res.status}`);
         setLoading(false);
         return;
       }
 
+      const bus = (payload.business ?? null) as BusinessRow | null;
       setBusiness(bus);
+      setOwnerCountryCode(payload.countryCode ?? 'AR');
 
       if (!bus) {
         setLoading(false);
         return;
       }
 
-      // 2. Fetch listings owned by this business via properties join
-      const { data: listingsData, error: listErr } = await supabase
-        .from('listings')
-        .select(`
-          id,
-          slug,
-          title,
-          status,
-          base_price_minor,
+      const rows = (payload.lodgings ?? []) as OwnerLodgingRow[];
+      const rules: Record<string, { canRelocate: boolean; canRemove: boolean }> = {};
+
+      // 2. Map to Lodging UI models (id is the slug, like the marketplace API).
+      const mappedLodgings: Lodging[] = rows.map((l) => {
+        const currency = (l.currency?.toUpperCase() || 'ARS') as Fiat;
+        const photos = [...(l.photos ?? [])].sort((a, b) => a.position - b.position);
+        const cover = photos.find((p) => p.is_cover)?.url ?? photos[0]?.url;
+        rules[l.slug] = { canRelocate: l.canRelocate, canRemove: l.canRemove };
+
+        return {
+          id: l.slug,
+          name: l.title,
+          kind: apiKind(l.property?.property_type, l.kind),
+          city: l.property?.city || '',
+          region: l.property?.region || '',
+          countryCode: l.property?.country_code || 'AR',
+          code: apiCityCode(l.property?.city, l.slug),
+          pricePerNight: l.base_price_minor / MINOR_UNIT,
+          priceDisplay: formatMoney(l.base_price_minor, currency),
           currency,
-          kind,
-          max_guests,
-          bedrooms,
-          bathrooms,
-          summary,
-          description,
-          rating,
-          reviews,
-          property:properties!inner (
-            id,
-            name,
-            city,
-            region,
-            country_code,
-            property_type,
-            business_id
-          )
-        `)
-        .eq('property.business_id', bus.id);
+          blurb: l.description || l.summary || '',
+          rating: l.rating ?? 0,
+          reviews: l.reviews ?? 0,
+          guests: l.max_guests ?? 1,
+          bedrooms: l.bedrooms ?? 0,
+          baths: l.bathrooms ?? 0,
+          amenities: (l.amenities ?? []).map((a) => a.name),
+          ownerSlug: bus.slug,
+          ownerName: bus.name,
+          tone: apiTone(l.slug),
+          photo: cover ? undefined : FALLBACK_PHOTOS_BY_SLUG[l.slug],
+          photoUrl: cover,
+          photos: photos.length ? photos.map((p) => p.url) : undefined,
+          address: l.property?.address_line1 ?? undefined,
+          lat: l.property?.latitude ?? undefined,
+          lng: l.property?.longitude ?? undefined,
+          status: l.status,
+        };
+      });
 
-      if (listErr) {
-        toast(`Error cargando alojamientos: ${listErr.message}`);
-      } else if (listingsData) {
-        // Map to Lodging UI models
-        const mappedLodgings: Lodging[] = listingsData.map((l) => {
-          const prop = Array.isArray(l.property) ? l.property[0] : l.property;
-          const currency = (l.currency?.toUpperCase() || 'ARS') as Fiat;
-          const priceDisplay = formatMoney(l.base_price_minor, currency);
-          const photo = FALLBACK_PHOTOS_BY_SLUG[l.slug];
-
-          return {
-            id: l.id,
-            name: l.title,
-            kind: apiKind(prop?.property_type, l.kind),
-            city: prop?.city || '',
-            region: prop?.region || '',
-            countryCode: prop?.country_code || 'AR',
-            code: apiCityCode(prop?.city, l.slug),
-            pricePerNight: l.base_price_minor / MINOR_UNIT,
-            priceDisplay,
-            currency,
-            blurb: l.description || l.summary || '',
-            rating: l.rating ?? 0,
-            reviews: l.reviews ?? 0,
-            guests: l.max_guests ?? 1,
-            bedrooms: l.bedrooms ?? 0,
-            baths: l.bathrooms ?? 0,
-            amenities: [],
-            ownerSlug: bus.slug,
-            ownerName: bus.name,
-            tone: apiTone(l.slug),
-            photo,
-            status: l.status,
-          };
-        });
-
-        setLodgings(mappedLodgings);
-      }
+      setLodgingRules(rules);
+      setLodgings(mappedLodgings);
 
       // 3. Fetch real bookings via RLS (policy bookings_owner_read enforces owns_listing)
       const { data: bookingsData, error: bkgErr } = await supabase
@@ -243,19 +265,20 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Action: toggle listing status (published <-> paused)
-  async function toggleListingStatus(listingId: string, newStatus: 'published' | 'paused') {
+  // Action: toggle listing status (published <-> paused). `listingSlug` is the
+  // Lodging's id on this surface — the public slug, like the marketplace API.
+  async function toggleListingStatus(listingSlug: string, newStatus: 'published' | 'paused') {
     const supabase = createClient();
     const { error } = await supabase
       .from('listings')
       .update({ status: newStatus })
-      .eq('id', listingId);
+      .eq('slug', listingSlug);
 
     if (error) {
       toast(`Error al actualizar estado: ${error.message}`);
@@ -263,48 +286,13 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     }
 
     setLodgings((prev) =>
-      prev.map((l) => (l.id === listingId ? { ...l, status: newStatus } : l))
+      prev.map((l) => (l.id === listingSlug ? { ...l, status: newStatus } : l))
     );
     toast(
       newStatus === 'published'
         ? 'Alojamiento publicado en el catálogo público'
         : 'Alojamiento pausado del catálogo público'
     );
-  }
-
-  // Action: save editable lodging fields
-  async function saveAlojamiento(listingId: string, draft: AlojamientoDraft) {
-    const minor = draft.pricePerNight * MINOR_UNIT;
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('listings')
-      .update({
-        title: draft.name,
-        base_price_minor: minor,
-        description: draft.blurb,
-      })
-      .eq('id', listingId);
-
-    if (error) {
-      toast(`Error al guardar: ${error.message}`);
-      return;
-    }
-
-    setLodgings((prev) =>
-      prev.map((l) =>
-        l.id === listingId
-          ? {
-              ...l,
-              name: draft.name,
-              pricePerNight: draft.pricePerNight,
-              priceDisplay: formatMoney(minor, l.currency),
-              blurb: draft.blurb,
-              amenities: draft.amenities,
-            }
-          : l
-      )
-    );
-    toast('Alojamiento actualizado con éxito');
   }
 
   // Action: update payout address
@@ -381,6 +369,18 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     userName?.split(' ')[0] ||
     userEmail?.split('@')[0] ||
     'Dueño';
+
+  /** The Owner the wizard needs: business row + the Lodgings' country. */
+  const wizardOwner: Owner | null = business
+    ? {
+        slug: business.slug,
+        name: business.name,
+        initials: initialsFor(business.name),
+        city: lodgings[0]?.city ?? '',
+        country: RIPIO_COUNTRIES.find((c) => c.code === ownerCountryCode)?.name ?? '',
+        countryCode: ownerCountryCode,
+      }
+    : null;
 
   if (loading) {
     return (
@@ -552,12 +552,9 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
               Lo que los viajeros ven en tu escaparate y en el catálogo público de nomai.
             </p>
           </div>
-          <Link
-            href="/owners/join"
-            className="inline-flex h-9 items-center justify-center rounded-full border border-sand bg-white px-4 text-xs font-medium text-ink transition-colors hover:border-terra hover:text-terra-deep focus-visible:outline-2 focus-visible:outline-terra"
-          >
+          <Button variant="secondary" size="sm" onPress={() => setWizard({})}>
             + Sumar otro alojamiento
-          </Link>
+          </Button>
         </div>
 
         <div className="mt-4 grid gap-5 md:grid-cols-2">
@@ -566,7 +563,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
               <AlojamientoCard
                 key={l.id}
                 lodging={l}
-                onSave={(d) => saveAlojamiento(l.id, d)}
+                onEdit={() => setWizard({ lodging: l })}
                 onToggleStatus={(status) => toggleListingStatus(l.id, status)}
               />
             ))
@@ -576,16 +573,29 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
               <p className="mt-1 text-sm">
                 Comenzá publicando tu primer alojamiento con el asistente.
               </p>
-              <Link
-                href="/owners/join"
-                className="mt-4 inline-flex h-9 items-center justify-center rounded-full bg-terra px-5 text-xs font-medium text-white transition-colors hover:bg-terra-deep"
+              <Button
+                size="sm"
+                className="mt-4"
+                onPress={() => setWizard({})}
               >
                 Cargar alojamiento
-              </Link>
+              </Button>
             </div>
           )}
         </div>
       </section>
+
+      {wizard && wizardOwner && (
+        <LodgingWizard
+          key={wizard.lodging?.id ?? 'new'}
+          owner={wizardOwner}
+          lodging={wizard.lodging}
+          rules={wizard.lodging ? lodgingRules[wizard.lodging.id] : undefined}
+          isOpen
+          onOpenChange={(open) => !open && setWizard(null)}
+          onSaved={loadData}
+        />
+      )}
 
       {/* Sensitive Data: Payout Address Modal */}
       {business && (

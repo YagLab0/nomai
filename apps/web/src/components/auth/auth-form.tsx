@@ -512,6 +512,27 @@ export function AuthForm({ mode, onVerified }: { mode: keyof typeof COPY; onVeri
         </form>
       )}
 
+      {mode === 'login' && (
+        <div className="mt-8 rounded-2xl border border-dashed border-sand bg-bone/60 p-4 text-left">
+          <p className="text-xs font-medium uppercase tracking-widest text-ink-muted">
+            Usuarios de prueba (e2e)
+          </p>
+          <div className="mt-3 flex flex-col gap-2 font-mono text-xs text-ink">
+            <p>
+              <span className="text-ink-muted">Viajero ·</span>{' '}
+              viajera@nomai.dev
+            </p>
+            <p>
+              <span className="text-ink-muted">Dueño ·</span>{' '}
+              duena@nomai.dev
+            </p>
+            <p>
+              <span className="text-ink-muted">Password ·</span> nomai123
+            </p>
+          </div>
+        </div>
+      )}
+
       <p className="mt-6 text-sm text-ink-muted">
         {copy.swapText}{' '}
         <Link

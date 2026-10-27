@@ -15,7 +15,7 @@ Three entry points under `src/lib/supabase/`:
 import { createClient } from "@/lib/supabase/client";
 
 const supabase = createClient();
-const { data } = await supabase.from("lodgings").select("*");
+const { data } = await supabase.from("listings").select("*");
 ```
 
 Uses the publishable key; RLS applies. Session lives in cookies, shared
@@ -28,8 +28,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const supabase = await createClient();   // async: reads cookies()
 const { data } = await supabase
-  .from("lodgings")
-  .select("*, owners(name, slug)");
+  .from("listings")
+  .select("*, properties(name, businesses(name, slug))");
 ```
 
 Cookie writes from a Server Component are swallowed on purpose — session
@@ -49,18 +49,18 @@ route genuinely needs auth refresh.
 import { createSupabaseAdmin } from "./supabase.js";
 
 const supabase = createSupabaseAdmin();
-await supabase.from("credit_ledger").insert({
-  traveler_id, amount: -3, kind: "spend", stage: "live_query",
+await supabase.from("agent_usage").insert({
+  traveler_id, cost_units: 10, kind: "spend", stage: "live_query",
 });
 ```
 
 Authenticates with `SUPABASE_SECRET_KEY` → **bypasses RLS**. Use it for
-platform writes the browser must never perform: posting Credits, settling
-Bookings, creating Agent wallets. `persistSession`/`autoRefreshToken` are
+platform writes the browser must never perform: recording Agent usage,
+settling Bookings, creating Agent wallets. `persistSession`/`autoRefreshToken` are
 off — there is no user session server-side.
 
-User-scoped API routes (`GET /credits/balance`, `POST /credits/spend`,
-`POST /credits/grant`) still use the admin client: the caller's Supabase
+User-scoped API routes (`GET /usage/today`, `POST /usage/record`)
+still use the admin client: the caller's Supabase
 access token arrives as `Authorization: Bearer` (the web server forwards
 `session.access_token` from @supabase/ssr — the chunked SSR cookie is never
 parsed upstream) and is verified by passing it to the Auth server,
@@ -75,7 +75,7 @@ or later queries silently run under that user's RLS.
 ## Patterns to keep
 
 - **Reads the Traveler/Owner can do themselves** (their bookings, their
-  credits, the marketplace) → web client, RLS does the scoping.
+  usage rows, the marketplace) → web client, RLS does the scoping.
 - **Writes that spend or move value** → api admin client, inside a Hono
   route with its own checks (ADR-0002 spend ceilings belong there too).
 - **Never** create a second Supabase client flavor per request shape — the

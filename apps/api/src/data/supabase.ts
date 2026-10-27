@@ -66,7 +66,8 @@ type ListingAmenityRow = Database["public"]["Tables"]["listing_amenities"]["Row"
 type ListingUnitRow = Database["public"]["Tables"]["listing_units"]["Row"];
 type RateRuleRow = Database["public"]["Tables"]["rate_rules"]["Row"];
 type AvailNightRow = Database["public"]["Tables"]["availability_nights"]["Row"];
-import { GLOBAL_CANCELLATION_POLICY, SERVICE_FEE_PCT } from "./types.js";
+import { GLOBAL_CANCELLATION_POLICY } from "./types.js";
+import { getServiceFeePct } from "./service-fee.js";
 
 /** numeric(9,6) may arrive as a string from PostgREST — coerce, null-safe. */
 function toCoord(v: number | string | null | undefined): number | null {
@@ -427,7 +428,12 @@ async function quoteListing(
       `season pricing requires at least ${ruleMin} nights for these dates`
     );
 
-  const openNights = await fetchOpenNights(listing.id, nights);
+  const [openNights, serviceFeePct] = await Promise.all([
+    fetchOpenNights(listing.id, nights),
+    // Single source is platform_settings.service_fee_pct (D5) — the same
+    // row apply_service_fee reads, so the charged amount = the stored fee.
+    getServiceFeePct(),
+  ]);
   const quoteNights: Quote["nights"] = [];
   for (const night of nights) {
     const row = openNights.get(night);
@@ -452,7 +458,7 @@ async function quoteListing(
 
   const nights_minor = quoteNights.reduce((s, n) => s + n.price_minor, 0);
   const rental_minor = nights_minor + listing.cleaning_fee_minor;
-  const service_fee_minor = Math.round((rental_minor * SERVICE_FEE_PCT) / 100);
+  const service_fee_minor = Math.round((rental_minor * serviceFeePct) / 100);
   const total_minor = rental_minor + service_fee_minor;
   return {
     ok: true,
@@ -760,6 +766,7 @@ export async function bookListing(
     p_checkout: input.checkout,
     p_guests: input.guests,
     p_guest_ref: input.guest_ref,
+    p_traveler_id: input.traveler_id,
   });
   if (error) throw error;
   const r = data as unknown as BookStayPayload;

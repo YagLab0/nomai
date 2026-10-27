@@ -6,6 +6,7 @@
 // shape of request/response already matches what the paid flow needs.
 
 import { Hono } from "hono";
+import { optionalTravelerId } from "./auth.js";
 import {
   bookListing,
   getListingBySlug,
@@ -91,8 +92,11 @@ listings.get("/:slug/quote", async (c) => {
   return c.json(r.quote);
 });
 
-// POST /listings/:slug/book — Booking stub, no payment yet.
-// Body: { checkin, checkout, guests, guest_ref? }
+// POST /listings/:slug/book — the paid Booking handler (x402-gated in
+// index.ts). Body: { checkin, checkout, guests, guest_ref? }. An optional
+// `Authorization: Bearer <Supabase token>` links the Booking to that
+// Traveler (book_stay's p_traveler_id) — "mis reservas" then finds it; a
+// token that doesn't verify is a 401, never a silently-unlinked Booking.
 listings.post("/:slug/book", async (c) => {
   const body = (await c.req.json().catch(() => null)) as {
     checkin?: string;
@@ -108,11 +112,15 @@ listings.post("/:slug/book", async (c) => {
   if (!Number.isInteger(body.guests) || body.guests < 1)
     return c.json({ error: "guests must be a positive integer" }, 400);
 
+  const who = await optionalTravelerId(c);
+  if (who instanceof Response) return who;
+
   const r = await bookListing(c.req.param("slug"), {
     checkin: body.checkin,
     checkout: body.checkout,
     guests: body.guests,
     guest_ref: body.guest_ref,
+    traveler_id: who ?? undefined,
   });
   if (!r.ok)
     return c.json(

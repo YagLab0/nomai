@@ -105,3 +105,4 @@ playwright-report/
 
 # Playwright CLI debug artifacts
 .playwright-cli/
+.context/
