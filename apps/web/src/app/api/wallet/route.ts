@@ -10,6 +10,11 @@ const API_URL = process.env.NOMAI_API_URL ?? 'http://localhost:3001';
  * Security constraint (ADR-0003, Issue #16):
  * The Traveler never touches web3 and never sees the hex address in UI.
  * Address is strictly server-side; this endpoint returns only the fiat balance.
+ *
+ * The Supabase access token rides as `Authorization: Bearer` (same contract as
+ * /credits/*). The API creates the Agent wallet on this first read (#33) and
+ * answers failures with stable codes (`wallet_unavailable`, `rpc_unreachable`),
+ * which we propagate untouched — an error never becomes a fabricated zero.
  */
 export async function GET() {
   // Demo mode: no Supabase — the saldo card falls back to the mock balance.
@@ -19,8 +24,11 @@ export async function GET() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!user) {
+    if (!user || !session?.access_token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -33,33 +41,26 @@ export async function GET() {
 
     const currency = traveler?.country_code === 'BR' ? 'BRL' : 'ARS';
 
-    // Verify / ensure agent_wallet exists (RLS ensures user only sees their own)
-    const { data: wallet } = await supabase
-      .from('agent_wallets')
-      .select('id, network')
-      .eq('traveler_id', user.id)
-      .maybeSingle();
-
-    if (!wallet) {
-      // Auto-provision via API
-      await fetch(`${API_URL}/wallet/provision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ traveler_id: user.id }),
-      }).catch(() => null);
-    }
-
     // Fetch on-chain balance via API
-    let balanceNumber = 0;
+    let upstream: Response;
     try {
-      const res = await fetch(`${API_URL}/wallet/${user.id}`, { cache: 'no-store' });
-      if (res.ok) {
-        const info = await res.json();
-        balanceNumber = parseFloat(info.balance ?? '0') || 0;
-      }
+      upstream = await fetch(`${API_URL}/wallet/${user.id}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: 'no-store',
+      });
     } catch {
-      // Fallback if API is offline
+      return NextResponse.json({ error: 'wallet_api_unreachable' }, { status: 502 });
     }
+
+    if (!upstream.ok) {
+      return new NextResponse(upstream.body, {
+        status: upstream.status,
+        headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
+      });
+    }
+
+    const info = await upstream.json();
+    const balanceNumber = parseFloat(info.balance ?? '0') || 0;
 
     const formatted =
       currency === 'BRL'
