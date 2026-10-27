@@ -72,13 +72,31 @@ Caveat: `getUser(jwt)` with an explicit token does not mutate the client,
 but `signInWithPassword` would — never sign a user in on the admin client,
 or later queries silently run under that user's RLS.
 
+### `apps/api` — user-scoped client
+
+```ts
+import { createSupabaseUser } from "./supabase.js";
+
+const supabase = createSupabaseUser(accessToken);   // caller's verified Bearer
+await supabase.from("properties").insert({ business_id, … });
+```
+
+Publishable key + the caller's access token forwarded as `Authorization` →
+**RLS applies**, exactly as the browser session did. `/owners` uses it where
+the old web route handlers wrote under the user session (e.g. onboarding's
+business/property/draft-listing inserts — `insert`-only policies decide
+what lands). Privileged writes still go through the admin client above.
+
 ## Patterns to keep
 
 - **Reads the Traveler/Owner can do themselves** (their bookings, their
   usage rows, the marketplace) → web client, RLS does the scoping.
 - **Writes that spend or move value** → api admin client, inside a Hono
   route with its own checks (ADR-0002 spend ceilings belong there too).
+- **Writes RLS still allows the user** → api user-scoped client with the
+  caller's Bearer, never the admin client.
 - **Never** create a second Supabase client flavor per request shape — the
-  three above cover browser, server render, and trusted backend.
+  four above cover browser, server render, trusted backend, and trusted
+  backend acting as the user.
 - If a query needs a column the generated types don't have, the types are
   stale — regenerate, don't cast.

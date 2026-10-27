@@ -26,11 +26,17 @@ export function supabaseAdmin(): SupabaseClient<Database> {
   return admin;
 }
 
+/** The raw Bearer token, when the header is well-formed. */
+export function bearerToken(c: Context): string | null {
+  const m = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "");
+  return m ? m[1] : null;
+}
+
 /** Verified Traveler id from the request's Bearer token (see file header). */
 export async function travelerIdFrom(c: Context): Promise<string | null> {
-  const m = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "");
-  if (!m) return null;
-  const { data, error } = await supabaseAdmin().auth.getUser(m[1]);
+  const token = bearerToken(c);
+  if (!token) return null;
+  const { data, error } = await supabaseAdmin().auth.getUser(token);
   return error || !data.user ? null : data.user.id;
 }
 
