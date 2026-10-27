@@ -59,6 +59,9 @@ Booking, Service fee, Escrow, Claim, FX fee) in issues, specs and code comments.
 
 - When asking the user to pick between options, use the interactive
   multiple-choice question tool instead of numbered plain-text questions.
+  This includes grilling / design-tree rounds: send each round through the
+  tool (max 4 questions per call — split larger rounds), and mark the
+  recommended option in its label or description.
 
 ### Issue tracker
 
