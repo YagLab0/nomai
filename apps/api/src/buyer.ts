@@ -26,12 +26,21 @@ const payFetch = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [{ network: CAIP2, client: new ExactEvmScheme(account) }],
 });
 
-const url = process.env.SELLER_URL ?? "http://localhost:3001/paid";
+// /paid is retired (D4) — the only x402-gated route left is the Booking
+// endpoint POST /listings/:slug/book. SELLER_URL defaults to /free, which
+// exercises the same paying fetch against an open route (no payment-response
+// header comes back); point it at a book URL to see a real settlement.
+const url = process.env.SELLER_URL ?? "http://localhost:3001/free";
 
 console.log(`paying as ${account.address} on ${NETWORK}`);
 console.log(`calling  ${url}`);
 
-const res = await payFetch(url, { method: "POST" });
+// GET matches the /free default; override SELLER_METHOD too when pointing
+// at the Booking endpoint (POST /listings/:slug/book needs a JSON body —
+// this script stays a connectivity probe, not a booking client).
+const res = await payFetch(url, {
+  method: process.env.SELLER_METHOD ?? "GET",
+});
 console.log(`\nHTTP ${res.status}`);
 console.log(await res.text());
 

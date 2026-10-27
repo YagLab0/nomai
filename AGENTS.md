@@ -4,13 +4,13 @@ Software for tourism businesses using agents & blockchain. A Celo/x402 applicati
 
 ## Structure
 
-- `apps/web` — Next.js 15 (App Router), React 19, Tailwind CSS 4, HeroUI v3; the Agent chat uses assistant-ui on a mock runtime (`src/lib/nomito/mock-adapter.ts`). Design spec: `docs/design/traveler-views.md`. Lodgings marketplace: `/lodgings`, `/owners/[slug]`, `/app/lodgings` (§10); Owner onboarding: `/owners/join` (§14). Photos live in `public/images` (credits in `CREDITS.md`).
-- `apps/api` — Hono server implementing both halves of an x402 payment: a seller that answers `402 Payment Required` (`GET /free` open, `POST /paid` accepts any asset in `X402_ASSETS` — USDC/USDT/USAT and the Ripio wFIAT tokens on mainnet) and a buyer that pays it (`src/buyer.ts`)
+- `apps/web` — Next.js 15 (App Router), React 19, Tailwind CSS 4, HeroUI v3; the Agent chat uses assistant-ui on a mock runtime (`src/lib/nomito/mock-adapter.ts`). Design spec: `docs/design/traveler-views.md`. Lodgings marketplace: `/lodgings`, `/owners/[slug]`, `/app/lodgings` (§10); Owner onboarding: `/owners/join` (§14); OAuth 2.1 consent screen for MCP clients at `/oauth/consent` (see `docs/mcp.md`). Photos live in `public/images` (credits in `CREDITS.md`).
+- `apps/api` — Hono server implementing both halves of an x402 payment: a seller that answers `402 Payment Required` on the Booking route `POST /listings/:slug/book` (`GET /free` open; accepts any asset in `X402_ASSETS` — USDC/USDT/USAT and the Ripio wFIAT tokens on mainnet — settling to each Owner's `payout_address`) and a buyer probe (`src/buyer.ts`). Also serves the read-only **MCP server** at `POST /mcp` (Supabase-JWT Bearer + RFC 9728 OAuth metadata — `docs/mcp.md`)
 - `apps/agent` — the Agent itself, an [eve](https://eve.dev) app: model via OpenCode Go (default `deepseek-v4.1-flash`), wallet + facilitator config in `agent/lib/celo.ts`, seller-side x402 wire format in `agent/lib/x402.ts`, and tools `check_balance` / `pay_endpoint` (the Booking payment primitive — agent pays the Owner's endpoint, funds go direct to the Owner wallet)
 
 `X402_SETUP.md` explains the payment flow and facilitator setup. The buyer needs no CELO — the facilitator sponsors gas.
 
-- `supabase/` — Postgres schema (migrations) + generated seed for the linked project `tspsaemylnzvdgwtjcrz`. Docs in `docs/supabase/`: env setup, schema/RLS, client usage, CLI workflows.
+- `supabase/` — Postgres schema (migrations) + generated seed (`apps/api/scripts/gen-seed.ts`) for the linked project `tspsaemylnzvdgwtjcrz`. Docs in `docs/supabase/`: env setup, schema/RLS, client usage, CLI workflows. E2E test users seeded: `viajera@nomai.dev` / `duena@nomai.dev`, password `nomai123` (also shown under the login form).
 
 ## Commands
 

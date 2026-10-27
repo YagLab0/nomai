@@ -25,6 +25,7 @@ const TOOL_ICONS: Record<string, string> = {
 
 function toStep(tool: ToolStatusEntry): ToolStep {
   return {
+    id: tool.callId,
     icon: (tool.name && TOOL_ICONS[tool.name]) || 'run',
     label: tool.label,
     chip: tool.done ? 'listo' : 'en curso…',

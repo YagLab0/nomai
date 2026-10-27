@@ -44,6 +44,7 @@ import {
   PAY_TO,
 } from "./x402.js";
 import type { x402ResourceServer } from "@x402/hono";
+import { optionalTravelerId } from "./auth.js";
 import { createSupabaseAdmin } from "./supabase.js";
 import {
   LISTINGS_DATA_SOURCE,
@@ -140,6 +141,8 @@ async function resolvePayTo(context: HTTPRequestContext): Promise<string> {
   const input = await bookingInput(context);
   if (!input) throw new Error("book: missing slug or stay fields");
   // The Owner's own wallet — the platform never holds booking funds.
+  // X402_PAY_TO (PAY_TO) is only the fallback payTo for listings without
+  // a business.payout_address of their own.
   const payTo = (await getListingPayTo(input.slug)) ?? PAY_TO;
   if (!payTo) throw new Error("listing has no payout address");
   return getAddress(payTo);
@@ -220,6 +223,12 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
     );
   if (!Number.isInteger(body.guests) || body.guests < 1)
     return c.json({ error: "guests must be a positive integer" }, 400);
+
+  // A Traveler token that doesn't verify fails here — before any 402 — so the
+  // Booking can't silently miss its p_traveler_id link (the handler re-verifies
+  // the same header post-payment).
+  const who = await optionalTravelerId(c);
+  if (who instanceof Response) return who;
 
   const slug = BOOK_PATH_RE.exec(new URL(c.req.url).pathname)?.[1] ?? "";
   const r = await quoteStay(slug, body.checkin, body.checkout, body.guests);

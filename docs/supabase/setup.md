@@ -59,3 +59,24 @@ pnpm dev
 # web → http://localhost:3000
 # api → http://localhost:3001/free  →  {"ok":true,…}
 ```
+
+## 6. Test users (e2e)
+
+Two e2e accounts (idempotent):
+
+| Rol | Email | Password |
+|---|---|---|
+| Traveler | `viajera@nomai.dev` | `nomai123` |
+| Owner | `duena@nomai.dev` | `nomai123` |
+
+Auth users are created via the Admin API (SQL inserts into `auth.users`
+can't log in on hosted projects):
+
+```bash
+cd apps/api && node scripts/seed-test-users.mjs   # creates/resets both, links biz_test
+```
+
+The Traveler gets a `travelers` row via the `handle_new_user` trigger; the
+script links `biz_test` → `prop_test` → published listing `posada-test-centro`
+to the Owner. Apply `supabase db query --linked --file supabase/seed.sql` for
+inventory data. The same credentials are listed under the login form.

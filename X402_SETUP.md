@@ -52,18 +52,23 @@ cp .env.template .env
 Fill in three things in `.env`:
 
 - `X402_API_KEY` — the key from the step above.
-- `X402_PAY_TO` — an address you control. Until it is set, `/paid` answers for free.
+- `X402_PAY_TO` — fallback payTo for the Booking endpoint, used only when a
+  listing has no `businesses.payout_address` of its own. The generic `/paid`
+  probe is retired: the only paid route is `POST /listings/:slug/book`.
 - `BUYER_PRIVATE_KEY` — a **throwaway** key holding a little testnet USDC.
 
 Then, in two terminals:
 
 ```bash
 pnpm api:dev      # the seller, on http://localhost:3001
-pnpm api:buy      # the buyer pays it
+pnpm api:buy      # the buyer probe (GET /free by default)
 ```
 
-The buyer prints the settlement transaction hash and a block explorer link. If you see
-one, the whole path worked: signature, verification, on-chain transfer, sponsored gas.
+By default the buyer calls the open `/free` — it exercises the paying fetch
+without spending anything. A real settlement needs the Booking endpoint,
+which takes a JSON booking body the probe doesn't send; drive it through
+`pay_endpoint` in `apps/agent` or set `SELLER_URL`/`SELLER_METHOD` yourself
+to see the full 402 → sign → settle loop.
 
 ## The three things that go wrong
 
@@ -75,7 +80,8 @@ one, the whole path worked: signature, verification, on-chain transfer, sponsore
 matter what you put in `asset`. USDC has it, which is why the template uses USDC.
 
 **`extra` is the EIP-712 domain, and it cannot be read from the contract.** The `name`
-and `version` in `apps/api/src/index.ts` are what the token signs with. Get them wrong
+and `version` on each token in `apps/api/src/x402.ts` are what the token signs with
+(they ride into the 402 via `extra` in `apps/api/src/book-payment.ts`). Get them wrong
 and the token rejects the signature at settlement, after everything else looked fine.
 
 **A missing API key does not show up until settlement.** `/supported` and `/verify`

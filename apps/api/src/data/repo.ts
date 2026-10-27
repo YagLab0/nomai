@@ -5,7 +5,8 @@ import {
   isoDay,
   nightsBetween,
 } from "./availability.js";
-import { GLOBAL_CANCELLATION_POLICY, SERVICE_FEE_PCT } from "./types.js";
+import { GLOBAL_CANCELLATION_POLICY } from "./types.js";
+import { serviceFeePctSnapshot } from "./service-fee.js";
 import {
   BUSINESSES,
   LISTING_AMENITIES,
@@ -213,7 +214,11 @@ function quoteResult(
 
   const nights_minor = quoteNights.reduce((s, n) => s + n.price_minor, 0);
   const rental_minor = nights_minor + listing.cleaning_fee_minor;
-  const service_fee_minor = Math.round((rental_minor * SERVICE_FEE_PCT) / 100);
+  // Service fee single source is platform_settings.service_fee_pct (D5);
+  // the mock leg can't await, so it quotes the last cached pct / env fallback.
+  const service_fee_minor = Math.round(
+    (rental_minor * serviceFeePctSnapshot()) / 100
+  );
   const total_minor = rental_minor + service_fee_minor;
   return {
     ok: true,
@@ -559,6 +564,8 @@ export interface BookInput {
   checkout: string;
   guests: number;
   guest_ref?: string;
+  /** Verified Traveler id (supabase leg only — the mock Booking carries none). */
+  traveler_id?: string;
 }
 
 export type BookResult =

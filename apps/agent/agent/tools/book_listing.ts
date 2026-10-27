@@ -1,7 +1,8 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 
-import { apiPaidPost } from "../lib/nomai-api";
+import { apiPaidPost, travelerAuthHeaders } from "../lib/nomai-api";
+import { travelerAuth } from "../lib/traveler-auth";
 
 // Creates the Booking through the x402-gated book endpoint: the API answers
 // 402 with the payment requirement (rental + Service fee), the Agent pays it
@@ -24,13 +25,21 @@ export default defineTool({
       .optional()
       .describe("Traveler reference for the booking (name or internal ref)"),
   }),
-  execute: async ({ slug, checkin, checkout, guests, guest_ref }) => {
-    const r = await apiPaidPost<Record<string, unknown>>(`/listings/${slug}/book`, {
-      checkin,
-      checkout,
-      guests,
-      guest_ref,
-    });
+  execute: async ({ slug, checkin, checkout, guests, guest_ref }, ctx) => {
+    // A signed-in Traveler links the Booking to their account (p_traveler_id)
+    // so "mis reservas" — and the MCP's list_bookings — find it later. No
+    // session: the Booking stays guest_ref-only, same as before.
+    const traveler = travelerAuth(ctx.session.auth.current);
+    const r = await apiPaidPost<Record<string, unknown>>(
+      `/listings/${slug}/book`,
+      {
+        checkin,
+        checkout,
+        guests,
+        guest_ref,
+      },
+      traveler ? travelerAuthHeaders(traveler) : undefined
+    );
     if (!r.ok) return { error: r.error, code: r.code, status: r.status, payment: r.payment };
     if (!r.payment?.transaction) {
       return {
