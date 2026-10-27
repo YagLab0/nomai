@@ -4,13 +4,14 @@ import {
   stringToHex,
   createPublicClient,
   http,
-  formatEther,
+  formatUnits,
+  erc20Abi,
   type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createSupabaseAdmin } from "./supabase.js";
-import { travelerIdFrom } from "./auth.js";
-import { CONFIG } from "./x402.js";
+import { supabaseAdmin, travelerIdFrom } from "./auth.js";
+import { CONFIG, WFIAT } from "./x402.js";
 
 const router = new Hono();
 
@@ -130,17 +131,51 @@ router.post("/provision", async (c) => {
   }
 });
 
-// GET /wallet/:traveler_id - returns address & on-chain balance
+// GET /wallet/:traveler_id - provisions the Agent wallet on first read and
+// returns its wFIAT balances. wFIAT is backed 1:1 by the fiat, so each
+// balance IS a fiat amount — no conversion. balances lists every wFIAT the
+// network configures (zeroes included); country_code is the Traveler's and
+// may be null — reading a saldo never requires a country. A network with no
+// wFIAT (testnet) answers `currency_unavailable`; a failed balance read
+// answers `rpc_unreachable` — neither may ever surface as a zero balance.
 router.get("/:traveler_id", async (c) => {
   const travelerId = c.req.param("traveler_id");
   const denied = await authorize(c, travelerId);
   if (denied) return denied;
   try {
     const wallet = await provisionAgentWallet(travelerId);
-    let balanceCelo: string;
+
+    const { data: traveler, error: travelerError } = await supabaseAdmin()
+      .from("travelers")
+      .select("country_code, funded_at")
+      .eq("id", travelerId)
+      .maybeSingle();
+    if (travelerError) throw travelerError;
+
+    // No wFIAT exists off mainnet — a defined failure, not an empty wallet.
+    if (WFIAT.length === 0) {
+      return c.json(
+        {
+          error: "currency_unavailable",
+          address: wallet.address,
+          network: wallet.network,
+        },
+        404
+      );
+    }
+
+    let raws: bigint[];
     try {
-      const wei = await publicClient.getBalance({ address: wallet.address as Address });
-      balanceCelo = formatEther(wei);
+      raws = await Promise.all(
+        WFIAT.map((t) =>
+          publicClient.readContract({
+            address: t.def.address,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [wallet.address as Address],
+          })
+        )
+      );
     } catch {
       // An unreachable RPC must never read as an empty wallet.
       return c.json(
@@ -152,12 +187,36 @@ router.get("/:traveler_id", async (c) => {
         502
       );
     }
+    const balances = WFIAT.map((t, i) => ({
+      token: t.token,
+      currency: t.fiat,
+      country: t.country,
+      amount: formatUnits(raws[i], t.def.decimals),
+    }));
+
+    // The first positive balance in ANY wFIAT marks travelers.funded_at
+    // (ADR-0002's verification ladder). Conditional update: only writes while
+    // the column is still null, so an existing timestamp is never rewritten.
+    // Bookkeeping must not fail the read — a failed mark only logs.
+    if (traveler && !traveler.funded_at && raws.some((r) => r > 0n)) {
+      const { error: fundedError } = await supabaseAdmin()
+        .from("travelers")
+        .update({ funded_at: new Date().toISOString() })
+        .eq("id", travelerId)
+        .is("funded_at", null);
+      if (fundedError) {
+        console.error(
+          `funded_at mark failed for traveler ${travelerId}: ${fundedError.message}`
+        );
+      }
+    }
 
     return c.json({
       ok: true,
       address: wallet.address,
       network: wallet.network,
-      balance: balanceCelo,
+      country_code: traveler?.country_code ?? null,
+      balances,
     });
   } catch {
     return c.json({ error: "wallet_unavailable" }, 503);

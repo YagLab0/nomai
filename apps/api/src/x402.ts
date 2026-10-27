@@ -57,7 +57,8 @@ export const X402: Record<X402Network, NetworkConfig> = {
     explorer: "https://celo-sepolia.blockscout.com",
     name: "celo-sepolia",
     chain: celoSepolia,
-    rpc: "https://forno.celo-sepolia.celo-testnet.org",
+    // X402_RPC overrides the read endpoint (private RPC, or a stub in smokes).
+    rpc: process.env.X402_RPC ?? "https://forno.celo-sepolia.celo-testnet.org",
     tokens: {
       usdc: {
         address: "0x01C5C0122039549AD1493B8220cABEdD739BC44E",
@@ -73,7 +74,7 @@ export const X402: Record<X402Network, NetworkConfig> = {
     explorer: "https://celoscan.io",
     name: "celo",
     chain: celo,
-    rpc: "https://forno.celo.org",
+    rpc: process.env.X402_RPC ?? "https://forno.celo.org",
     tokens: {
       usdc: {
         address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
@@ -112,8 +113,42 @@ export const X402: Record<X402Network, NetworkConfig> = {
         decimals: 18,
         transferMethod: "permit2",
       },
+      wmxn: {
+        address: "0x337E7456B420bD3481e7FA61fA9850343d610d34",
+        domain: { name: "Peso Mexicano", version: "1" },
+        decimals: 18,
+        transferMethod: "permit2",
+      },
+      wpen: {
+        address: "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE",
+        domain: { name: "Sol Peruano", version: "1" },
+        decimals: 18,
+        transferMethod: "permit2",
+      },
+      wclp: {
+        address: "0x61D450a098b6a7f69fC4b98CE68198fe59768651",
+        domain: { name: "Peso Chileno", version: "1" },
+        decimals: 18,
+        transferMethod: "permit2",
+      },
     },
   },
+};
+
+/**
+ * Traveler country → (wFIAT token symbol, fiat currency). One wFIAT per
+ * country — the token symbol keys into the active network's `tokens` table,
+ * so a network that doesn't configure it (testnet has none) simply has no
+ * balance to read there. Uruguay is served by the wFIAT rail without a token
+ * of its own.
+ */
+export const COUNTRY_WFIAT: Record<string, { token: string; fiat: string }> = {
+  AR: { token: "wars", fiat: "ARS" },
+  BR: { token: "wbrl", fiat: "BRL" },
+  CL: { token: "wclp", fiat: "CLP" },
+  CO: { token: "wcop", fiat: "COP" },
+  MX: { token: "wmxn", fiat: "MXN" },
+  PE: { token: "wpen", fiat: "PEN" },
 };
 
 /** Testnet by default, so running this scaffold costs nothing. */
@@ -121,6 +156,19 @@ export const NETWORK: X402Network =
   process.env.X402_NETWORK === "mainnet" ? "mainnet" : "testnet";
 
 export const CONFIG = X402[NETWORK];
+
+/** wFIAT readable on the active network: every country token it configures. */
+export const WFIAT = Object.entries(COUNTRY_WFIAT)
+  .map(([country, { token, fiat }]) => ({
+    country,
+    token,
+    fiat,
+    def: CONFIG.tokens[token],
+  }))
+  .filter(
+    (t): t is { country: string; token: string; fiat: string; def: TokenDef } =>
+      Boolean(t.def)
+  );
 
 /** CAIP-2 chain id, e.g. `eip155:11142220`. The `@x402` packages key schemes by this. */
 export const CAIP2 = CONFIG.caip2;

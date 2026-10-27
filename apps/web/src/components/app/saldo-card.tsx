@@ -4,28 +4,38 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, toast } from '@heroui/react';
 
 import { WidgetCard } from '@/components/app/widget-card';
-import { formatBRL } from '@/lib/format';
+import { formatBRL, formatFiat } from '@/lib/format';
 import { traveler } from '@/lib/mock/traveler';
 import { hasSupabaseEnv } from '@/lib/supabase/env';
 
-interface WalletData {
-  balance: number;
+interface WalletBalance {
   currency: string;
-  formatted: string;
+  amount: string;
+  country: string;
+}
+
+interface WalletData {
+  country_code: string | null;
+  balances: WalletBalance[];
 }
 
 type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; formatted: string };
+  | { kind: 'unavailable' }
+  | { kind: 'ready'; lines: string[] };
 
 const GENERIC_ERROR = 'No pudimos obtener tu saldo, probá de nuevo';
+const CURRENCY_UNAVAILABLE = 'La carga todavía no está disponible';
 
 /**
- * Traveler's balance card (ADR-0003, Issue #16).
+ * Traveler's balance card (ADR-0003, issues #16 and #39).
  *
  * Security & UX rules:
- * - Shows balance strictly in local fiat ("$ 120.000 ARS" or "R$ 1.920,00").
+ * - Lists the Agent wallet's wFIAT balances, each formatted as its own fiat
+ *   ("$ 95.000 ARS", "R$ 500 BRL") — wFIAT is backed 1:1, no conversion.
+ * - The Traveler's country wFIAT always shows, even at $ 0; any other wFIAT
+ *   shows only when it holds a positive balance. No country is required.
  * - The traveler NEVER touches web3 and NEVER sees the Celo hex address in the UI.
  * - An API or network failure is never shown as a $ 0 balance (#35).
  */
@@ -39,11 +49,19 @@ export function SaldoCard() {
       const data = (await res.json().catch(() => null)) as
         | (Partial<WalletData> & { error?: string })
         | null;
-      if (res.ok && data?.formatted) {
-        setState({ kind: 'ready', formatted: data.formatted });
+      if (res.ok && Array.isArray(data?.balances)) {
+        const visible = data.balances.filter(
+          (b) => b.country === data.country_code || Number(b.amount) > 0,
+        );
+        setState({
+          kind: 'ready',
+          lines: visible.map((b) => formatFiat(Number(b.amount), b.currency)),
+        });
       } else if (!hasSupabaseEnv && res.status === 401) {
         // Demo mode without Supabase is the only mock-balance fallback.
-        setState({ kind: 'ready', formatted: formatBRL(traveler.saldoBRL, { withCode: true }) });
+        setState({ kind: 'ready', lines: [formatBRL(traveler.saldoBRL, { withCode: true })] });
+      } else if (data?.error === 'currency_unavailable') {
+        setState({ kind: 'unavailable' });
       } else {
         setState({
           kind: 'error',
@@ -72,17 +90,31 @@ export function SaldoCard() {
         />
       )}
       {state.kind === 'error' && <p className="text-sm text-ink-muted">{state.message}</p>}
-      {state.kind === 'ready' && (
-        <p data-testid="saldo-balance" className="font-mono text-2xl font-semibold text-ink">
-          {state.formatted}
-        </p>
+      {state.kind === 'unavailable' && (
+        <p className="text-sm text-ink-muted">{CURRENCY_UNAVAILABLE}</p>
       )}
+      {state.kind === 'ready' &&
+        (state.lines.length > 0 ? (
+          <ul>
+            {state.lines.map((line) => (
+              <li
+                key={line}
+                data-testid="saldo-balance"
+                className="font-mono text-2xl font-semibold text-ink"
+              >
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink-muted">Aún no tenés saldo.</p>
+        ))}
       <p className="text-xs text-ink-muted">Saldo de Nomito para tus reservas.</p>
       {state.kind === 'error' ? (
         <Button variant="secondary" fullWidth onPress={load}>
           Reintentar
         </Button>
-      ) : (
+      ) : state.kind === 'unavailable' ? null : (
         <Button
           variant="secondary"
           fullWidth

@@ -5,16 +5,19 @@ import { createClient } from '@/lib/supabase/server';
 const API_URL = process.env.NOMAI_API_URL ?? 'http://localhost:3001';
 
 /**
- * GET /api/wallet - Returns the Traveler's Agent wallet balance in local fiat.
+ * GET /api/wallet - Returns the Traveler's Agent wallet wFIAT balances.
  *
  * Security constraint (ADR-0003, Issue #16):
  * The Traveler never touches web3 and never sees the hex address in UI.
- * Address is strictly server-side; this endpoint returns only the fiat balance.
+ * The API answers `{ country_code, network, balances }` — each balance a
+ * `{ token, currency, country, amount }` decimal string in fiat terms (wFIAT
+ * is backed 1:1, no conversion). We strip the address before forwarding.
  *
  * The Supabase access token rides as `Authorization: Bearer` (same contract as
  * /credits/*). The API creates the Agent wallet on this first read (#33) and
- * answers failures with stable codes (`wallet_unavailable`, `rpc_unreachable`),
- * which we propagate untouched — an error never becomes a fabricated zero.
+ * answers failures with stable codes (`wallet_unavailable`, `rpc_unreachable`,
+ * `currency_unavailable` — #39), which we propagate untouched: an error never
+ * becomes a fabricated zero.
  */
 export async function GET() {
   // Demo mode: no Supabase — the saldo card falls back to the mock balance.
@@ -32,16 +35,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Read traveler profile to check country_code
-    const { data: traveler } = await supabase
-      .from('travelers')
-      .select('country_code')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    const currency = traveler?.country_code === 'BR' ? 'BRL' : 'ARS';
-
-    // Fetch on-chain balance via API
+    // Fetch on-chain wFIAT balances via API
     let upstream: Response;
     try {
       upstream = await fetch(`${API_URL}/wallet/${user.id}`, {
@@ -59,18 +53,17 @@ export async function GET() {
       });
     }
 
-    const info = await upstream.json();
-    const balanceNumber = parseFloat(info.balance ?? '0') || 0;
-
-    const formatted =
-      currency === 'BRL'
-        ? `R$ ${balanceNumber.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : `$ ${balanceNumber.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${currency}`;
+    const info = (await upstream.json()) as {
+      country_code?: string | null;
+      network?: string;
+      balances?: { token: string; currency: string; country: string; amount: string }[];
+    };
 
     return NextResponse.json({
-      balance: balanceNumber,
-      currency,
-      formatted,
+      ok: true,
+      country_code: info.country_code ?? null,
+      network: info.network,
+      balances: info.balances ?? [],
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

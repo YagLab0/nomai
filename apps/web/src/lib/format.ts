@@ -11,6 +11,7 @@ const CURRENCY_DISPLAY: Record<string, { symbol: string; decimals: number; local
   CLP: { symbol: 'CLP$', decimals: 0, locale: 'es-CL' },
   COP: { symbol: 'COL$', decimals: 0, locale: 'es-CO' },
   MXN: { symbol: 'MX$', decimals: 0, locale: 'es-MX' },
+  PEN: { symbol: 'S/', decimals: 2, locale: 'es-PE' },
   UYU: { symbol: '$U', decimals: 0, locale: 'es-AR' },
 };
 
@@ -42,6 +43,28 @@ export function formatARS(amount: number): string {
 export function formatBRL(amount: number, opts: { withCode?: boolean } = {}): string {
   const body = Number.isInteger(amount) ? ars.format(amount) : brl.format(amount);
   return `R$ ${body}${opts.withCode ? ' BRL' : ''}`;
+}
+
+/**
+ * A wallet balance in its own fiat, always carrying the ISO code:
+ * `$ 95.000 ARS`, `R$ 500 BRL`, `S/ 1.20 PEN`. Whole amounts drop their
+ * decimals (like formatBRL); fractional ones keep the currency's decimals.
+ */
+export function formatFiat(amount: number, currency: string): string {
+  const display = CURRENCY_DISPLAY[currency];
+  if (!display) {
+    return `${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ${currency}`;
+  }
+  const body = Number.isInteger(amount)
+    ? amount.toLocaleString(display.locale)
+    : amount.toLocaleString(display.locale, {
+        minimumFractionDigits: display.decimals,
+        maximumFractionDigits: display.decimals,
+      });
+  return `${display.symbol} ${body} ${currency}`;
 }
 
 /** 1234567 -> `1.234.567` (es-AR grouping). */
