@@ -27,5 +27,23 @@ For testnet (`celo-sepolia`), each Traveler's Agent wallet address is derived de
 `privateKey = keccak256(AGENT_WALLET_MASTER_SECRET + ":" + traveler_id)`
 `address = privateKeyToAccount(privateKey).address`
 
+### Amendment: lifecycle and identity
+
+- **Created on first wallet action, not at signup.** An Agent wallet comes into
+  existence the first time the Traveler needs it — checking their balance,
+  funding through the ramp, or paying a Booking. Signing up or chatting never
+  creates one, so accounts that never transact (e.g. Owners who only list) have
+  none. That first action blocks until the wallet exists; on failure the
+  Traveler sees a retryable message, never crypto vocabulary.
+- **One per Traveler across networks.** The same key yields the same address on
+  every EVM network, so the wallet is not per-network; the network is a property
+  of the deployment.
+- **No per-Traveler ERC-8004 identity.** The verifiable Agent identity is the
+  nomai project's, registered from the project's operational wallet. Registering
+  one per Traveler would cost platform-paid gas for wallets that may never be
+  funded. This supersedes "each with a verifiable Agent identity" above.
+- **No default master secret.** Deriving a wallet without
+  `AGENT_WALLET_MASTER_SECRET` set is an error, never a fallback value.
+
 **Security Rule:** No private key material is ever stored in the database. The database stores only the public `address`, `network`, and `traveler_id` in `public.agent_wallets`. A conceptual `key_ref` (`env:AGENT_WALLET_MASTER_SECRET#<traveler_id>`) identifies how the server-side signer reconstructs the key when signing Booking transactions.
 

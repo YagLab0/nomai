@@ -69,9 +69,11 @@ Product Spanish: *reclamo*.
 _Avoid_: dispute, complaint, ticket
 
 **Agent wallet**:
-The wallet a Traveler's Agent pays Bookings from. One per Traveler, with its own
-verifiable Agent identity. The Traveler funds it and sees its balance in local
-currency, but never operates it directly.
+The wallet a Traveler's Agent pays Bookings from. One per Traveler, the same on
+every network, and it comes into existence the first time the Traveler needs it,
+not at signup. The Traveler funds it and sees its balance in local currency, but
+never operates it directly. The verifiable Agent identity belongs to the nomai
+project, not to each Agent wallet.
 _Avoid_: user wallet, account, custodial wallet
 
 ### Money
