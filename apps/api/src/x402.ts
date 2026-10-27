@@ -10,7 +10,8 @@
 import "dotenv/config";
 
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import type { Address } from "viem";
+import type { Address, Chain } from "viem";
+import { celo, celoSepolia } from "viem/chains";
 
 export type X402Network = "testnet" | "mainnet";
 
@@ -28,6 +29,11 @@ interface NetworkConfig {
   facilitator: string;
   caip2: `eip155:${string}`;
   explorer: string;
+  /** Celo network slug — written to agent_wallets.network and served by /wallet/*. */
+  name: string;
+  /** viem chain + public RPC for on-chain reads (e.g. Agent wallet balances). */
+  chain: Chain;
+  rpc: string;
   tokens: Record<string, TokenDef>;
 }
 
@@ -49,6 +55,9 @@ export const X402: Record<X402Network, NetworkConfig> = {
     facilitator: "https://api.x402.sepolia.celo.org",
     caip2: "eip155:11142220",
     explorer: "https://celo-sepolia.blockscout.com",
+    name: "celo-sepolia",
+    chain: celoSepolia,
+    rpc: "https://forno.celo-sepolia.celo-testnet.org",
     tokens: {
       usdc: {
         address: "0x01C5C0122039549AD1493B8220cABEdD739BC44E",
@@ -62,6 +71,9 @@ export const X402: Record<X402Network, NetworkConfig> = {
     facilitator: "https://api.x402.celo.org",
     caip2: "eip155:42220",
     explorer: "https://celoscan.io",
+    name: "celo",
+    chain: celo,
+    rpc: "https://forno.celo.org",
     tokens: {
       usdc: {
         address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",

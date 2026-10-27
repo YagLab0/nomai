@@ -10,8 +10,9 @@
     "buy": "tsx src/buyer.ts",
     "smoke:listings": "tsx scripts/smoke-listings.ts",
     "smoke:credits": "tsx scripts/smoke-credits.ts",
+    "smoke:wallet": "tsx scripts/smoke-wallet.ts",
     "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit && tsc -p tsconfig.scripts.json"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

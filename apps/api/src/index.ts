@@ -122,6 +122,11 @@ if (!process.env.X402_API_KEY) {
     "⚠️  X402_API_KEY is not set. The 402s will look correct and settlement will fail with 401."
   );
 }
+if (!process.env.AGENT_WALLET_MASTER_SECRET) {
+  console.warn(
+    "⚠️  AGENT_WALLET_MASTER_SECRET is not set — Agent wallet creation will fail with wallet_unavailable."
+  );
+}
 
 // Listings API — the Agent's data surface. Read routes stay open (the gate
 // only claims its own patterns); POST /listings/:slug/book is the paid
