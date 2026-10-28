@@ -27,7 +27,7 @@ import {
   type PromptOptions,
 } from '@openuidev/react-lang';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { z } from 'zod/v4';
 
 import { ProseText } from '@/components/app/chat/prose-text';
@@ -84,43 +84,51 @@ const listingCardProps = z.object({
 
 function ListingCardView({ props }: ComponentRenderProps<z.infer<typeof listingCardProps>>) {
   const triggerAction = useTriggerAction();
+  /* Container queries, not viewport: a card squeezed into a ~320px carousel
+   * slot must stack vertically even on a wide browser. */
   return (
-    <article className="flex overflow-hidden rounded-2xl border border-sand bg-white">
-      {props.image ? (
-        <img
-          src={props.image}
-          alt={props.name}
-          className="w-28 shrink-0 object-cover sm:w-36"
-          loading="lazy"
-        />
-      ) : null}
-      <div className="min-w-0 flex-1 p-4">
-        <p className="font-brand text-lg font-medium leading-tight text-ink">{props.name}</p>
-        <p className="mt-0.5 text-sm text-ink-muted">{props.city}</p>
-        {props.blurb ? <p className="mt-2 text-sm leading-snug text-ink">{props.blurb}</p> : null}
-        {props.badge ? (
-          <span className="mt-3 inline-flex rounded-full bg-agua-soft px-2.5 py-0.5 text-xs font-medium text-agua">
-            {props.badge}
-          </span>
+    <div className="@container h-full">
+      <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-sand bg-white @lg:flex-row">
+        {props.image ? (
+          <img
+            src={props.image}
+            alt={props.name}
+            className="h-32 w-full shrink-0 object-cover @lg:h-auto @lg:w-36"
+            loading="lazy"
+          />
         ) : null}
-      </div>
+        <div className="min-w-0 flex-1 p-3.5">
+          <p className="font-brand text-base font-medium leading-tight text-ink">{props.name}</p>
+          <p className="mt-0.5 text-sm text-ink-muted">{props.city}</p>
+          {props.blurb ? (
+            <p className="mt-1.5 line-clamp-3 text-sm leading-snug text-ink">{props.blurb}</p>
+          ) : null}
+          {props.badge ? (
+            <span className="mt-2.5 inline-flex rounded-full bg-agua-soft px-2.5 py-0.5 text-xs font-medium leading-snug text-agua">
+              {props.badge}
+            </span>
+          ) : null}
+        </div>
 
-      <div className="relative flex w-32 shrink-0 flex-col items-center justify-between gap-2 border-l-2 border-dashed border-sand p-3 text-center sm:w-36">
-        <span aria-hidden="true" className="absolute -left-2 -top-2 h-4 w-4 rounded-full bg-paper" />
-        <span aria-hidden="true" className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-paper" />
-        {props.code ? (
-          <span className="font-mono text-xs tracking-widest text-ink-muted">{props.code}</span>
-        ) : null}
-        <p className="font-mono text-sm font-semibold text-ink">{props.price}</p>
-        <Button
-          size="sm"
-          fullWidth
-          onPress={() => void triggerAction('Elegir', undefined, props.choose)}
-        >
-          Elegir
-        </Button>
-      </div>
-    </article>
+        <div className="relative flex w-full shrink-0 flex-row items-center justify-between gap-3 border-t-2 border-dashed border-sand p-3 @lg:w-36 @lg:flex-col @lg:justify-center @lg:gap-2 @lg:border-l-2 @lg:border-t-0 @lg:text-center">
+          <span aria-hidden="true" className="absolute -left-2 -top-2 hidden h-4 w-4 rounded-full bg-paper @lg:block" />
+          <span aria-hidden="true" className="absolute -bottom-2 -left-2 hidden h-4 w-4 rounded-full bg-paper @lg:block" />
+          {props.code ? (
+            <span className="hidden font-mono text-xs tracking-widest text-ink-muted @lg:block">{props.code}</span>
+          ) : null}
+          <p className="font-mono text-sm font-semibold text-ink">{props.price}</p>
+          <div className="shrink-0 @lg:w-full">
+            <Button
+              size="sm"
+              fullWidth
+              onPress={() => void triggerAction('Elegir', undefined, props.choose)}
+            >
+              Elegir
+            </Button>
+          </div>
+        </div>
+      </article>
+    </div>
   );
 }
 
@@ -130,6 +138,64 @@ const ListingCard = defineComponent({
   description:
     'A lodging option as a ticket-stub card: name, city and optional blurb on the left; a perforated stub with the nightly price and an "Elegir" button on the right. Only with real data from the listings tools.',
   component: ListingCardView,
+});
+
+const listingCarouselProps = z.object({
+  children: z.array(ListingCard.ref),
+});
+
+function ListingCarouselView({
+  props,
+  renderNode,
+}: ComponentRenderProps<z.infer<typeof listingCarouselProps>>) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const count = props.children.length;
+
+  const onScroll = () => {
+    const el = scroller.current;
+    if (!el) return;
+    const range = el.scrollWidth - el.clientWidth;
+    if (range > 0) setActive(Math.round((el.scrollLeft / range) * (count - 1)));
+  };
+
+  return (
+    <div>
+      <div
+        ref={scroller}
+        onScroll={onScroll}
+        className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {props.children.map((child, i) => (
+          <div key={i} className="w-full shrink-0 snap-start">
+            {renderNode(child)}
+          </div>
+        ))}
+      </div>
+      {count > 1 && (
+        <div className="mt-2 flex justify-center gap-1.5">
+          {props.children.map((_, i) => (
+            <span
+              key={i}
+              className={
+                i === active
+                  ? 'h-1.5 w-4 rounded-full bg-terra-deep transition-all'
+                  : 'h-1.5 w-1.5 rounded-full bg-ink/20 transition-all'
+              }
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const ListingCarousel = defineComponent({
+  name: 'ListingCarousel',
+  props: listingCarouselProps,
+  description:
+    'Swipeable carousel of 2+ lodging options — children are ListingCard elements, one full-width card per swipe with dot pagination. Use INSTEAD of several stacked ListingCard when showing multiple options; keep a single ListingCard for one option.',
+  component: ListingCarouselView,
 });
 
 const quoteCardProps = z.object({
@@ -185,7 +251,9 @@ function QuoteCardView({ props }: ComponentRenderProps<z.infer<typeof quoteCardP
             >
               {line.label}
             </dt>
-            <dd className="shrink-0 font-mono">{line.value}</dd>
+            <dd className="min-w-0 text-right font-mono [overflow-wrap:anywhere]">
+              {line.value}
+            </dd>
           </div>
         ))}
       </dl>
@@ -337,8 +405,10 @@ function DetailListView({ props }: ComponentRenderProps<z.infer<typeof detailLis
           key={item.label}
           className="flex items-baseline justify-between gap-4 py-2 text-sm"
         >
-          <dt className="text-ink-muted">{item.label}</dt>
-          <dd className="shrink-0 text-right font-medium text-ink">{item.value}</dd>
+          <dt className="shrink-0 text-ink-muted">{item.label}</dt>
+          <dd className="min-w-0 text-right font-medium text-ink [overflow-wrap:anywhere]">
+            {item.value}
+          </dd>
         </div>
       ))}
     </dl>
@@ -954,7 +1024,9 @@ function BookingCardView({ props }: ComponentRenderProps<z.infer<typeof bookingC
             className="flex items-baseline justify-between gap-4 py-2.5 text-sm text-ink"
           >
             <dt className="text-ink-muted">{line.label}</dt>
-            <dd className="shrink-0 font-mono">{line.value}</dd>
+            <dd className="min-w-0 text-right font-mono [overflow-wrap:anywhere]">
+              {line.value}
+            </dd>
           </div>
         ))}
       </dl>
@@ -1191,6 +1263,7 @@ const stackProps = z.object({
       z.string(),
       TextContent.ref,
       ListingCard.ref,
+      ListingCarousel.ref,
       QuoteCard.ref,
       ImageGrid.ref,
       SectionHeader.ref,
@@ -1241,6 +1314,7 @@ export const library = createLibrary({
     Stack,
     TextContent,
     ListingCard,
+    ListingCarousel,
     QuoteCard,
     ImageGrid,
     SectionHeader,
@@ -1266,6 +1340,7 @@ export const library = createLibrary({
       name: 'nomai',
       components: [
         'ListingCard',
+        'ListingCarousel',
         'QuoteCard',
         'ImageGrid',
         'SectionHeader',

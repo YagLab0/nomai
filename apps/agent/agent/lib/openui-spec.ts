@@ -7,7 +7,7 @@ const spec = {
   "root": "Stack",
   "components": {
     "Stack": {
-      "signature": "Stack(children: (string | TextContent | ListingCard | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow | ApprovalCard | TaskRows | RecommendationCard)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
+      "signature": "Stack(children: (string | TextContent | ListingCard | ListingCarousel | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow | ApprovalCard | TaskRows | RecommendationCard)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
       "description": "Root layout container every program starts with: stacks children vertically (default) or horizontally with a gap."
     },
     "TextContent": {
@@ -17,6 +17,10 @@ const spec = {
     "ListingCard": {
       "signature": "ListingCard(name: string, city: string, price: string, badge?: string, choose: ActionExpression, blurb?: string, code?: string, image?: string)",
       "description": "A lodging option as a ticket-stub card: name, city and optional blurb on the left; a perforated stub with the nightly price and an \"Elegir\" button on the right. Only with real data from the listings tools."
+    },
+    "ListingCarousel": {
+      "signature": "ListingCarousel(children: ListingCard[])",
+      "description": "Swipeable carousel of 2+ lodging options — children are ListingCard elements, one full-width card per swipe with dot pagination. Use INSTEAD of several stacked ListingCard when showing multiple options; keep a single ListingCard for one option."
     },
     "QuoteCard": {
       "signature": "QuoteCard(title: string, lines: {label: string, value: string, kind?: \"fee\" | \"total\"}[], confirm: ActionExpression, serviceFee?: string)",
@@ -103,6 +107,7 @@ const spec = {
       "name": "nomai",
       "components": [
         "ListingCard",
+        "ListingCarousel",
         "QuoteCard",
         "ImageGrid",
         "SectionHeader",
@@ -136,6 +141,9 @@ const spec = {
       },
       "ListingCard": {
         "$ref": "#/$defs/ListingCard"
+      },
+      "ListingCarousel": {
+        "$ref": "#/$defs/ListingCarousel"
       },
       "QuoteCard": {
         "$ref": "#/$defs/QuoteCard"
@@ -196,6 +204,7 @@ const spec = {
       "Stack",
       "TextContent",
       "ListingCard",
+      "ListingCarousel",
       "QuoteCard",
       "ImageGrid",
       "SectionHeader",
@@ -232,6 +241,9 @@ const spec = {
                 },
                 {
                   "$ref": "#/$defs/ListingCard"
+                },
+                {
+                  "$ref": "#/$defs/ListingCarousel"
                 },
                 {
                   "$ref": "#/$defs/QuoteCard"
@@ -425,6 +437,22 @@ const spec = {
             "additionalProperties": false
           }
         ]
+      },
+      "ListingCarousel": {
+        "type": "object",
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ListingCard"
+            }
+          }
+        },
+        "required": [
+          "children"
+        ],
+        "additionalProperties": false,
+        "description": "Swipeable carousel of 2+ lodging options — children are ListingCard elements, one full-width card per swipe with dot pagination. Use INSTEAD of several stacked ListingCard when showing multiple options; keep a single ListingCard for one option."
       },
       "QuoteCard": {
         "type": "object",

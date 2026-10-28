@@ -143,7 +143,9 @@ export default function ThinkingState({
       key={variant}
       className="flex w-full max-w-95 flex-col"
       style={{
-        minHeight: working || expanded ? 176 : undefined,
+        /* Reserve height only while animating — a settled, manually expanded
+         * trace with few rows must not keep dead space under the header. */
+        minHeight: working ? 176 : undefined,
         transition: "min-height 400ms cubic-bezier(0.23,1,0.32,1)",
       }}
     >
