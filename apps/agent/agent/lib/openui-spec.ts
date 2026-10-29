@@ -28,7 +28,7 @@ const spec = {
     },
     "ImageGrid": {
       "signature": "ImageGrid(images: string[], alt?: string)",
-      "description": "Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs."
+      "description": "Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs. Omit it entirely when the listing has no photos."
     },
     "SectionHeader": {
       "signature": "SectionHeader(title: string, subtitle?: string)",
@@ -518,7 +518,7 @@ const spec = {
           "images"
         ],
         "additionalProperties": false,
-        "description": "Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs."
+        "description": "Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs. Omit it entirely when the listing has no photos."
       },
       "SectionHeader": {
         "type": "object",

@@ -17,7 +17,6 @@ import {
   type Owner,
 } from '@/lib/lodgings';
 import { formatMoney } from '@/lib/format';
-import type { PhotoKey } from '@/lib/photos';
 import type { ApiListingCard, ApiListingDetail } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
@@ -119,34 +118,6 @@ export function amenityLabel(code: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// photos — fallback map by slug when the API returns no photos
-// ---------------------------------------------------------------------------
-
-export const FALLBACK_PHOTOS_BY_SLUG: Partial<Record<string, PhotoKey>> = {
-  'casa-de-adobe': 'cafayateHabitacion',
-  'posada-el-algarrobo': 'saltaCatedral',
-  'cabanas-siete-colores': 'purmamarcaAdobe',
-  'hostel-la-quebrada': 'tilcaraRuinas',
-  'casona-guemes': 'saltaTeleferico',
-  'cabana-vinas-del-sol': 'cafayateVinedos',
-  'posada-quebrada-alta': 'humahuacaValle',
-  'casa-los-colorados': 'purmamarcaFeria',
-  'posada-el-patio': 'tilcaraPatio',
-  'cabanas-hornocal': 'humahuacaCerros',
-  'posada-marina': 'floripaBrava',
-  'casa-duna': 'floripaIngleses',
-  'casa-getsemani': 'cartagenaBalcon',
-  'casa-de-los-almendros': 'cartagenaCasas',
-  'hostal-licancabur': 'atacamaLejia',
-  'casa-del-salar': 'atacamaBaltinache',
-  'posada-del-porton': 'coloniaPortal',
-  'casa-la-rambla': 'coloniaCafe',
-  'casa-cenote': 'tulumPalapa',
-  'cabana-los-alamos': 'tulumPalapa',
-  'depto-aldea-zama': 'tulumBici',
-};
-
-// ---------------------------------------------------------------------------
 // Deterministic derivations — same slug always produces the same presentation.
 // ---------------------------------------------------------------------------
 
@@ -242,12 +213,12 @@ function countryName(code: string | undefined): string {
  * Search card → Lodging. `bedrooms`/`baths` are detail-only fields, so cards
  * carry 0 — nothing in card UIs renders them.
  *
- * Remote photos from API (seed/picsum) are served directly. Curated local artwork
- * acts as fallback by slug when no photo is available from the API.
+ * The API serves photo URLs (curated /images/* shots, Owner Storage uploads) as
+ * absolute URLs, passed through as `photoUrl`. Listings without one fall back to
+ * LodgingArt — a missing photo is honest, a wrong one isn't.
  */
 export function apiCardToLodging(card: ApiListingCard): Lodging {
   const photoUrl = card.cover_photo || undefined;
-  const photo = photoUrl ? undefined : FALLBACK_PHOTOS_BY_SLUG[card.slug];
   const priceDisplay = card.nightly_display ?? formatMoney(card.nightly_minor, card.currency);
 
   return {
@@ -272,7 +243,6 @@ export function apiCardToLodging(card: ApiListingCard): Lodging {
     ownerSlug: card.owner_slug ?? slugify(card.owner_name ?? ''),
     ownerName: card.owner_name,
     tone: apiTone(card.slug),
-    photo,
     photoUrl,
   };
 }
@@ -286,7 +256,6 @@ export function apiDetailToLodging(detail: ApiListingDetail): Lodging {
   const ownerName = detail.owner_name ?? detail.business?.name;
   const coverUrl = detail.photos?.find((p) => p.is_cover)?.url ?? detail.photos?.[0]?.url;
   const photoUrl = coverUrl || undefined;
-  const photo = photoUrl ? undefined : FALLBACK_PHOTOS_BY_SLUG[slug];
   const priceDisplay = detail.base_price_display ?? formatMoney(detail.base_price_minor, detail.currency);
 
   return {
@@ -311,7 +280,6 @@ export function apiDetailToLodging(detail: ApiListingDetail): Lodging {
     ownerSlug: detail.owner_slug ?? detail.business?.slug ?? slugify(ownerName ?? ''),
     ownerName,
     tone: apiTone(slug),
-    photo,
     photoUrl,
     address: detail.property?.address_line1,
     lat: detail.property?.latitude,

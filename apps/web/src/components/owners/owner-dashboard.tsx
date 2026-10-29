@@ -21,7 +21,6 @@ import {
   apiCityCode,
   apiKind,
   apiTone,
-  FALLBACK_PHOTOS_BY_SLUG,
   initialsFor,
 } from '@/lib/api-mapping';
 import { RIPIO_COUNTRIES, type Fiat, type Lodging, type Owner } from '@/lib/lodgings';
@@ -216,7 +215,6 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           ownerSlug: bus.slug,
           ownerName: bus.name,
           tone: apiTone(l.slug),
-          photo: cover ? undefined : FALLBACK_PHOTOS_BY_SLUG[l.slug],
           photoUrl: cover,
           photos: photos.length ? photos.map((p) => p.url) : undefined,
           address: l.property?.address_line1 ?? undefined,
