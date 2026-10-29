@@ -20,6 +20,7 @@
 import { createSupabaseAdmin } from "../supabase.js";
 import { AMENITY_BY_CODE, AMENITY_BY_ID } from "./catalog.js";
 import { isoDay, nightsBetween } from "./availability.js";
+import { resolvePhotoUrl } from "./photo-url.js";
 import { formatMoney, toBookingDetail, toBookingSummary } from "./repo.js";
 import type {
   BookInput,
@@ -171,7 +172,7 @@ type PhotoView = { url: string; alt?: string; is_cover: boolean };
 
 function toPhoto(row: ListingPhotoRow): PhotoView {
   return {
-    url: row.url,
+    url: resolvePhotoUrl(row.url),
     alt: row.alt_text ?? undefined,
     is_cover: row.is_cover,
   };

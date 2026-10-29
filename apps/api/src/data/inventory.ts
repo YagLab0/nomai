@@ -2293,32 +2293,220 @@ export const LISTING_AMENITIES: ListingAmenity[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// listing_photos — picsum with stable seeds: same URL on every run.
+// listing_photos — curated shots from apps/web/public/images (credits:
+// CREDITS.md), stored root-relative; the API resolves them against
+// PUBLIC_WEB_URL when it serializes. Cities without curated coverage (Buenos
+// Aires, Ciudad de México, Bogotá, Mendoza) seed NO photos — better no photo
+// than a wrong one. PHOTOS_BY_LISTING lists each listing's files cover-first.
 // ---------------------------------------------------------------------------
 
-const photo = (
-  listingId: string,
-  slug: string,
-  positions: { url: string; alt: string; cover?: boolean }[]
-): ListingPhoto[] =>
-  positions.map((p, i) => ({
-    id: `pho_${listingId}_${i + 1}`,
-    listing_id: listingId,
-    url: p.url,
-    alt_text: p.alt,
-    position: i,
-    is_cover: p.cover === true,
-  }));
+/** Alt text per curated file — the same captions apps/web/src/lib/photos.ts ships. */
+const CURATED_ALT: Record<string, string> = {
+  "purmamarca-siete-colores.webp":
+    "Las franjas de colores del Cerro de los Siete Colores, en Purmamarca",
+  "purmamarca-adobe.webp":
+    "Casas de adobe al pie de un cerro rojo en Purmamarca",
+  "purmamarca-feria.webp": "Puestos de tejidos en una calle de Purmamarca",
+  "salinas-grandes.webp":
+    "Piletones de agua sobre la sal blanca de Salinas Grandes",
+  "tilcara-pucara.webp": "Cardones y el monumento del Pucará de Tilcara",
+  "tilcara-patio.webp": "Patio con mesas y paredes rosadas en Tilcara",
+  "tilcara-pucara-ruinas.webp": "Muros de piedra del Pucará de Tilcara",
+  "humahuaca-hornocal.webp":
+    "La Serranía de Hornocal desde el mirador, cerca de Humahuaca",
+  "humahuaca-cerros.webp":
+    "Cerros de franjas de colores bajo las nubes, en Humahuaca",
+  "humahuaca-valle.webp": "Humahuaca y su valle, con los cerros al fondo",
+  "cafayate-vinedos.webp": "Viñedos de Cafayate con los cerros de fondo",
+  "quebrada-de-las-conchas.webp":
+    "Ruta entre las formaciones rojas de la Quebrada de las Conchas",
+  "cafayate-habitacion.webp":
+    "Habitación con cama de hierro y veladores en Cafayate",
+  "salta-san-francisco.webp":
+    "Fachada de la Basílica de San Francisco, en Salta",
+  "salta-catedral.webp": "Fachada de la Catedral Basílica de Salta",
+  "salta-teleferico.webp":
+    "Salta vista desde el teleférico al cerro San Bernardo",
+  "floripa-lagoinha-do-leste.webp":
+    "La playa de Lagoinha do Leste entre cerros verdes, en Florianópolis",
+  "floripa-ingleses.webp":
+    "Agua turquesa y gente bañándose en Praia dos Ingleses, Florianópolis",
+  "floripa-praia-brava.webp":
+    "Praia Brava vista desde arriba, con casas frente al mar, en Florianópolis",
+  "tulum-ruinas.webp":
+    "Las ruinas mayas de Tulum sobre el acantilado y el mar Caribe",
+  "tulum-palapa.webp": "Techo de palma frente a la playa entre palmeras, en Tulum",
+  "tulum-bici.webp":
+    "Una bicicleta blanca bajo el cartel Follow that dream, en Tulum",
+  "cartagena-torre-reloj.webp": "La Torre del Reloj y la plaza, en Cartagena",
+  "cartagena-casas.webp":
+    "Casas coloniales de colores con flores en los balcones, en Cartagena",
+  "cartagena-balcon.webp":
+    "Balcón de madera pintado de colores en Getsemaní, Cartagena",
+  "atacama-valle-de-la-luna.webp":
+    "Las crestas del Valle de la Luna, en San Pedro de Atacama",
+  "atacama-laguna-lejia.webp":
+    "Volcanes reflejados en la Laguna Lejía, cerca de San Pedro de Atacama",
+  "atacama-baltinache.webp":
+    "Laguna turquesa sobre la sal en Baltinache, San Pedro de Atacama",
+  "cusco-machu-picchu.jpg": "Machu Picchu al amanecer, cerca de Cusco",
+  "colonia-faro.webp": "El faro de Colonia del Sacramento entre árboles",
+  "colonia-portal.webp":
+    "Puerta antigua con una santa rita en flor, en Colonia del Sacramento",
+  "colonia-cafe.webp":
+    "Un café bajo un árbol con un auto antiguo, en Colonia del Sacramento",
+};
 
-const picsum = (seed: string, w = 1200, h = 800) =>
-  `https://picsum.photos/seed/${seed}/${w}/${h}`;
+/**
+ * Cover-first photo files per listing, all from the listing's city (or its
+ * Quebrada / day-trip region, e.g. Salinas Grandes for Purmamarca). Listings
+ * missing here keep an empty gallery.
+ */
+const PHOTOS_BY_LISTING: Record<string, string[]> = {
+  // Florianópolis
+  lst_floripa_quarto: [
+    "floripa-ingleses.webp",
+    "floripa-praia-brava.webp",
+    "floripa-lagoinha-do-leste.webp",
+  ],
+  lst_floripa_casa: [
+    "floripa-praia-brava.webp",
+    "floripa-lagoinha-do-leste.webp",
+    "floripa-ingleses.webp",
+  ],
+  lst_posada_marina: [
+    "floripa-praia-brava.webp",
+    "floripa-ingleses.webp",
+    "floripa-lagoinha-do-leste.webp",
+  ],
+  lst_casa_duna: [
+    "floripa-ingleses.webp",
+    "floripa-lagoinha-do-leste.webp",
+    "floripa-praia-brava.webp",
+  ],
+  // Cusco — only Machu Picchu (Sacred Valley, the region's draw) is curated.
+  lst_cusco_hab: ["cusco-machu-picchu.jpg"],
+  lst_cusco_depto: ["cusco-machu-picchu.jpg"],
+  // Cartagena
+  lst_cartagena_hab: [
+    "cartagena-torre-reloj.webp",
+    "cartagena-casas.webp",
+    "cartagena-balcon.webp",
+  ],
+  lst_cartagena_casa: [
+    "cartagena-casas.webp",
+    "cartagena-balcon.webp",
+    "cartagena-torre-reloj.webp",
+  ],
+  lst_casa_getsemani: [
+    "cartagena-balcon.webp",
+    "cartagena-casas.webp",
+    "cartagena-torre-reloj.webp",
+  ],
+  lst_casa_de_los_almendros: [
+    "cartagena-casas.webp",
+    "cartagena-torre-reloj.webp",
+    "cartagena-balcon.webp",
+  ],
+  // Cafayate
+  lst_casa_de_adobe: [
+    "cafayate-habitacion.webp",
+    "cafayate-vinedos.webp",
+    "quebrada-de-las-conchas.webp",
+  ],
+  lst_cabana_vinas_del_sol: [
+    "cafayate-vinedos.webp",
+    "quebrada-de-las-conchas.webp",
+    "cafayate-habitacion.webp",
+  ],
+  // Salta
+  lst_posada_el_algarrobo: [
+    "salta-catedral.webp",
+    "salta-san-francisco.webp",
+    "salta-teleferico.webp",
+  ],
+  lst_casona_guemes: [
+    "salta-teleferico.webp",
+    "salta-san-francisco.webp",
+    "salta-catedral.webp",
+  ],
+  // Purmamarca — Salinas Grandes is the classic day trip from town.
+  lst_cabanas_siete_colores: [
+    "purmamarca-siete-colores.webp",
+    "purmamarca-adobe.webp",
+    "purmamarca-feria.webp",
+  ],
+  lst_casa_los_colorados: [
+    "purmamarca-feria.webp",
+    "purmamarca-adobe.webp",
+    "salinas-grandes.webp",
+  ],
+  // Tilcara
+  lst_hostel_la_quebrada: [
+    "tilcara-pucara-ruinas.webp",
+    "tilcara-pucara.webp",
+    "tilcara-patio.webp",
+  ],
+  lst_posada_el_patio: [
+    "tilcara-patio.webp",
+    "tilcara-pucara.webp",
+    "tilcara-pucara-ruinas.webp",
+  ],
+  // Humahuaca
+  lst_posada_quebrada_alta: [
+    "humahuaca-valle.webp",
+    "humahuaca-cerros.webp",
+    "humahuaca-hornocal.webp",
+  ],
+  lst_cabanas_hornocal: [
+    "humahuaca-hornocal.webp",
+    "humahuaca-cerros.webp",
+    "humahuaca-valle.webp",
+  ],
+  // San Pedro de Atacama — Baltinache's salt lagoon suits Casa del Salar.
+  lst_hostal_licancabur: [
+    "atacama-laguna-lejia.webp",
+    "atacama-valle-de-la-luna.webp",
+    "atacama-baltinache.webp",
+  ],
+  lst_casa_del_salar: [
+    "atacama-baltinache.webp",
+    "atacama-valle-de-la-luna.webp",
+    "atacama-laguna-lejia.webp",
+  ],
+  // Colonia del Sacramento
+  lst_posada_del_porton: [
+    "colonia-portal.webp",
+    "colonia-faro.webp",
+    "colonia-cafe.webp",
+  ],
+  lst_casa_la_rambla: [
+    "colonia-faro.webp",
+    "colonia-cafe.webp",
+    "colonia-portal.webp",
+  ],
+  // Tulum
+  lst_casa_cenote: [
+    "tulum-palapa.webp",
+    "tulum-ruinas.webp",
+    "tulum-bici.webp",
+  ],
+  lst_depto_aldea_zama: [
+    "tulum-bici.webp",
+    "tulum-ruinas.webp",
+    "tulum-palapa.webp",
+  ],
+};
 
 export const LISTING_PHOTOS: ListingPhoto[] = LISTINGS.flatMap((l) =>
-  photo(l.id, l.slug, [
-    { url: picsum(`${l.slug}-1`), alt: `${l.title} — vista principal`, cover: true },
-    { url: picsum(`${l.slug}-2`), alt: `${l.title} — interior` },
-    { url: picsum(`${l.slug}-3`), alt: `${l.title} — detalle` },
-  ])
+  (PHOTOS_BY_LISTING[l.id] ?? []).map((file, i) => ({
+    id: `pho_${l.id}_${i + 1}`,
+    listing_id: l.id,
+    url: `/images/${file}`,
+    alt_text: CURATED_ALT[file],
+    position: i,
+    is_cover: i === 0,
+  }))
 );
 
 // ---------------------------------------------------------------------------

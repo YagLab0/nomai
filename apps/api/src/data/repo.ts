@@ -6,6 +6,7 @@ import {
   nightsBetween,
 } from "./availability.js";
 import { GLOBAL_CANCELLATION_POLICY } from "./types.js";
+import { resolvePhotoUrl } from "./photo-url.js";
 import { serviceFeePctSnapshot } from "./service-fee.js";
 import {
   BUSINESSES,
@@ -376,7 +377,7 @@ export function searchListings(params: SearchParams): ListingCard[] {
       city: property.city,
       region: property.region,
       country_code: property.country_code,
-      cover_photo: cover?.url,
+      cover_photo: cover ? resolvePhotoUrl(cover.url) : undefined,
       currency: listing.currency,
       nightly_minor: listing.base_price_minor,
       nightly_display: formatMoney(listing.base_price_minor, listing.currency),
@@ -532,7 +533,11 @@ export function getListingBySlug(slug: string): ListingDetail | null {
     amenities: amenitiesOf(listing.id),
     photos: LISTING_PHOTOS.filter((p) => p.listing_id === listing.id)
       .sort((a, b) => a.position - b.position)
-      .map((p) => ({ url: p.url, alt: p.alt_text, is_cover: p.is_cover })),
+      .map((p) => ({
+        url: resolvePhotoUrl(p.url),
+        alt: p.alt_text,
+        is_cover: p.is_cover,
+      })),
     cancellation_policy: { ...GLOBAL_CANCELLATION_POLICY },
     units_available: LISTING_UNITS.filter(
       (u) => u.listing_id === listing.id && u.status === "active"
