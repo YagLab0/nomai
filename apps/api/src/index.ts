@@ -112,9 +112,15 @@ app.route("/owners", owners);
 // KEEPER_SECRET. Cron/manual trigger for process_escrow_releases().
 app.route("/internal", keeper);
 
-const port = Number(process.env.PORT ?? 3001);
-serve({ fetch: app.fetch, port });
-console.log(`nomai x402 seller listening on http://localhost:${port}`);
-console.log(`  network:     ${NETWORK} (${CAIP2})`);
-console.log(`  facilitator: ${CONFIG.facilitator}`);
-console.log(`  data source: ${LISTINGS_DATA_SOURCE}`);
+// On Vercel the default export IS the server (zero-config Hono functions);
+// everywhere else (`pnpm api:dev`, `node dist/index.js`) boot our own.
+export default app;
+
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT ?? 3001);
+  serve({ fetch: app.fetch, port });
+  console.log(`nomai x402 seller listening on http://localhost:${port}`);
+  console.log(`  network:     ${NETWORK} (${CAIP2})`);
+  console.log(`  facilitator: ${CONFIG.facilitator}`);
+  console.log(`  data source: ${LISTINGS_DATA_SOURCE}`);
+}
