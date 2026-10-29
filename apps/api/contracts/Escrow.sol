@@ -44,7 +44,11 @@ contract EscrowVault {
     /// Owner, a refund to the Traveler, or the Service-fee withdrawal.
     /// @dev Low-level call so ERC-20s that return no bool (the USDT family)
     /// still work: empty returndata on a successful call counts as success.
+    /// A call to an address with no code also "succeeds" with empty
+    /// returndata, so a mistyped token would emit a release that moved
+    /// nothing — rejected up front.
     function transfer(address token, address to, uint256 amount) external onlyAdmin {
+        if (token.code.length == 0) revert TokenTransferFailed();
         (bool ok, bytes memory data) =
             token.call(abi.encodeWithSignature("transfer(address,uint256)", to, amount));
         if (!ok || (data.length != 0 && !abi.decode(data, (bool)))) {

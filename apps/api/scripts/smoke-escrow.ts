@@ -293,6 +293,22 @@ async function main() {
     }
     assert(reverted, "NotAdmin revert for a non-admin call");
 
+    // -- token with no code ------------------------------------------------------------
+    step("transfer of a 'token' with no code reverts (no phantom release)");
+    let noCodeReverted = false;
+    try {
+      await client.simulateContract({
+        address: vault,
+        abi: vaultAbi,
+        functionName: "transfer",
+        args: [outsider.address, outsider.address, 1n],
+        account: admin.address,
+      });
+    } catch {
+      noCodeReverted = true;
+    }
+    assert(noCodeReverted, "TokenTransferFailed for a code-less token address");
+
     // -- no-bool token -----------------------------------------------------------------
     step("safe-transfer handles a token that returns no bool");
     const IN_B = 7n * 10n ** 18n;
