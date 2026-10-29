@@ -103,6 +103,13 @@ Cancellation deadline passes, the rest 24 h after check-in if there is no Claim.
 Nomai can only route the funds to that Booking's Traveler or Owner.
 _Avoid_: deposit, hold, platform wallet
 
+**Escrow intent**:
+A `payments` row (kind `release` or `refund`) recording that Escrow owes a
+movement — a release to the Owner's verified Payout address, a refund to the
+Traveler's Agent wallet. The Escrow keeper claims each intent and executes it
+on-chain; the row's `status` (pending → executing → sent, or held/failed) is the
+movement's state machine.
+
 **FX fee**:
 The platform's commission on a currency conversion executed inside the Agent's flow
 (e.g. wARS→wBRL). Charged only when a conversion happens. One of two revenue streams.

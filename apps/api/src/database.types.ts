@@ -574,40 +574,67 @@ export type Database = {
         Row: {
           amount_minor: number;
           asset: string;
+          attempt_tx_hash: string | null;
+          attempts: number;
           booking_id: string;
           created_at: string;
+          executing_at: string | null;
           facilitator_ref: string | null;
           id: string;
           kind: Database["public"]["Enums"]["payment_kind"];
+          last_error: string | null;
           network: string;
-          pay_to: string;
+          pay_to: string | null;
           payer: string | null;
+          resolved_network: string | null;
+          resolved_to: string | null;
+          resolved_token: string | null;
+          sent_at: string | null;
+          status: string;
           tx_hash: string | null;
         };
         Insert: {
           amount_minor: number;
           asset: string;
+          attempt_tx_hash?: string | null;
+          attempts?: number;
           booking_id: string;
           created_at?: string;
+          executing_at?: string | null;
           facilitator_ref?: string | null;
           id?: string;
           kind?: Database["public"]["Enums"]["payment_kind"];
+          last_error?: string | null;
           network: string;
-          pay_to: string;
+          pay_to?: string | null;
           payer?: string | null;
+          resolved_network?: string | null;
+          resolved_to?: string | null;
+          resolved_token?: string | null;
+          sent_at?: string | null;
+          status?: string;
           tx_hash?: string | null;
         };
         Update: {
           amount_minor?: number;
           asset?: string;
+          attempt_tx_hash?: string | null;
+          attempts?: number;
           booking_id?: string;
           created_at?: string;
+          executing_at?: string | null;
           facilitator_ref?: string | null;
           id?: string;
           kind?: Database["public"]["Enums"]["payment_kind"];
+          last_error?: string | null;
           network?: string;
           pay_to?: string;
           payer?: string | null;
+          resolved_network?: string | null;
+          resolved_to?: string | null;
+          resolved_token?: string | null;
+          sent_at?: string | null;
+          status?: string;
           tx_hash?: string | null;
         };
         Relationships: [
@@ -945,6 +972,14 @@ export type Database = {
         Args: { p_booking_id: string; p_guest_ref?: string; p_traveler_id?: string };
         Returns: Json;
       };
+      claim_escrow_intents: {
+        Args: {
+          p_booking_id?: string;
+          p_dry_run?: boolean;
+          p_limit?: number;
+        };
+        Returns: Json;
+      };
       confirm_booking_payment: {
         Args: {
           p_amount_minor?: number;
@@ -1000,7 +1035,18 @@ export type Database = {
       };
       owns_business: { Args: { p_business_id: string }; Returns: boolean };
       owns_listing: { Args: { p_listing_id: string }; Returns: boolean };
-      process_escrow_releases: { Args: Record<PropertyKey, never>; Returns: Json };
+      process_escrow_releases: {
+        Args: { p_dry_run?: boolean };
+        Returns: Json;
+      };
+      record_escrow_attempt: {
+        Args: { p_payment_id: string; p_tx_hash: string };
+        Returns: Json;
+      };
+      recover_escrow_intents: {
+        Args: { p_dry_run?: boolean; p_stale_seconds?: number };
+        Returns: Json;
+      };
       refresh_review_scores: {
         Args: { p_business_id: string; p_listing_id: string };
         Returns: undefined;
@@ -1018,6 +1064,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      resolve_escrow_intent: {
+        Args: { p_booking_id: string; p_kind: string };
+        Returns: Json;
+      };
       review_weight: { Args: { p_created_at: string }; Returns: number };
       set_lodging_status: {
         Args: {
@@ -1029,6 +1079,15 @@ export type Database = {
       };
       set_payout_address: {
         Args: { p_address: string; p_user_id: string };
+        Returns: Json;
+      };
+      settle_escrow_intent: {
+        Args: {
+          p_error?: string;
+          p_outcome: string;
+          p_payment_id: string;
+          p_tx_hash?: string;
+        };
         Returns: Json;
       };
       start_payout_verification: {

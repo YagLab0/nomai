@@ -1046,10 +1046,30 @@ export interface EscrowReleaseResult {
   ok: boolean;
   /** Booking ids that had a release (50% or final) posted this run. */
   released: string[];
+  /** The intent rows this pass posted (payment_id null in a dry run). */
+  intents?: {
+    booking_id: string;
+    payment_id: string | null;
+    kind: string;
+    stage?: string;
+    amount_minor: number;
+    // Dry-run only — resolve_escrow_intent's live resolution, so a dry-run
+    // report shows where each would-be intent's funds would land.
+    outcome?: "send" | "held";
+    to?: string | null;
+    charge_asset?: string | null;
+    charge_network?: string | null;
+    reason?: string | null;
+  }[];
+  dry_run?: boolean;
 }
 
-export async function processEscrowReleases(): Promise<EscrowReleaseResult> {
-  const { data, error } = await client().rpc("process_escrow_releases");
+export async function processEscrowReleases(
+  dryRun = false
+): Promise<EscrowReleaseResult> {
+  const { data, error } = await client().rpc("process_escrow_releases", {
+    p_dry_run: dryRun,
+  });
   if (error) throw error;
   return data as unknown as EscrowReleaseResult;
 }

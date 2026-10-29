@@ -164,7 +164,7 @@ function opsSender(): PayoutSender {
 // resolution helpers
 // ---------------------------------------------------------------------------
 
-const BURN_ADDRESSES = new Set([
+export const BURN_ADDRESSES = new Set([
   "0x0000000000000000000000000000000000000000",
   // the seed's obvious placeholder — sending to it burns the deposit.
   "0x0000000000000000000000000000000000000001",
