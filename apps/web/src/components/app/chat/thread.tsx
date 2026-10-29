@@ -4,7 +4,6 @@ import { AuiIf, ThreadPrimitive } from '@assistant-ui/react';
 import { Suspense } from 'react';
 
 import { AskFromUrl } from '@/components/app/chat/ask-from-url';
-import { ChatHeader } from '@/components/app/chat/chat-header';
 import { Composer } from '@/components/app/chat/composer';
 import { EmptyState } from '@/components/app/chat/empty-state';
 import { AssistantMessage, UserMessage } from '@/components/app/chat/messages';
@@ -15,7 +14,6 @@ export function Thread() {
       <Suspense>
         <AskFromUrl />
       </Suspense>
-      <ChatHeader />
       <ThreadPrimitive.Viewport className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto scroll-smooth">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyState />

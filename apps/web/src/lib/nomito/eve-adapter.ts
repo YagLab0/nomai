@@ -2,10 +2,6 @@ import type { ChatModelAdapter, ChatModelRunResult } from '@assistant-ui/react';
 import { Client, ClientError } from 'eve/client';
 import type { ClientSession, MessageResponse } from 'eve/client';
 
-import { TOOL_STATUS_KEY, toolLabel } from '@/lib/nomito/tool-status';
-import type { ToolStatusEntry } from '@/lib/nomito/tool-status';
-import { stepSummary, summarizeReasoning, TRACE_KEY } from '@/lib/nomito/trace';
-import type { NomitoTraceEntry } from '@/lib/nomito/trace';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 import { hasSupabaseEnv } from '@/lib/supabase/env';
 
@@ -16,10 +12,8 @@ import { hasSupabaseEnv } from '@/lib/supabase/env';
  * One eve session backs the whole chat thread: it is created lazily on the
  * first send and reused afterwards, so the Agent keeps context across Traveler
  * messages. The eve event stream is folded into cumulative assistant-ui
- * content updates. Agent tools stay internal — the narration text and its
- * OpenUI blocks carry the UX; tool calls only surface as localized chips
- * (metadata.custom, see tool-status.ts), and the model's step/reasoning
- * events fold into a thinking trace (see trace.ts) alongside them.
+ * content updates. Agent tools and the model's step/reasoning events stay
+ * internal — only the narration text and its OpenUI blocks reach the UI.
  * Credits (monedas) were retired by ADR-0005: chat turns are free and never
  * meter or refuse on the ledger.
  */
@@ -200,33 +194,14 @@ function lastUserText(messages: Parameters<ChatModelAdapter['run']>[0]['messages
 export const eveAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     const steps = new Map<number, StepBuffer>();
-    // Insertion-ordered by callId: one entry per action the model invoked.
-    const tools = new Map<string, ToolStatusEntry>();
-    // The thinking trace: one entry per model step, plus one per reasoning
-    // block (mutated in place while its deltas stream). Both maps key on
-    // stepIndex; `stepLabels` accumulates the Spanish tool labels that
-    // refine a step's provisional summary.
-    const trace: NomitoTraceEntry[] = [];
-    const stepTrace = new Map<number, NomitoTraceEntry>();
-    const stepLabels = new Map<number, string[]>();
-    const openReasoning = new Map<number, { entry: NomitoTraceEntry; buf: string }>();
-    let emittedKey = '';
-
-    const snapshot = (): ChatModelRunResult => ({
-      content: [{ type: 'text', text: fullText(steps) }],
-      metadata: {
-        // Fresh arrays per update: entries mutate in place, so the stored
-        // reference must change for selectors to re-read them.
-        custom: { [TOOL_STATUS_KEY]: [...tools.values()], [TRACE_KEY]: [...trace] },
-      },
-    });
+    let emittedText = '';
 
     /** Yields nothing twice: content replaces — emit on change only. */
     const pendingUpdate = (): ChatModelRunResult | null => {
-      const key = JSON.stringify([fullText(steps), [...tools.values()], trace]);
-      if (key === emittedKey) return null;
-      emittedKey = key;
-      return snapshot();
+      const text = fullText(steps);
+      if (text === emittedText) return null;
+      emittedText = text;
+      return { content: [{ type: 'text', text }] };
     };
 
     // The send() signal already closes our stream read on abort; this asks
@@ -257,78 +232,6 @@ export const eveAdapter: ChatModelAdapter = {
           case 'message.completed':
             completeMessage(steps, ev.data.stepIndex, ev.data.message);
             break;
-          case 'step.started': {
-            if (!stepTrace.has(ev.data.stepIndex)) {
-              const entry: NomitoTraceEntry = {
-                kind: 'step',
-                label: stepSummary(ev.data.stepIndex),
-                done: false,
-              };
-              trace.push(entry);
-              stepTrace.set(ev.data.stepIndex, entry);
-            }
-            break;
-          }
-          case 'reasoning.appended': {
-            let block = openReasoning.get(ev.data.stepIndex);
-            if (!block) {
-              block = { entry: { kind: 'reasoning', label: '', done: false }, buf: '' };
-              openReasoning.set(ev.data.stepIndex, block);
-              trace.push(block.entry);
-            }
-            block.buf += ev.data.reasoningDelta;
-            block.entry.label = summarizeReasoning(block.buf);
-            break;
-          }
-          case 'reasoning.completed': {
-            const block = openReasoning.get(ev.data.stepIndex);
-            const label = summarizeReasoning(ev.data.reasoning);
-            if (block) {
-              block.entry.label = label;
-              block.entry.done = true;
-              openReasoning.delete(ev.data.stepIndex);
-            } else if (label) {
-              trace.push({ kind: 'reasoning', label, done: true });
-            }
-            break;
-          }
-          case 'actions.requested': {
-            const labels = stepLabels.get(ev.data.stepIndex) ?? [];
-            for (const action of ev.data.actions) {
-              if (action.kind === 'load-skill' || tools.has(action.callId)) continue;
-              const name = 'toolName' in action ? action.toolName : action.name;
-              const label = toolLabel(name);
-              tools.set(action.callId, { callId: action.callId, name, label, done: false });
-              if (!labels.includes(label)) labels.push(label);
-            }
-            // The tools a step calls are its best Traveler-facing summary.
-            if (labels.length > 0) {
-              stepLabels.set(ev.data.stepIndex, labels);
-              const stepEntry = stepTrace.get(ev.data.stepIndex);
-              if (stepEntry) {
-                stepEntry.label =
-                  labels.slice(0, 2).join(' · ') +
-                  (labels.length > 2 ? ` y ${labels.length - 2} más` : '');
-              }
-            }
-            break;
-          }
-          case 'action.result': {
-            const entry = tools.get(ev.data.result.callId);
-            if (entry) tools.set(entry.callId, { ...entry, done: true });
-            break;
-          }
-          case 'step.completed':
-          case 'step.failed': {
-            const stepEntry = stepTrace.get(ev.data.stepIndex);
-            if (stepEntry) stepEntry.done = true;
-            const pending = openReasoning.get(ev.data.stepIndex);
-            if (pending) {
-              pending.entry.done = true;
-              openReasoning.delete(ev.data.stepIndex);
-            }
-            break;
-          }
           case 'turn.failed':
           case 'session.failed':
             outcome = 'failed';
@@ -343,8 +246,9 @@ export const eveAdapter: ChatModelAdapter = {
             outcome = 'completed';
             break;
           default:
-            // input.*, task.*, action.partial, agent.started, result.*:
-            // internal to the agent, nothing to render.
+            // step.*, reasoning.*, actions.*, action.*, input.*, task.*,
+            // agent.started, result.*: internal to the agent, nothing to
+            // render.
             continue;
         }
         const update = pendingUpdate();

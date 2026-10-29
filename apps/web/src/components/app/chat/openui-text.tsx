@@ -18,6 +18,12 @@ import { parseSegments } from '@/lib/openui/segments';
  * OpenUI Renderer against the nomai catalog.
  */
 
+/**
+ * Machine tail an OpenUI submit appends to the sent user message so the Agent
+ * reads exact formState values. The user bubble hides it — see UserText.
+ */
+export const FORM_VALUES_MARKER = '\n\nForm values: ';
+
 function LangSkeleton() {
   return (
     <div
@@ -35,7 +41,7 @@ export function OpenUIText({ text, status }: TextMessagePartProps) {
     if (event.type === BuiltinActionType.ContinueConversation) {
       let message = event.humanFriendlyMessage ?? '';
       if (event.formState && Object.keys(event.formState).length > 0) {
-        message += `\n\nForm values: ${JSON.stringify(event.formState)}`;
+        message += `${FORM_VALUES_MARKER}${JSON.stringify(event.formState)}`;
       }
       aui.thread().append({ role: 'user', content: [{ type: 'text', text: message }] });
       return;
