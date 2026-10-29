@@ -18,6 +18,11 @@ describe('formatFiat', () => {
     expect(formatFiat(1.2, 'PEN')).toBe('S/ 1.20 PEN');
   });
 
+  it('shows cents on fractional balances of zero-decimal currencies', () => {
+    expect(formatFiat(97.86, 'ARS')).toBe('$ 97,86 ARS');
+    expect(formatFiat(1234.5, 'ARS')).toBe('$ 1.234,50 ARS');
+  });
+
   it('formats zero as a real zero balance', () => {
     expect(formatFiat(0, 'ARS')).toBe('$ 0 ARS');
     expect(formatFiat(0, 'BRL')).toBe('R$ 0 BRL');
