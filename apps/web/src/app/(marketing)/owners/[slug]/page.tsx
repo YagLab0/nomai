@@ -42,8 +42,14 @@ export default async function OwnerPage({ params }: { params: Promise<{ slug: st
     ? cards.filter((c) => c.owner_slug === slug).map(apiCardToLodging)
     : LODGINGS.filter((l) => l.ownerSlug === slug);
 
-  const avgRating = lodgings.length ? lodgings.reduce((sum, l) => sum + l.rating, 0) / lodgings.length : 0;
-  const totalReviews = lodgings.reduce((sum, l) => sum + l.reviews, 0);
+  // The storefront score is the api's recency-weighted business aggregate
+  // (ADR-0008); the catalog fallback averages its seeded listing ratings.
+  const apiAggregate = cards?.find((c) => c.owner_slug === slug);
+  const avgRating =
+    apiAggregate?.owner_rating ??
+    (lodgings.length ? lodgings.reduce((sum, l) => sum + l.rating, 0) / lodgings.length : 0);
+  const totalReviews =
+    apiAggregate?.owner_reviews ?? lodgings.reduce((sum, l) => sum + l.reviews, 0);
   const featured = lodgings.find((l) => l.photo || l.photoUrl);
   const cover = featured?.photo ? PHOTOS[featured.photo] : undefined;
 

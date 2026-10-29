@@ -34,9 +34,10 @@ businesses ──1:N── properties ──1:N── listings ──1:N── a
     │                                     │          ├─ listing_units
     │                                     │          └─ rate_rules
 auth.users ──1:1── travelers              └─1:N── bookings ──1:N── payments
-    │               │ 1:N                        ▲              (x402 receipt)
-    │               ▼                            │
-    └──1:1── agent_wallets            agent_usage (metering)
+    │               │ 1:N                        │          │   (x402 receipt)
+    │               ▼                            │          └─1:N── reviews
+    └──1:1── agent_wallets            agent_usage (metering)  (≤1 per direction,
+                                                              ADR-0008)
 
 currencies ── referenced by listings.currency + bookings.currency
 platform_settings — key/value config (service_fee_pct), service_role only
@@ -50,7 +51,11 @@ The Operator (the domain's **Owner**). `payout_address` is where escrow
 releases land — the Booking's `pay_to` is the escrow contract, not this
 wallet (ADR-0006; the platform still never holds funds, ADR-0001).
 Platform addition not in the model: `user_id` links to `auth.users` for the
-owner dashboard. `status`: `pending`/`active`/`suspended`.
+owner dashboard. `status`: `pending`/`active`/`suspended`. ADR-0008 adds
+`rating` (`numeric(2,1)`, 0–5, nullable) and `reviews` (`int`, default 0) —
+the Owner's recency-weighted storefront score across all its Lodgings,
+maintained by `refresh_review_scores()`; `rating` is null while the Owner
+has no Reviews.
 
 ### `properties`
 
@@ -66,7 +71,9 @@ The sellable publication — the unit the Agent searches, quotes and books.
 `cleaning_fee_minor`, `min_nights`/`max_nights`, `max_guests`, `rating`,
 `reviews`, `instant_book`, house-rule flags, `status`
 (`draft`/`published`/`paused`/`archived`) — **only `published` is visible**
-to agents and the public (enforced by RLS).
+to agents and the public (enforced by RLS). Since ADR-0008 `rating`/`reviews`
+are no longer seed copy: `refresh_review_scores()` rewrites them as the
+recency-weighted pair over the listing's `to_lodging` Reviews.
 
 ### Satellites
 
@@ -133,6 +140,64 @@ Booking's escrow. `payer` (the Traveler's Agent wallet), `pay_to` (the
 extension for reconciling the ledger). `kind` (`payment_kind` enum):
 `charge`/`service_fee`/`fx_fee`/`release`/`refund`.
 
+### `reviews`
+
+Two-sided Reviews (issue #51, ADR-0008; migration `…_reviews.sql`). One row
+per direction per Booking — `unique (booking_id, direction)` — and only a
+`completed` Booking can be reviewed, inside a 14-day window after check-out;
+publication is immediate. `direction` is the `review_direction` enum
+(`to_lodging`/`to_traveler`).
+
+Columns: `booking_id` (text → `bookings`), `author_id` (→ `auth.users`, `on
+delete set null` — seeded history carries `author_id` null with
+`author_name` as the display copy), `author_name` (first name only for
+Travelers, the business name for Owners), and exactly one subject:
+`subject_listing_id` (→ `listings`, cascade) on `to_lodging` rows or
+`subject_traveler_id` (→ `travelers`, cascade) on `to_traveler` rows.
+`rating` smallint 1–5 required; the seven category columns (`cleanliness`,
+`accuracy`, `checkin`, `communication`, `location`, `value`, `house_rules`)
+are optional 1–5. A check keeps each direction to its own set: `to_lodging`
+carries Airbnb's six (no `house_rules`), `to_traveler` carries only
+`cleanliness`/`communication`/`house_rules`. `body` is the public comment;
+`reply_body`/`replied_at` hold the Owner's public reply (`to_lodging` only).
+Indexed on `subject_listing_id`, `subject_traveler_id`, `author_id`.
+
+Functions (all `security definer` unless noted; EXECUTE granted to
+`service_role` only):
+
+- `review_weight(timestamptz)` — plain sql: weight 1 today decaying linearly
+  to 0 at 36 months (Booking's recency model).
+- `refresh_review_scores(p_listing_id text, p_business_id text)` — recomputes
+  the weighted `{rating, reviews}` pair on `listings` (over its `to_lodging`
+  Reviews) and on `businesses` (over the `to_lodging` Reviews of every
+  Listing under its `properties`); runs inside `submit_review`'s transaction.
+- `traveler_score(p_traveler_id uuid)` → jsonb `{rating, reviews}` — the same
+  weighting over `to_traveler` rows, computed on read (the guest score is
+  never public, so nothing denormalizes).
+- `submit_review(p_user_id, p_booking_id, p_direction, p_rating, p_body,
+  …seven optional category ints)` → the usual `{ok:true,…}` /
+  `{ok:false,error:{code,message}}` contract — the only way a Review lands. Re-checks in one
+  transaction: rating 1–5 (`invalid_rating`), Booking exists (`not_found`),
+  status `completed` (`not_reviewable`), window open
+  (`current_date > checkout + 14` → `window_closed`), caller is the Booking's
+  Traveler for `to_lodging` or owns the Lodging's business for `to_traveler`
+  (`forbidden`; a `to_traveler` on a Booking with no `traveler_id` is
+  `not_reviewable`), and `on conflict` → `already_reviewed`. Returns the new
+  `listing` score pair or the `traveler` score.
+- `reply_to_review(p_user_id, p_review_id, p_body)` — the Owner's public
+  reply on a `to_lodging` Review they received; an empty body clears it
+  (`replied_at` back to null).
+- `is_owner_of_traveler(p_traveler_id uuid)` — `stable` RLS helper like
+  `owns_listing`: does the current user own a business that hosted this
+  Traveler?
+
+RLS: `reviews_lodging_public_read` exposes every `to_lodging` row for
+`select`; `reviews_traveler_scoped_read` exposes `to_traveler` rows only to
+the rated Traveler, the author, and Owners who hosted them
+(`is_owner_of_traveler`). No insert/update/delete policies — writes go
+through the locked-down RPCs (EXECUTE revoked from public/anon/
+authenticated, granted to `service_role`, same as the escrow RPCs).
+
 ## Platform
 
 ### `travelers`
@@ -182,11 +247,13 @@ RLS `for all using (false)` — service_role only.
 | `amenities`, `listing_amenities`, `listing_photos`, `listing_units`, `rate_rules`, `availability_nights`, `currencies` | Public | api only |
 | `travelers`, `agent_wallets`, `agent_usage` | Own rows | Own profile only (`travelers`); rest api-only |
 | `bookings`, `payments` | Traveler's own; owner of the listing | api only |
+| `reviews` | `to_lodging` public; `to_traveler` only the rated Traveler, the author, and Owners who hosted them | api only (the `submit_review`/`reply_to_review` RPCs) |
 | `platform_settings` | — (no policies grant access) | api only |
 
 Two `security definer` helpers — `owns_business(text)` and
 `owns_listing(text)` — encapsulate the owner chain and keep policies
-readable. Everything the platform writes (recording usage, settling
+readable (plus `is_owner_of_traveler(uuid)` for the `to_traveler` review
+policy, ADR-0008). Everything the platform writes (recording usage, settling
 Bookings, flipping nights to `booked`) goes through `apps/api` with the
 secret key, which bypasses RLS — that's why most tables carry no
 insert/update policies.
@@ -194,8 +261,9 @@ insert/update policies.
 The same lockdown applies to the `security definer` RPCs: EXECUTE on
 `book_stay`, `cancel_booking`, `confirm_booking_payment`, `release_booking`,
 `open_claim`, `resolve_claim`, `process_escrow_releases`, `create_lodging`,
-`update_lodging`, `archive_lodging` and `set_lodging_status` is revoked from
-PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST
+`update_lodging`, `archive_lodging`, `set_lodging_status`, `submit_review`,
+`reply_to_review`, `refresh_review_scores` and `traveler_score` is revoked
+from PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST
 can't reach them; `apps/api` calls them with the secret key.
 Traveler-initiated cancellation (ADR-0004) goes through
 `POST /bookings/:id/cancel`, where the Bearer token is verified and matched

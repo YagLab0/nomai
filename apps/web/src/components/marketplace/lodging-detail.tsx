@@ -17,6 +17,7 @@ import {
 import { AvailabilityCalendar } from '@/components/marketplace/availability-calendar';
 import { CurrencySelect } from '@/components/marketplace/currency-select';
 import { LodgingArt } from '@/components/marketplace/lodging-art';
+import { ReviewsSection } from '@/components/marketplace/reviews-section';
 import { apiDetailToLodging, initialsFor } from '@/lib/api-mapping';
 import type { ApiListingDetail, ApiQuote } from '@/lib/api';
 import { catalog } from '@/lib/catalog';
@@ -450,6 +451,8 @@ export function LodgingDetail({ id }: { id: string }) {
               </div>
             )}
           </section>
+
+          <ReviewsSection slug={lodging.id} />
 
           <BookingSection
             key={lodging.id}

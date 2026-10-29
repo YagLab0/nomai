@@ -37,6 +37,10 @@ export interface ApiListingCard {
   reviews: number;
   owner_name: string;
   owner_slug: string;
+  /** The Owner's recency-weighted storefront score (ADR-0008); null while the
+   * business has no Reviews. */
+  owner_rating: number | null;
+  owner_reviews: number;
 }
 
 /** GET /listings/:slug — everything in the card, plus the full detail. */
@@ -183,4 +187,61 @@ export async function fetchQuote(
   });
   if (!res.ok) return null;
   return (await res.json()) as ApiQuote;
+}
+
+// ---------------------------------------------------------------------------
+// reviews (ADR-0008) — GET /listings/:slug/reviews
+// ---------------------------------------------------------------------------
+
+/** One Review as the API serves it — public shape for to_lodging rows. */
+export interface ApiReview {
+  review_id: string;
+  booking_id: string;
+  direction: 'to_lodging' | 'to_traveler';
+  /** The writer's public name (first name or Owner business name). */
+  author_name: string;
+  listing_slug?: string;
+  listing_title?: string;
+  /** The rated party's display name — the guest on to_traveler rows. */
+  subject_name?: string;
+  rating: number;
+  categories: Record<string, number>;
+  body: string | null;
+  reply_body: string | null;
+  replied_at: string | null;
+  created_at: string;
+  /** The stay's check-out — the "cuándo se quedó" line. */
+  stayed_checkout?: string;
+}
+
+/** GET /listings/:slug/reviews → the Lodging's public Reviews + score. */
+export interface ApiListingReviews {
+  /** Recency-weighted score; null while the Lodging has none. */
+  rating: number | null;
+  reviews: number;
+  /** Average per Lodging category (1 decimal), only keys with data. */
+  categories: Record<string, number>;
+  items: ApiReview[];
+}
+
+/** GET /owners/reviews → the Owner's review feed (ADR-0008). */
+export interface ApiOwnerReviews {
+  /** Recency-weighted storefront score across the business's Lodgings. */
+  score: { rating: number | null; reviews: number };
+  /** Reviews guests left on the business's Lodgings, newest first. */
+  received: ApiReview[];
+  /** Reviews the Owner wrote about Travelers, newest first. */
+  given: ApiReview[];
+}
+
+/** The Lodging's Reviews; null on 404 or error — the page renders without. */
+export async function fetchListingReviews(
+  slug: string,
+): Promise<ApiListingReviews | null> {
+  const res = await fetch(
+    `${API_URL}/listings/${encodeURIComponent(slug)}/reviews`,
+    { cache: 'no-store' },
+  );
+  if (res.status === 404 || !res.ok) return null;
+  return (await res.json()) as ApiListingReviews;
 }
