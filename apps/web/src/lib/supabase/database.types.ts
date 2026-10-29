@@ -34,6 +34,7 @@ export type Database = {
           stage: string | null;
           traveler_id: string;
         };
+        ComputedFields: never;
         Insert: {
           cost_units: number;
           created_at?: string;
@@ -73,6 +74,7 @@ export type Database = {
           network: string;
           traveler_id: string;
         };
+        ComputedFields: never;
         Insert: {
           address: string;
           created_at?: string;
@@ -106,6 +108,7 @@ export type Database = {
           id: string;
           name: string;
         };
+        ComputedFields: never;
         Insert: {
           category: Database["public"]["Enums"]["amenity_category"];
           code: string;
@@ -128,6 +131,7 @@ export type Database = {
           status: Database["public"]["Enums"]["avail_status"];
           units_available: number;
         };
+        ComputedFields: never;
         Insert: {
           listing_id: string;
           night: string;
@@ -178,6 +182,7 @@ export type Database = {
           traveler_id: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           cancel_deadline?: string | null;
           checkin: string;
@@ -271,6 +276,7 @@ export type Database = {
           updated_at: string;
           user_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           email?: string | null;
@@ -320,6 +326,7 @@ export type Database = {
           traveler_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           archived_at?: string | null;
           created_at?: string;
@@ -357,6 +364,7 @@ export type Database = {
           name: string;
           wfiat_address: NonNullable<Json>;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
           decimals?: number;
@@ -377,6 +385,7 @@ export type Database = {
           detail: string | null;
           listing_id: string;
         };
+        ComputedFields: never;
         Insert: {
           amenity_id: string;
           detail?: string | null;
@@ -413,6 +422,7 @@ export type Database = {
           position: number;
           url: string;
         };
+        ComputedFields: never;
         Insert: {
           alt_text?: string | null;
           id: string;
@@ -446,6 +456,7 @@ export type Database = {
           listing_id: string;
           status: Database["public"]["Enums"]["unit_status"];
         };
+        ComputedFields: never;
         Insert: {
           code: string;
           id: string;
@@ -497,6 +508,7 @@ export type Database = {
           title: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           base_price_minor: number;
           bathrooms?: number | null;
@@ -593,6 +605,7 @@ export type Database = {
           status: string;
           tx_hash: string | null;
         };
+        ComputedFields: never;
         Insert: {
           amount_minor: number;
           asset: string;
@@ -628,7 +641,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["payment_kind"];
           last_error?: string | null;
           network?: string;
-          pay_to?: string;
+          pay_to?: string | null;
           payer?: string | null;
           resolved_network?: string | null;
           resolved_to?: string | null;
@@ -661,6 +674,7 @@ export type Database = {
           token: string;
           tx_hash: string | null;
         };
+        ComputedFields: never;
         Insert: {
           address: string;
           amount_atomic: number;
@@ -703,6 +717,7 @@ export type Database = {
           updated_at: string;
           value: NonNullable<Json>;
         };
+        ComputedFields: never;
         Insert: {
           key: string;
           updated_at?: string;
@@ -735,6 +750,7 @@ export type Database = {
           timezone: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           address_line1?: string | null;
           business_id: string;
@@ -794,6 +810,7 @@ export type Database = {
           priority: number;
           start_date: string;
         };
+        ComputedFields: never;
         Insert: {
           end_date: string;
           id: string;
@@ -846,6 +863,7 @@ export type Database = {
           subject_traveler_id: string | null;
           value: number | null;
         };
+        ComputedFields: never;
         Insert: {
           accuracy?: number | null;
           author_id?: string | null;
@@ -925,6 +943,7 @@ export type Database = {
           self_verified_at: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           country_code?: string | null;
           created_at?: string;
@@ -973,11 +992,7 @@ export type Database = {
         Returns: Json;
       };
       claim_escrow_intents: {
-        Args: {
-          p_booking_id?: string;
-          p_dry_run?: boolean;
-          p_limit?: number;
-        };
+        Args: { p_booking_id?: string; p_dry_run?: boolean; p_limit?: number };
         Returns: Json;
       };
       confirm_booking_payment: {
@@ -1035,14 +1050,8 @@ export type Database = {
       };
       owns_business: { Args: { p_business_id: string }; Returns: boolean };
       owns_listing: { Args: { p_listing_id: string }; Returns: boolean };
-      process_escrow_releases: {
-        Args: { p_dry_run?: boolean };
-        Returns: Json;
-      };
-      record_escrow_attempt: {
-        Args: { p_payment_id: string; p_tx_hash: string };
-        Returns: Json;
-      };
+      process_escrow_releases: { Args: { p_dry_run?: boolean }; Returns: Json };
+      record_escrow_attempt: { Args: { p_payment_id: string; p_tx_hash: string }; Returns: Json };
       recover_escrow_intents: {
         Args: { p_dry_run?: boolean; p_stale_seconds?: number };
         Returns: Json;
@@ -1064,10 +1073,7 @@ export type Database = {
         };
         Returns: Json;
       };
-      resolve_escrow_intent: {
-        Args: { p_booking_id: string; p_kind: string };
-        Returns: Json;
-      };
+      resolve_escrow_intent: { Args: { p_booking_id: string; p_kind: string }; Returns: Json };
       review_weight: { Args: { p_created_at: string }; Returns: number };
       set_lodging_status: {
         Args: {
@@ -1077,17 +1083,9 @@ export type Database = {
         };
         Returns: Json;
       };
-      set_payout_address: {
-        Args: { p_address: string; p_user_id: string };
-        Returns: Json;
-      };
+      set_payout_address: { Args: { p_address: string; p_user_id: string }; Returns: Json };
       settle_escrow_intent: {
-        Args: {
-          p_error?: string;
-          p_outcome: string;
-          p_payment_id: string;
-          p_tx_hash?: string;
-        };
+        Args: { p_error?: string; p_outcome: string; p_payment_id: string; p_tx_hash?: string };
         Returns: Json;
       };
       start_payout_verification: {

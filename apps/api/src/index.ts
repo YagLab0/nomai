@@ -27,6 +27,7 @@ import usage from "./usage.js";
 import wallet from "./wallet.js";
 import keeper from "./keeper.js";
 import owners from "./owners.js";
+import chats from "./chats.js";
 import payout from "./payout.js";
 import {
   BOOKING_ROUTE_PATTERN,
@@ -120,6 +121,10 @@ app.route("/wallet", wallet);
 // Bearer-scoped to the verified user id; the web /api/owners/* routes are
 // now thin proxies that forward the session token.
 app.route("/owners", owners);
+
+// Chat threads — the Traveler's saved Nomito conversations. Bearer-scoped
+// like /usage: RLS isolates rows per Traveler on the JWT-scoped client.
+app.route("/chats", chats);
 
 // Owner payout verification — the Ripio deposit-address flow (issue #68):
 // PUT the address, send a test deposit from the ops wallet, confirm the
