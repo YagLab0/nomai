@@ -260,6 +260,8 @@ export type Database = {
           legal_name: string | null;
           name: string;
           payout_address: string | null;
+          payout_address_set_at: string | null;
+          payout_verified_at: string | null;
           phone: string | null;
           rating: number | null;
           reviews: number;
@@ -276,6 +278,8 @@ export type Database = {
           legal_name?: string | null;
           name: string;
           payout_address?: string | null;
+          payout_address_set_at?: string | null;
+          payout_verified_at?: string | null;
           phone?: string | null;
           rating?: number | null;
           reviews?: number;
@@ -292,6 +296,8 @@ export type Database = {
           legal_name?: string | null;
           name?: string;
           payout_address?: string | null;
+          payout_address_set_at?: string | null;
+          payout_verified_at?: string | null;
           phone?: string | null;
           rating?: number | null;
           reviews?: number;
@@ -614,6 +620,56 @@ export type Database = {
           },
         ];
       };
+      payout_verifications: {
+        Row: {
+          address: string;
+          amount_atomic: number;
+          attempts: number;
+          business_id: string;
+          created_at: string;
+          currency: string;
+          expires_at: string;
+          id: string;
+          status: string;
+          token: string;
+          tx_hash: string | null;
+        };
+        Insert: {
+          address: string;
+          amount_atomic: number;
+          attempts?: number;
+          business_id: string;
+          created_at?: string;
+          currency: string;
+          expires_at: string;
+          id?: string;
+          status?: string;
+          token: string;
+          tx_hash?: string | null;
+        };
+        Update: {
+          address?: string;
+          amount_atomic?: number;
+          attempts?: number;
+          business_id?: string;
+          created_at?: string;
+          currency?: string;
+          expires_at?: string;
+          id?: string;
+          status?: string;
+          token?: string;
+          tx_hash?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payout_verifications_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       platform_settings: {
         Row: {
           key: string;
@@ -901,6 +957,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      confirm_payout_verification: {
+        Args: { p_amount_atomic: string; p_user_id: string };
+        Returns: Json;
+      };
       create_lodging: {
         Args: {
           p_address: string;
@@ -963,6 +1023,21 @@ export type Database = {
         Args: {
           p_listing_id: string;
           p_status: Database["public"]["Enums"]["listing_status"];
+          p_user_id: string;
+        };
+        Returns: Json;
+      };
+      set_payout_address: {
+        Args: { p_address: string; p_user_id: string };
+        Returns: Json;
+      };
+      start_payout_verification: {
+        Args: {
+          p_address: string;
+          p_amount_atomic: string;
+          p_currency: string;
+          p_token: string;
+          p_ttl_seconds?: number;
           p_user_id: string;
         };
         Returns: Json;

@@ -13,6 +13,7 @@
     "smoke:wallet": "tsx scripts/smoke-wallet.ts",
     "smoke:payment-auth": "tsx scripts/smoke-payment-auth.ts",
     "smoke:escrow": "tsx scripts/smoke-escrow.ts",
+    "smoke:payout": "tsx scripts/smoke-payout.ts",
     "escrow:deploy": "tsx scripts/escrow-deploy.ts",
     "escrow:admin": "tsx scripts/escrow-admin.ts",
     "seed:test-users": "node scripts/seed-test-users.mjs",
@@ -21,6 +22,7 @@
     "type-check": "tsc --noEmit && tsc -p tsconfig.scripts.json"
   },
   "dependencies": {
+    "@celo/attribution-tags": "^0.5.0",
     "@hono/mcp": "0.3.2",
     "@hono/node-server": "^1.13.7",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -35,7 +37,6 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
-    "@celo/attribution-tags": "^0.5.0",
     "@types/node": "^24.19.2",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",

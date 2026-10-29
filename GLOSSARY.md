@@ -108,6 +108,13 @@ The platform's commission on a currency conversion executed inside the Agent's f
 (e.g. wARS→wBRL). Charged only when a conversion happens. One of two revenue streams.
 _Avoid_: markup, spread (also a market term — ambiguous)
 
+**Payout address**:
+The Owner's Ripio deposit address on the Celo network — where Escrow releases their
+Bookings to. An exchange deposit address can't sign, so it is verified empirically:
+the platform sends a small test deposit of the Owner's wFIAT and the Owner confirms
+the amount Ripio credited. Product Spanish: *dirección de cobro*.
+_Avoid_: wallet address (it is not a wallet the Owner holds keys for), bank account
+
 ### Verification
 
 **Tiered verification**:

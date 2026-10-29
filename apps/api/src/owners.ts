@@ -534,9 +534,12 @@ owners.patch("/lodgings/:id/status", async (c) => {
 /**
  * POST /owners/onboard — the Owner onboarding actions. `claim` (attach an
  * unclaimed seeded business + demo bookings) is a deliberate demo lever run
- * on the admin client; `update-payout` and the create path (business +
- * property + draft listing) run on the caller's JWT so RLS applies, exactly
- * like the old web route's user-session writes.
+ * on the admin client; the create path (business + property + draft
+ * listing) runs on the caller's JWT so RLS applies, exactly like the old
+ * web route's user-session writes. payout_address no longer travels this
+ * path — since #68 it is set through PUT /owners/payout (service_role RPC,
+ * PostgREST writes closed by column grants); a payoutAddress in the create
+ * body is still honored via that RPC after the insert.
  */
 owners.post("/onboard", async (c) => {
   try {
@@ -629,33 +632,7 @@ owners.post("/onboard", async (c) => {
     }
 
     // -----------------------------------------------------------------------
-    // 2. Update payout address (owner only)
-    // -----------------------------------------------------------------------
-    if (action === "update-payout") {
-      const payoutAddress = (body.payoutAddress as string | undefined)?.trim();
-      if (!payoutAddress || !/^0x[a-fA-F0-9]{40}$/.test(payoutAddress)) {
-        return c.json(
-          { error: "Dirección de cobro de Ripio inválida (formato 0x...)." },
-          400
-        );
-      }
-
-      const { data: updated, error: updateErr } = await supabase
-        .from("businesses")
-        .update({ payout_address: payoutAddress })
-        .eq("user_id", userId)
-        .select()
-        .single();
-
-      if (updateErr) {
-        return c.json({ error: updateErr.message }, 500);
-      }
-
-      return c.json({ success: true, business: updated });
-    }
-
-    // -----------------------------------------------------------------------
-    // 3. Create a new business + property + draft listing (user session, RLS)
+    // 2. Create a new business + property + draft listing (user session, RLS)
     // -----------------------------------------------------------------------
     const name = String(body.name || "").trim();
     const town = String(body.town || "").trim();
@@ -692,7 +669,9 @@ owners.post("/onboard", async (c) => {
     const busSlug = `${baseSlug}-${suffix}`;
     const propType: PropertyType = PROPERTY_TYPE_MAP[kindInput] || "posada";
 
-    // Insert new business (RLS checks auth.uid() = user_id)
+    // Insert new business (RLS checks auth.uid() = user_id; column grants
+    // admit only these — status/payout fields can't be smuggled in and take
+    // their defaults: 'pending' / null).
     const { data: newBus, error: busInsertErr } = await supabase
       .from("businesses")
       .insert({
@@ -700,8 +679,6 @@ owners.post("/onboard", async (c) => {
         name,
         slug: busSlug,
         user_id: userId,
-        status: "pending",
-        payout_address: payoutAddress,
       })
       .select()
       .single();
@@ -758,12 +735,18 @@ owners.post("/onboard", async (c) => {
       return c.json({ error: `Error creando publicación: ${lstInsertErr.message}` }, 500);
     }
 
-    return c.json({
-      success: true,
-      business: newBus,
-      property: newProp,
-      listing: newListing,
-    });
+    // payoutAddress can't ride the insert (column grants); it goes through
+    // the service_role RPC — the same writer PUT /owners/payout uses.
+    if (payoutAddress && /^0x[a-fA-F0-9]{40}$/.test(payoutAddress.trim())) {
+      const { error: payoutErr } = await supabaseAdmin().rpc("set_payout_address", {
+        p_user_id: userId,
+        p_address: payoutAddress.trim(),
+      });
+      if (payoutErr) {
+        return c.json({ error: `Error guardando cobro: ${payoutErr.message}` }, 500);
+      }
+    }
+
     return c.json({
       success: true,
       business: newBus,

@@ -332,7 +332,7 @@ function RipioStep({
     try {
       // No payoutAddress: the form doesn't collect one (the Ripio "connect"
       // above is mocked). The business is created with payout_address = null;
-      // the Owner sets it later from the dashboard (update-payout action).
+      // the Owner sets and verifies it later from the dashboard (#68).
       const res = await fetch('/api/owners/onboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
