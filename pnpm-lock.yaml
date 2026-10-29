@@ -52,7 +52,7 @@ importers:
         version: 7.0.152(zod@4.5.4)
       eve:
         specifier: ^0.76.3
-        version: 0.76.3(ai@7.0.152)(just-bash@3.6.0)
+        version: 0.76.3(ai@7.0.152)(just-bash@3.6.0)(microsandbox@0.5.5)
       viem:
         specifier: ^2.57.4
         version: 2.57.7(typescript@5.9.3)(zod@4.5.4)
@@ -66,6 +66,9 @@ importers:
       just-bash:
         specifier: ^3.6.0
         version: 3.6.0
+      microsandbox:
+        specifier: 0.5.5
+        version: 0.5.5
       typescript:
         specifier: ^5.2.2
         version: 5.9.3
@@ -153,7 +156,7 @@ importers:
         version: 2.1.1
       eve:
         specifier: ^0.76.3
-        version: 0.76.3(ai@7.0.152)(just-bash@3.6.0)
+        version: 0.76.3(ai@7.0.152)(just-bash@3.6.0)(microsandbox@0.5.5)
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -3665,6 +3668,27 @@ packages:
       '@supabase/storage-js': 2.118.0
     dev: false
 
+  /@superradcompany/microsandbox-darwin-arm64@0.5.5:
+    resolution: {integrity: sha512-Yy7b2Ak+/WT+Ho3yRrcKclSl+hNVwcEAqtrWFLIQoGIjSCYEsL30r9S21zKFgd7z5o/FMdaGt/sNqWsV47Ar5g==}
+    engines: {node: '>= 22'}
+    cpu: [arm64]
+    os: [darwin]
+    optional: true
+
+  /@superradcompany/microsandbox-linux-arm64-gnu@0.5.5:
+    resolution: {integrity: sha512-rOTT9yv81gEExbu8FDIyVQtN4wUk734jqWVNSXnMOk8CqLlIHZzLw0wRzkvWvuMUQ59B9GHG7jOzIinIkmnlsw==}
+    engines: {node: '>= 22'}
+    cpu: [arm64]
+    os: [linux]
+    optional: true
+
+  /@superradcompany/microsandbox-linux-x64-gnu@0.5.5:
+    resolution: {integrity: sha512-ZCrZskoX5wR6nQ42AqDXrJXE2t+2+/N3hb522Wudif+09Sr8OXFB3U2NA2YzN6yvzeL4PFga/DX/BT5jtsRjdg==}
+    engines: {node: '>= 22'}
+    cpu: [x64]
+    os: [linux]
+    optional: true
+
   /@swc/counter@0.1.3:
     resolution: {integrity: sha512-e2BR4lsJkkRlKZ/qCHPw9ZaSxc0MVUd7gtbtaB7aMvHeJVYe8sOB8DBZkP2DtISHGSku9sCK6T6cnY0CtXrOCQ==}
     dev: false
@@ -4269,7 +4293,7 @@ packages:
     dependencies:
       '@vercel/oidc': 3.8.8
       ai: 7.0.152(zod@4.5.4)
-      eve: 0.76.3(ai@7.0.152)(just-bash@3.6.0)
+      eve: 0.76.3(ai@7.0.152)(just-bash@3.6.0)(microsandbox@0.5.5)
     dev: false
 
   /@vercel/detect-agent@1.2.6:
@@ -5687,7 +5711,7 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
-  /eve@0.76.3(ai@7.0.152)(just-bash@3.6.0):
+  /eve@0.76.3(ai@7.0.152)(just-bash@3.6.0)(microsandbox@0.5.5):
     resolution: {integrity: sha512-HX9DYinxSo/7YjRfhmDPgcfCTDCYzdaG9UF0UcLSwTWWy7QXw4pfQ0YAoIFXHnHKMk2zN7cXr9kichKaOMmBYw==}
     engines: {node: '>=24'}
     hasBin: true
@@ -5715,6 +5739,7 @@ packages:
     dependencies:
       ai: 7.0.152(zod@4.5.4)
       just-bash: 3.6.0
+      microsandbox: 0.5.5
       nitro: 3.0.260903-beta
       undici: 8.10.2
     dev: false
@@ -7505,6 +7530,15 @@ packages:
       braces: 3.0.3
       picomatch: 2.3.2
     dev: true
+
+  /microsandbox@0.5.5:
+    resolution: {integrity: sha512-AJBFSIK4TYEO6pNfuXfceq3BcqOj2hxBEQjiXYNv6C4UtGDE2CNSzLwGzT2CCkuucRy+9EWvO8KS/zSZMgd/CA==}
+    engines: {node: '>= 22'}
+    hasBin: true
+    optionalDependencies:
+      '@superradcompany/microsandbox-darwin-arm64': 0.5.5
+      '@superradcompany/microsandbox-linux-arm64-gnu': 0.5.5
+      '@superradcompany/microsandbox-linux-x64-gnu': 0.5.5
 
   /mime-db@1.54.0:
     resolution: {integrity: sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ==}
