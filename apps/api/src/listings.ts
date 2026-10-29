@@ -113,7 +113,7 @@ listings.post("/:slug/book", async (c) => {
     return c.json({ error: "guests must be a positive integer" }, 400);
 
   const who = await optionalTravelerId(c);
-  if (who instanceof Response) return who;
+  if (who !== null && typeof who !== "string") return who;
 
   const r = await bookListing(c.req.param("slug"), {
     checkin: body.checkin,

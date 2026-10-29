@@ -228,7 +228,7 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
   // Booking can't silently miss its p_traveler_id link (the handler re-verifies
   // the same header post-payment).
   const who = await optionalTravelerId(c);
-  if (who instanceof Response) return who;
+  if (who !== null && typeof who !== "string") return who;
 
   const slug = BOOK_PATH_RE.exec(new URL(c.req.url).pathname)?.[1] ?? "";
   const r = await quoteStay(slug, body.checkin, body.checkout, body.guests);
