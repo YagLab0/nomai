@@ -85,7 +85,8 @@ const postInit = (
   body: JSON.stringify(body),
 });
 
-export const apiPost = <T>(path: string, body: unknown) => request<T>(path, postInit(body));
+export const apiPost = <T>(path: string, body: unknown, headers?: Record<string, string>) =>
+  request<T>(path, postInit(body, headers));
 
 export type PaidApiResult<T> =
   | { ok: true; data: T; payment: SettlementReceipt | null }
