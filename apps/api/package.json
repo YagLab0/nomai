@@ -11,6 +11,9 @@
     "smoke:listings": "tsx scripts/smoke-listings.ts",
     "smoke:usage": "tsx scripts/smoke-usage.ts",
     "smoke:wallet": "tsx scripts/smoke-wallet.ts",
+    "smoke:escrow": "tsx scripts/smoke-escrow.ts",
+    "escrow:deploy": "tsx scripts/escrow-deploy.ts",
+    "escrow:admin": "tsx scripts/escrow-admin.ts",
     "seed:test-users": "node scripts/seed-test-users.mjs",
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
@@ -31,10 +34,13 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@celo/attribution-tags": "^0.5.0",
     "@types/node": "^24.19.2",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
     "eslint": "^8.50.0",
+    "ganache": "7.9.2",
+    "solc": "0.8.30",
     "tsx": "^4.19.2",
     "typescript": "^5.2.2",
     "vitest": "5.0.5"
