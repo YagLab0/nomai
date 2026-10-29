@@ -9,7 +9,7 @@
 //      400/404/409 even when the request carries no payment.
 //   2. Dynamic `payTo`/`price` on the route re-resolve per request — the 402
 //      and the verify step always see a FRESH server-side quote and the
-//      listing's own business.payout_address, never a stale quote.
+//      shared Escrow vault (ESCROW_ADDRESS), never a stale quote.
 //   3. The handler runs bookListing → book_stay lands the row as
 //      'pending_payment' and holds the nights (the payment signature is
 //      verified by then; holding inventory here is what prevents double-sells).
@@ -40,15 +40,14 @@ import type {
 import {
   ACCEPTED_TOKENS,
   CAIP2,
+  FIAT_WFIAT,
   NEEDS_PERMIT2_SPONSORING,
-  PAY_TO,
 } from "./x402.js";
 import type { x402ResourceServer } from "@x402/hono";
 import { optionalTravelerId } from "./auth.js";
 import { createSupabaseAdmin } from "./supabase.js";
 import {
   LISTINGS_DATA_SOURCE,
-  getListingPayTo,
   quoteStay,
   releaseMockBooking,
   settleMockBooking,
@@ -105,18 +104,31 @@ async function bookingInput(
 }
 
 // ---------------------------------------------------------------------------
-// settlement asset — the Booking settles in the listing's own currency:
-// wBRL for BRL listings (the corridor's destination leg), USDC for the rest.
-// ACCEPTED_TOKENS (X402_ASSETS) is the hard cap — on testnet only usdc exists.
+// settlement asset — the Booking charges in the Lodging's own currency as
+// its wFIAT (issue #58): an ARS-priced Lodging settles in wARS, which is
+// what the Traveler actually Funds through the ramp. USD is the only
+// USDC-denominated case — its minor units carry 1:1 into the token.
+// ACCEPTED_TOKENS (X402_ASSETS) is the hard cap — a currency whose token
+// isn't configured fails explicitly, never silently in another asset.
+// Cross-wFIAT stays a documented gap (the FIAT_WFIAT note in x402.ts): a
+// Traveler holding wARS who books a BRL Lodging must Fund wBRL first, and
+// a Lodging priced in a fiat with no wFIAT (UYU) cannot be charged at
+// all — falling back to USDC would bill the wrong amount, not just the
+// wrong token.
 // ---------------------------------------------------------------------------
 
 function tokenForCurrency(currency: string) {
-  const preferred = currency === "BRL" ? "wbrl" : "usdc";
-  const token =
-    ACCEPTED_TOKENS.find((t) => t.symbol === preferred) ??
-    ACCEPTED_TOKENS.find((t) => t.symbol === "usdc") ??
-    ACCEPTED_TOKENS[0];
-  if (!token) throw new Error("X402_ASSETS is empty — no asset to charge in");
+  const fiat = currency.trim().toUpperCase();
+  const symbol = FIAT_WFIAT[fiat] ?? (fiat === "USD" ? "usdc" : null);
+  if (symbol == null)
+    throw new Error(
+      `book: currency ${currency} has no settlement asset — no wFIAT exists for it`
+    );
+  const token = ACCEPTED_TOKENS.find((t) => t.symbol === symbol);
+  if (!token)
+    throw new Error(
+      `book: ${currency} settles in ${symbol}, which is not in X402_ASSETS`
+    );
   return token;
 }
 
@@ -137,15 +149,19 @@ function toMinor(atomic: string, decimals: number): string {
 // domain errors first, so reaching the price fn means the stay is quotable.
 // ---------------------------------------------------------------------------
 
-async function resolvePayTo(context: HTTPRequestContext): Promise<string> {
-  const input = await bookingInput(context);
-  if (!input) throw new Error("book: missing slug or stay fields");
-  // The Owner's own wallet — the platform never holds booking funds.
-  // X402_PAY_TO (PAY_TO) is only the fallback payTo for listings without
-  // a business.payout_address of their own.
-  const payTo = (await getListingPayTo(input.slug)) ?? PAY_TO;
-  if (!payTo) throw new Error("listing has no payout address");
-  return getAddress(payTo);
+async function resolvePayTo(): Promise<string> {
+  // The shared Escrow vault (ADR-0006, issue #61) — every Booking's payment
+  // settles into it, and the Owner is paid by releases from the vault,
+  // never at settle time. The vault is REQUIRED: a Booking must never fall
+  // back to paying the Owner's payout_address or the platform wallet
+  // directly. The throw surfaces as an explicit failure from the
+  // middleware; bookingPrecheck gates the same condition with a clean 503.
+  const vault = process.env.ESCROW_ADDRESS;
+  if (!vault)
+    throw new Error(
+      "book: ESCROW_ADDRESS is not set — no Escrow vault to pay into"
+    );
+  return getAddress(vault);
 }
 
 async function resolvePrice(context: HTTPRequestContext) {
@@ -178,7 +194,7 @@ export const bookingRouteConfig: RouteConfig = {
     price: resolvePrice,
   },
   description:
-    "Booking payment — the Owner's x402 endpoint. Funds settle straight to the listing's payout_address.",
+    "Booking payment — funds settle into the shared Escrow vault (ADR-0006); the Owner is paid by releases, in the Lodging's own wFIAT.",
   extensions: {
     // Advertised so a paying Agent can tag the payment; we record booking_id
     // as facilitator_ref on the payments row — the same correlation.
@@ -224,11 +240,24 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
   if (!Number.isInteger(body.guests) || body.guests < 1)
     return c.json({ error: "guests must be a positive integer" }, 400);
 
+  // No Escrow vault configured → explicit failure, never a 402 that would
+  // pay someone else. resolvePayTo throws the same way; this gate turns it
+  // into a clean 503 before the payment middleware runs.
+  if (!process.env.ESCROW_ADDRESS)
+    return c.json(
+      {
+        error: "escrow_unconfigured",
+        message:
+          "ESCROW_ADDRESS is not set — the Booking cannot be charged without an Escrow vault",
+      },
+      503
+    );
+
   // A Traveler token that doesn't verify fails here — before any 402 — so the
   // Booking can't silently miss its p_traveler_id link (the handler re-verifies
   // the same header post-payment).
   const who = await optionalTravelerId(c);
-  if (who instanceof Response) return who;
+  if (who !== null && typeof who !== "string") return who;
 
   const slug = BOOK_PATH_RE.exec(new URL(c.req.url).pathname)?.[1] ?? "";
   const r = await quoteStay(slug, body.checkin, body.checkout, body.guests);
@@ -237,6 +266,22 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
       { error: r.error.message, code: r.error.code },
       errorStatus(r.error.code)
     );
+
+  // The Lodging's currency must resolve to a configured settlement asset —
+  // a fiat with no wFIAT (UYU) or a token missing from X402_ASSETS can't be
+  // charged. Catch it here so the failure is a clean 503, not the bare 500
+  // the middleware turns a resolvePrice throw into.
+  try {
+    tokenForCurrency(r.quote.currency);
+  } catch (err) {
+    return c.json(
+      {
+        error: err instanceof Error ? err.message : "unsupported_currency",
+        currency: r.quote.currency,
+      },
+      503
+    );
+  }
   return next();
 };
 

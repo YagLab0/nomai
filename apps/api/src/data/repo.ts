@@ -6,6 +6,7 @@ import {
   nightsBetween,
 } from "./availability.js";
 import { GLOBAL_CANCELLATION_POLICY } from "./types.js";
+import { resolvePhotoUrl } from "./photo-url.js";
 import { serviceFeePctSnapshot } from "./service-fee.js";
 import {
   BUSINESSES,
@@ -16,6 +17,7 @@ import {
   PROPERTIES,
   RATE_RULES,
 } from "./inventory.js";
+import { REVIEW_FIXTURES } from "./review-fixtures.js";
 import type {
   AvailabilityNight,
   Booking,
@@ -35,8 +37,154 @@ const availability = buildAvailability(new Date());
 const nightIndex = new Map<string, AvailabilityNight>();
 for (const n of availability) nightIndex.set(`${n.listing_id}|${n.night}`, n);
 
-const bookings: Booking[] = [];
+// The store starts with the fixture stays — completed Bookings that carry a
+// Review, the same rows gen-seed.ts writes into supabase/seed.sql, so mock and
+// supabase legs show identical scores.
+const bookings: Booking[] = REVIEW_FIXTURES.map((r) => ({
+  id: r.booking,
+  listing_id: r.listing,
+  checkin: r.checkin,
+  checkout: r.checkout,
+  guests: r.guests,
+  total_minor: r.total_minor,
+  status: "completed",
+  created_at: new Date(Date.parse(`${r.checkin}T00:00:00Z`) - 20 * 86_400_000).toISOString(),
+  escrow_status: "released",
+  cancel_deadline: isoDay(addDays(new Date(`${r.checkin}T00:00:00Z`), -5)),
+  first_release_at: `${r.checkin}T13:00:00Z`,
+  final_release_at: `${r.checkin}T13:00:00Z`,
+}));
 let bookingSeq = 0;
+
+// ---------------------------------------------------------------------------
+// reviews store (issue #51, ADR-0008) — one row per side per Booking.
+// ---------------------------------------------------------------------------
+
+export type ReviewDirection = "to_lodging" | "to_traveler";
+
+export interface ReviewCategories {
+  cleanliness?: number | null;
+  accuracy?: number | null;
+  checkin?: number | null;
+  communication?: number | null;
+  location?: number | null;
+  value?: number | null;
+  house_rules?: number | null;
+}
+
+/** The Lodging review's six categories (Airbnb's set). */
+export const LODGING_CATEGORIES = [
+  "cleanliness",
+  "accuracy",
+  "checkin",
+  "communication",
+  "location",
+  "value",
+] as const;
+
+/** The Owner→Traveler review's categories — what a guest is scored on. */
+export const TRAVELER_CATEGORIES = [
+  "cleanliness",
+  "communication",
+  "house_rules",
+] as const;
+
+export interface ReviewRecord extends ReviewCategories {
+  id: string;
+  booking_id: string;
+  direction: ReviewDirection;
+  author_id: string | null;
+  /** Public display copy — first name for Travelers, business name for Owners. */
+  author_name: string;
+  subject_listing_id: string | null;
+  subject_traveler_id: string | null;
+  rating: number;
+  body: string | null;
+  reply_body: string | null;
+  replied_at: string | null;
+  created_at: string;
+}
+
+const reviews: ReviewRecord[] = REVIEW_FIXTURES.map((r, i) => ({
+  id: `rvw_seed_${i + 1}`,
+  booking_id: r.booking,
+  direction: "to_lodging",
+  author_id: null,
+  author_name: r.author,
+  subject_listing_id: r.listing,
+  subject_traveler_id: null,
+  rating: r.rating,
+  cleanliness: r.scores.cleanliness ?? null,
+  accuracy: r.scores.accuracy ?? null,
+  checkin: r.scores.checkin ?? null,
+  communication: r.scores.communication ?? null,
+  location: r.scores.location ?? null,
+  value: r.scores.value ?? null,
+  house_rules: null,
+  body: r.body,
+  reply_body: r.reply ?? null,
+  replied_at: r.reply ? r.created : null,
+  created_at: r.created,
+}));
+let reviewSeq = 0;
+
+/** Reviews close 14 days after check-out — same window as Airbnb (ADR-0008). */
+export const REVIEW_WINDOW_DAYS = 14;
+
+/** Recency weight (ADR-0008): 1 today, decaying linearly to 0 at 36 months —
+ * the same function review_weight() runs in Postgres. */
+const REVIEW_DECAY_MS = 36 * 30 * 86_400_000;
+export function reviewWeight(createdAt: string, now = Date.now()): number {
+  return Math.max(0, 1 - (now - Date.parse(createdAt)) / REVIEW_DECAY_MS);
+}
+
+/** Weighted 0–5 score, one decimal — mirrors refresh_review_scores(). */
+export function weightedScore(
+  rows: { rating: number; created_at: string }[],
+  now = Date.now()
+): { rating: number | null; count: number } {
+  let wsum = 0;
+  let vsum = 0;
+  for (const r of rows) {
+    const w = reviewWeight(r.created_at, now);
+    wsum += w;
+    vsum += r.rating * w;
+  }
+  return {
+    rating: wsum > 0 ? Math.round((vsum / wsum) * 10) / 10 : null,
+    count: rows.length,
+  };
+}
+
+/** The card pair: computed when the store holds real Reviews for the
+ * Lodging, otherwise the listing's seed numbers (untouched until the first
+ * Review lands — same behavior as refresh_review_scores touching only
+ * listings with Reviews). */
+function listingScore(listingId: string): { rating: number; reviews: number } {
+  const rows = reviews.filter(
+    (r) => r.direction === "to_lodging" && r.subject_listing_id === listingId
+  );
+  if (rows.length === 0) {
+    const l = LISTINGS.find((x) => x.id === listingId);
+    return { rating: l?.rating ?? 0, reviews: l?.reviews ?? 0 };
+  }
+  const s = weightedScore(rows);
+  return { rating: s.rating ?? 0, reviews: s.count };
+}
+
+/** The storefront aggregate: weighted across every to_lodging Review on the
+ * business's Listings — mirrors refresh_business_score() (ADR-0008). */
+function businessScore(businessId: string): { rating: number | null; count: number } {
+  const listingIds = new Set(
+    PROPERTIES.filter((p) => p.business_id === businessId).flatMap((p) =>
+      LISTINGS.filter((l) => l.property_id === p.id).map((l) => l.id)
+    )
+  );
+  const rows = reviews.filter(
+    (r) => r.direction === "to_lodging" && listingIds.has(r.subject_listing_id ?? "")
+  );
+  return weightedScore(rows);
+}
 
 const LISTING_BY_SLUG = new Map(LISTINGS.map((l) => [l.slug, l]));
 const PROPERTY_BY_ID = new Map(PROPERTIES.map((p) => [p.id, p]));
@@ -289,6 +437,10 @@ export interface ListingCard {
   /** Flat for card display — sourced from the listing's business. */
   owner_name: string;
   owner_slug: string;
+  /** The business's recency-weighted storefront score (ADR-0008); null while
+   * the Owner has no Reviews. */
+  owner_rating: number | null;
+  owner_reviews: number;
   amenities: string[];
   // present only when the search carried dates
   nights_count?: number;
@@ -366,6 +518,8 @@ export function searchListings(params: SearchParams): ListingCard[] {
     const amenities = amenitiesOf(listing.id);
     const cover = LISTING_PHOTOS.find((p) => p.listing_id === listing.id && p.is_cover);
     const business = BUSINESS_BY_ID.get(property.business_id);
+    const score = listingScore(listing.id);
+    const ownerScore = business ? businessScore(business.id) : null;
 
     const card: ListingCard = {
       slug: listing.slug,
@@ -376,16 +530,18 @@ export function searchListings(params: SearchParams): ListingCard[] {
       city: property.city,
       region: property.region,
       country_code: property.country_code,
-      cover_photo: cover?.url,
+      cover_photo: cover ? resolvePhotoUrl(cover.url) : undefined,
       currency: listing.currency,
       nightly_minor: listing.base_price_minor,
       nightly_display: formatMoney(listing.base_price_minor, listing.currency),
       max_guests: listing.max_guests,
       min_nights: listing.min_nights,
-      rating: listing.rating,
-      reviews: listing.reviews,
+      rating: score.rating,
+      reviews: score.reviews,
       owner_name: business?.name ?? "",
       owner_slug: business?.slug ?? "",
+      owner_rating: ownerScore?.rating ?? null,
+      owner_reviews: ownerScore?.count ?? 0,
       amenities: amenities.map((a) => a.code),
     };
 
@@ -473,7 +629,8 @@ export interface ListingDetail {
   occupied: string[];
 }
 
-/** The Owner's wallet for a listing — the x402 `payTo` for a Booking. */
+/** The Owner's wallet for a listing — where Escrow releases land. It is no
+ *  longer the x402 payTo: Bookings settle into the shared vault (#61). */
 export function getListingPayTo(slug: string): string | null {
   const listing = LISTING_BY_SLUG.get(slug);
   if (!listing || listing.status !== "published") return null;
@@ -488,6 +645,7 @@ export function getListingBySlug(slug: string): ListingDetail | null {
   const property = PROPERTY_BY_ID.get(listing.property_id);
   const business = property && BUSINESS_BY_ID.get(property.business_id);
   if (!property || !business) return null;
+  const score = listingScore(listing.id);
 
   return {
     slug: listing.slug,
@@ -507,8 +665,8 @@ export function getListingBySlug(slug: string): ListingDetail | null {
     bedrooms: listing.bedrooms,
     beds: listing.beds,
     bathrooms: listing.bathrooms,
-    rating: listing.rating,
-    reviews: listing.reviews,
+    rating: score.rating,
+    reviews: score.reviews,
     owner_name: business.name,
     owner_slug: business.slug,
     instant_book: listing.instant_book,
@@ -532,7 +690,11 @@ export function getListingBySlug(slug: string): ListingDetail | null {
     amenities: amenitiesOf(listing.id),
     photos: LISTING_PHOTOS.filter((p) => p.listing_id === listing.id)
       .sort((a, b) => a.position - b.position)
-      .map((p) => ({ url: p.url, alt: p.alt_text, is_cover: p.is_cover })),
+      .map((p) => ({
+        url: resolvePhotoUrl(p.url),
+        alt: p.alt_text,
+        is_cover: p.is_cover,
+      })),
     cancellation_policy: { ...GLOBAL_CANCELLATION_POLICY },
     units_available: LISTING_UNITS.filter(
       (u) => u.listing_id === listing.id && u.status === "active"
@@ -823,6 +985,10 @@ export interface BookingSummary {
   total_display: string;
   currency: string;
   created_at: string;
+  /** The Traveler's to_lodging Review state on this Booking (ADR-0008):
+   * `eligible` inside the 14-day window, `reviewed` once submitted,
+   * `expired` after it. Absent until the Booking completes. */
+  review_state?: "eligible" | "reviewed" | "expired";
 }
 
 export interface BookingDetail extends BookingSummary {
@@ -852,9 +1018,20 @@ export interface BookingRecord {
   final_release_at: string | null;
   claim_reason: ClaimReason | null;
   claim_resolution: ClaimResolution | null;
+  /** Whether a to_lodging Review already exists for this Booking. */
+  lodging_reviewed: boolean;
 }
 
 export function toBookingSummary(r: BookingRecord): BookingSummary {
+  const review_state =
+    r.status !== "completed"
+      ? undefined
+      : r.lodging_reviewed
+        ? "reviewed"
+        : isoDay(new Date()) <=
+            isoDay(addDays(new Date(`${r.checkout}T00:00:00Z`), REVIEW_WINDOW_DAYS))
+          ? "eligible"
+          : "expired";
   return {
     booking_id: r.id,
     listing_slug: r.listing_slug,
@@ -868,6 +1045,7 @@ export function toBookingSummary(r: BookingRecord): BookingSummary {
     total_display: formatMoney(r.total_minor, r.currency),
     currency: r.currency,
     created_at: r.created_at,
+    review_state,
   };
 }
 
@@ -925,6 +1103,9 @@ function mockRecord(b: Booking): BookingRecord {
     final_release_at: b.final_release_at ?? null,
     claim_reason: b.claim_reason ?? null,
     claim_resolution: b.claim_resolution ?? null,
+    lodging_reviewed: reviews.some(
+      (r) => r.booking_id === b.id && r.direction === "to_lodging"
+    ),
   };
 }
 
@@ -981,4 +1162,258 @@ export function openClaim(id: string, input: ClaimInput): ClaimResult {
   b.claim_reason = input.reason;
   b.claim_evidence = input.evidence ?? {};
   return { ok: true, claim: { booking_id: b.id, status: "claim_open" } };
+}
+
+// ---------------------------------------------------------------------------
+// reviews (issue #51, ADR-0008) — two-sided, Booking-scoped, published
+// immediately, aggregated with recency weighting. The view builders below are
+// shared with the supabase leg so both emit the same shape.
+// ---------------------------------------------------------------------------
+
+/** One Review as the API serves it — public shape for to_lodging rows. */
+export interface ReviewView {
+  review_id: string;
+  booking_id: string;
+  direction: ReviewDirection;
+  /** The writer's public name (first name or Owner business name). */
+  author_name: string;
+  /** The Lodging the stay belonged to. */
+  listing_slug?: string;
+  listing_title?: string;
+  /** The rated party's display name — the guest on to_traveler rows. */
+  subject_name?: string;
+  rating: number;
+  categories: ReviewCategories;
+  body: string | null;
+  reply_body: string | null;
+  replied_at: string | null;
+  created_at: string;
+  /** The stay's check-out — the "cuándo se quedó" line under each Review. */
+  stayed_checkout?: string;
+}
+
+/** What GET /listings/:slug/reviews answers. */
+export interface ListingReviews {
+  /** Weighted score (recency-decayed), null while the Lodging has none. */
+  rating: number | null;
+  reviews: number;
+  /** Average per Lodging category (1 decimal), only keys with data. */
+  categories: Record<string, number>;
+  items: ReviewView[];
+}
+
+/** What GET /owners/reviews answers — plus the business's storefront score. */
+export interface OwnerReviews {
+  score: { rating: number | null; reviews: number };
+  received: ReviewView[];
+  given: ReviewView[];
+}
+
+export type ReviewErrorCode =
+  | "invalid_rating"
+  | "not_found"
+  | "not_reviewable"
+  | "window_closed"
+  | "forbidden"
+  | "already_reviewed"
+  | "invalid";
+
+export interface SubmitReviewInput {
+  /** Verified caller id — Traveler for to_lodging, Owner user for to_traveler. */
+  userId: string;
+  bookingId: string;
+  direction: ReviewDirection;
+  rating: number;
+  body?: string | null;
+  categories?: ReviewCategories;
+  /** Display copy the mock needs (the RPC derives it server-side instead). */
+  authorName?: string;
+}
+
+export type SubmitReviewResult =
+  | {
+      ok: true;
+      review_id: string;
+      /** Fresh aggregate of the rated side (listing pair or traveler score). */
+      score: { rating: number | null; reviews: number };
+    }
+  | { ok: false; error: { code: ReviewErrorCode; message: string } };
+
+const reviewErr = (code: ReviewErrorCode, message: string): SubmitReviewResult => ({
+  ok: false,
+  error: { code, message },
+});
+
+function toReviewView(r: ReviewRecord): ReviewView {
+  const b = bookings.find((x) => x.id === r.booking_id);
+  const listing = b && LISTINGS.find((l) => l.id === b.listing_id);
+  return {
+    review_id: r.id,
+    booking_id: r.booking_id,
+    direction: r.direction,
+    author_name: r.author_name,
+    listing_slug: listing?.slug,
+    listing_title: listing?.title,
+    subject_name: undefined,
+    rating: r.rating,
+    categories: Object.fromEntries(
+      [...LODGING_CATEGORIES, "house_rules" as const]
+        .map((k) => [k, r[k]] as const)
+        .filter(([, v]) => v != null)
+    ),
+    body: r.body,
+    reply_body: r.reply_body,
+    replied_at: r.replied_at,
+    created_at: r.created_at,
+    stayed_checkout: b?.checkout,
+  };
+}
+
+function categoryAverages(
+  rows: ReviewRecord[],
+  keys: readonly (keyof ReviewCategories)[]
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of keys) {
+    const vals = rows.map((r) => r[k]).filter((v): v is number => v != null);
+    if (vals.length)
+      out[k] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+  }
+  return out;
+}
+
+export function listListingReviews(slug: string): ListingReviews | null {
+  const listing = LISTING_BY_SLUG.get(slug);
+  if (!listing || listing.status !== "published") return null;
+  const rows = reviews
+    .filter((r) => r.direction === "to_lodging" && r.subject_listing_id === listing.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const s = listingScore(listing.id);
+  return {
+    rating: rows.length ? s.rating : null,
+    reviews: s.reviews,
+    categories: categoryAverages(rows, LODGING_CATEGORIES),
+    items: rows.map(toReviewView),
+  };
+}
+
+/** Reviews about the Owner's Lodgings + the ones the Owner wrote about
+ * guests. businessId comes from the route's verified business lookup (the
+ * mock has no user→business link; the supabase leg filters the same way). */
+export function listOwnerReviews(businessId: string): OwnerReviews {
+  const listingIds = new Set(
+    PROPERTIES.filter((p) => p.business_id === businessId).flatMap((p) =>
+      LISTINGS.filter((l) => l.property_id === p.id).map((l) => l.id)
+    )
+  );
+  const received = reviews
+    .filter((r) => r.direction === "to_lodging" && listingIds.has(r.subject_listing_id ?? ""))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const given = reviews
+    .filter((r) => r.direction === "to_traveler" && listingIds.has(
+      bookings.find((b) => b.id === r.booking_id)?.listing_id ?? ""
+    ))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const s = weightedScore(received);
+  return {
+    score: { rating: s.rating, reviews: s.count },
+    received: received.map(toReviewView),
+    given: given.map(toReviewView),
+  };
+}
+
+export function travelerScore(travelerId: string): {
+  rating: number | null;
+  reviews: number;
+} {
+  const rows = reviews.filter(
+    (r) => r.direction === "to_traveler" && r.subject_traveler_id === travelerId
+  );
+  const s = weightedScore(rows);
+  return { rating: s.rating, reviews: s.count };
+}
+
+/**
+ * Mirrors submit_review() in Postgres. Mock simplifications, by design:
+ * the mock Booking carries no traveler_id, so for to_lodging any verified
+ * caller may review a completed fixture Booking (uniqueness still applies);
+ * for to_traveler the fixture stays have no linked Traveler, so only Bookings
+ * created via bookListing with a traveler are reviewable — and none are, so
+ * the mock answers not_reviewable like the RPC would.
+ */
+export function submitReview(input: SubmitReviewInput): SubmitReviewResult {
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5)
+    return reviewErr("invalid_rating", "rating must be an integer between 1 and 5");
+
+  const b = bookings.find((x) => x.id === input.bookingId);
+  if (!b) return reviewErr("not_found", "booking not found");
+  if (b.status !== "completed")
+    return reviewErr("not_reviewable", "only completed bookings can be reviewed");
+  if (
+    isoDay(new Date()) >
+    isoDay(addDays(new Date(`${b.checkout}T00:00:00Z`), REVIEW_WINDOW_DAYS))
+  )
+    return reviewErr("window_closed", "the review window closed 14 days after check-out");
+  if (reviews.some((r) => r.booking_id === b.id && r.direction === input.direction))
+    return reviewErr("already_reviewed", "this booking already has your review");
+
+  const cats = input.categories ?? {};
+  const allowed =
+    input.direction === "to_lodging" ? LODGING_CATEGORIES : TRAVELER_CATEGORIES;
+  for (const [k, v] of Object.entries(cats)) {
+    if (v == null) continue;
+    if (!(allowed as readonly string[]).includes(k) || !Number.isInteger(v) || v < 1 || v > 5)
+      return reviewErr("invalid_rating", `${k} must be an integer between 1 and 5`);
+  }
+
+  if (input.direction === "to_lodging") {
+    const record: ReviewRecord = {
+      id: `rvw_${++reviewSeq}`,
+      booking_id: b.id,
+      direction: "to_lodging",
+      author_id: input.userId,
+      author_name: input.authorName ?? "Viajero",
+      subject_listing_id: b.listing_id,
+      subject_traveler_id: null,
+      rating: input.rating,
+      cleanliness: cats.cleanliness ?? null,
+      accuracy: cats.accuracy ?? null,
+      checkin: cats.checkin ?? null,
+      communication: cats.communication ?? null,
+      location: cats.location ?? null,
+      value: cats.value ?? null,
+      house_rules: null,
+      body: input.body?.trim() || null,
+      reply_body: null,
+      replied_at: null,
+      created_at: new Date().toISOString(),
+    };
+    reviews.push(record);
+    const s = listingScore(b.listing_id);
+    return { ok: true, review_id: record.id, score: { rating: s.rating, reviews: s.reviews } };
+  }
+
+  // to_traveler: fixture stays carry no linked Traveler (same rule as the RPC).
+  return reviewErr("not_reviewable", "this booking has no linked traveler to review");
+}
+
+export type ReplyResult =
+  | { ok: true; review_id: string }
+  | { ok: false; error: { code: ReviewErrorCode; message: string } };
+
+/** The Owner's public answer on a to_lodging Review. Mock: any verified
+ * caller counts (no user→business link); the RPC re-checks real ownership. */
+export function replyToReview(
+  _userId: string,
+  reviewId: string,
+  body: string | null | undefined
+): ReplyResult {
+  const r = reviews.find((x) => x.id === reviewId);
+  if (!r)
+    return { ok: false, error: { code: "not_found", message: "review not found" } };
+  if (r.direction !== "to_lodging")
+    return { ok: false, error: { code: "invalid", message: "only lodging reviews can be answered" } };
+  r.reply_body = body?.trim() || null;
+  r.replied_at = r.reply_body ? new Date().toISOString() : null;
+  return { ok: true, review_id: r.id };
 }

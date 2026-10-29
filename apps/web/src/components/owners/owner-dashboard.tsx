@@ -15,13 +15,14 @@ import {
 
 import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
+import { OwnerReviewsSection } from '@/components/owners/owner-reviews';
 import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
+import type { ApiOwnerReviews } from '@/lib/api';
 import { formatMoney, formatShortDate } from '@/lib/format';
 import {
   apiCityCode,
   apiKind,
   apiTone,
-  FALLBACK_PHOTOS_BY_SLUG,
   initialsFor,
 } from '@/lib/api-mapping';
 import { RIPIO_COUNTRIES, type Fiat, type Lodging, type Owner } from '@/lib/lodgings';
@@ -72,32 +73,174 @@ interface OwnerDashboardProps {
 
 const MINOR_UNIT = 1_000_000;
 
+/** The payout state as GET /api/owners/payout serves it (#68). */
+interface PayoutState {
+  network: string;
+  explorer: string;
+  address: string | null;
+  address_set_at: string | null;
+  verified_at: string | null;
+  verification: {
+    id: string;
+    status: 'pending' | 'verified' | 'failed' | 'expired' | 'cancelled';
+    token: string;
+    currency: string;
+    tx_hash: string | null;
+    attempts_left: number;
+    expires_at: string;
+  } | null;
+}
+
+/** A user-facing line under the modal's forms. */
+interface PayoutNotice {
+  tone: 'info' | 'error' | 'success';
+  text: string;
+}
+
+const trimAddress = (a?: string | null) =>
+  a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '';
+
+const shortStamp = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+/**
+ * The verification modal (issue #68): the Owner's Ripio deposit address can
+ * not sign — an exchange account is proven by a test deposit. The modal
+ * walks the three steps: copiar la dirección en Ripio (red Celo), pegarla
+ * acá, y escribir el monto que llegó. Writes go through the /api/owners
+ * proxies — PostgREST can't write payout_address anymore.
+ */
 function PayoutModal({
   isOpen,
   onOpenChange,
-  currentAddress,
-  onSave,
+  payout,
+  currency,
+  onChanged,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  currentAddress: string;
-  onSave: (newAddress: string) => Promise<void>;
+  payout: PayoutState | null;
+  currency: string;
+  onChanged: () => Promise<void>;
 }) {
-  const [address, setAddress] = useState(currentAddress);
-  const [touched, setTouched] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [address, setAddress] = useState('');
+  const [amount, setAmount] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'confirm' | null>(null);
+  const [notice, setNotice] = useState<PayoutNotice | null>(null);
+
+  const status = payout?.verification?.status ?? null;
+  const verified = Boolean(payout?.address && payout?.verified_at);
+  const pending = status === 'pending';
+  // The guide's currency: the verification's once in flight, else the
+  // Lodgings' currency — the same fiat the api resolves (business → wFIAT).
+  const fiat = payout?.verification?.currency ?? currency;
+  const wToken = payout?.verification?.token ?? `w${fiat}`;
+  const explorer = payout?.explorer ?? 'https://celoscan.io';
 
   const isValid = /^0x[a-fA-F0-9]{40}$/.test(address.trim());
+  const amountOk = /^\d+([.,]\d{1,2})?$/.test(amount.trim()) && Number(amount.replace(',', '.')) > 0;
+  // Address entry shows when there is none stored, or the Owner chose to
+  // change it — from any state.
+  const showAddressForm = !pending && (editing || !payout?.address);
+  const startLabel = editing || !payout?.address ? 'Guardar y verificar' : 'Verificar';
 
-  async function handleSave() {
-    setTouched(true);
-    if (!isValid || saving) return;
-    setSaving(true);
+  async function callApi(path: string, method: string, body?: unknown) {
+    const res = await fetch(`/api/owners/payout${path}`, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { status: res.status, data };
+  }
+
+  /** PUT the address (only when it actually changed) then POST verify. */
+  async function handleStart() {
+    if (busy) return;
+    const next = address.trim();
+    if (showAddressForm && !isValid) return;
+    setBusy('save');
+    setNotice(null);
     try {
-      await onSave(address.trim());
-      onOpenChange(false);
+      if (showAddressForm && next.toLowerCase() !== payout?.address?.toLowerCase()) {
+        const put = await callApi('', 'PUT', { address: next });
+        if (put.status >= 400) {
+          setNotice({
+            tone: 'error',
+            text:
+              put.data?.error === 'invalid_address'
+                ? 'Esa dirección no es válida — fijate que sea la de la red Celo (0x…).'
+                : `No se pudo guardar la dirección: ${put.data?.error ?? put.status}`,
+          });
+          return;
+        }
+      }
+      const verify = await callApi('/verify', 'POST');
+      if (verify.status === 200) {
+        setNotice({ tone: 'success', text: 'Depósito enviado — mirá cuánto llegó a tu Ripio.' });
+      } else if (verify.data?.error === 'verification_cooldown') {
+        setNotice({
+          tone: 'info',
+          text: `Ya mandamos un depósito de prueba hace menos de 24 h. Podés pedir otro a partir del ${shortStamp(verify.data?.retry_at)}.`,
+        });
+      } else if (verify.data?.error === 'ops_float_insufficient') {
+        setNotice({
+          tone: 'error',
+          text: 'No pudimos mandar el depósito de prueba ahora — probá de nuevo en un rato o avisale al equipo.',
+        });
+      } else if (verify.data?.error === 'currency_unavailable') {
+        setNotice({
+          tone: 'error',
+          text: 'Todavía no podemos verificar cobros en tu moneda.',
+        });
+      } else {
+        setNotice({
+          tone: 'error',
+          text: `No se pudo enviar el depósito: ${verify.data?.error ?? verify.status}`,
+        });
+      }
+      await onChanged();
+      setEditing(false);
     } finally {
-      setSaving(false);
+      setBusy(null);
+    }
+  }
+
+  /** POST {amount} — what the Owner sees credited in Ripio. */
+  async function handleConfirm() {
+    if (!amountOk || busy) return;
+    setBusy('confirm');
+    setNotice(null);
+    try {
+      const res = await callApi('/confirm', 'POST', { amount: amount.trim() });
+      if (res.status === 200) {
+        setNotice({ tone: 'success', text: '¡Listo! Tu dirección de cobro quedó verificada.' });
+        setAmount('');
+      } else if (res.data?.error === 'amount_mismatch') {
+        setNotice({
+          tone: 'error',
+          text: `Ese no es el monto que llegó — te ${res.data?.attempts_left === 1 ? 'queda 1 intento' : `quedan ${res.data?.attempts_left} intentos`}.`,
+        });
+      } else if (res.data?.error === 'verification_failed') {
+        setNotice({
+          tone: 'error',
+          text: 'Los 3 intentos fallaron — esta verificación quedó anulada. Podés pedir un depósito nuevo.',
+        });
+      } else if (res.data?.error === 'verification_expired') {
+        setNotice({
+          tone: 'error',
+          text: 'La verificación venció — pedí un depósito nuevo.',
+        });
+      } else {
+        setNotice({
+          tone: 'error',
+          text: `No se pudo confirmar: ${res.data?.error ?? res.status}`,
+        });
+      }
+      await onChanged();
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -109,34 +252,201 @@ function PayoutModal({
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading className="font-brand text-2xl font-medium text-ink">
-                Dirección de cobro Ripio
+                Dirección de cobro en Ripio
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-4">
               <p className="text-sm text-ink-muted">
-                Las reservas de tus alojamientos se transfieren directamente a esta dirección en
-                la red Celo. nomai nunca custodia tus fondos.
+                Las reservas de tus alojamientos se liberan a esta cuenta de Ripio. Para
+                verificarla, nomai te manda un depósito chico y vos escribís el monto que
+                llegó — así sabemos que la dirección es tuya.
               </p>
-              <TextField
-                isRequired
-                value={address}
-                onChange={setAddress}
-                isInvalid={touched && !isValid}
-              >
-                <Label>Dirección EVM / Ripio (0x...)</Label>
-                <Input fullWidth placeholder="0x..." />
-                <FieldError>Ingresá una dirección válida de 42 caracteres (0x...).</FieldError>
-              </TextField>
+
+              {!verified && (
+                <ol className="list-decimal space-y-1 rounded-card border border-sand bg-white p-4 pl-9 text-sm text-ink">
+                  <li>En Ripio, andá a <strong>Depositar</strong>.</li>
+                  <li>
+                    Elegí <strong>{wToken}</strong> ({fiat}) y la red <strong>Celo</strong>.
+                  </li>
+                  <li>Copiá la dirección y pegala acá abajo.</li>
+                </ol>
+              )}
+              {!verified && (
+                <p className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                  Tiene que ser la dirección de la red <strong>Celo</strong> — si la plata se
+                  manda a otra red, se pierde.
+                </p>
+              )}
+
+              {pending ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-ink">
+                    Te mandamos un monto chico de {wToken} a tu Ripio. Fijate cuánto llegó y
+                    escribilo acá{' '}
+                    {payout?.verification?.tx_hash ? (
+                      <>
+                        (
+                        <a
+                          className="text-terra-deep underline"
+                          href={`${explorer}/tx/${payout.verification.tx_hash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          ver el envío
+                        </a>
+                        )
+                      </>
+                    ) : null}
+                    .
+                  </p>
+                  <TextField
+                    isRequired
+                    value={amount}
+                    onChange={setAmount}
+                    isInvalid={amount.length > 0 && !amountOk}
+                  >
+                    <Label>Monto recibido ({fiat})</Label>
+                    <Input fullWidth placeholder="0,00" inputMode="decimal" />
+                    <FieldError>Escribí el monto exacto, por ejemplo 0,37.</FieldError>
+                  </TextField>
+                  <p className="text-xs text-ink-muted">
+                    {payout?.verification?.attempts_left === 1
+                      ? 'Te queda 1 intento.'
+                      : `Te quedan ${payout?.verification?.attempts_left ?? 3} intentos.`}{' '}
+                    El depósito vence el {shortStamp(payout?.verification?.expires_at)}.
+                  </p>
+                </div>
+              ) : showAddressForm ? (
+                <TextField
+                  isRequired
+                  value={address}
+                  onChange={setAddress}
+                  isInvalid={address.length > 0 && !isValid}
+                >
+                  <Label>
+                    {verified ? 'Nueva dirección' : 'Dirección de depósito Ripio en Celo'} (0x…)
+                  </Label>
+                  <Input fullWidth placeholder="0x…" />
+                  <FieldError>
+                    Ingresá una dirección válida de 42 caracteres (0x…).
+                  </FieldError>
+                </TextField>
+              ) : null}
+
+              {!pending && !showAddressForm && !verified && payout?.address ? (
+                <div className="flex items-center justify-between rounded-card border border-sand bg-white px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink">
+                      Dirección cargada — falta verificarla
+                    </p>
+                    <p className="font-mono text-xs text-ink-muted">
+                      {trimAddress(payout.address)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => {
+                      setEditing(true);
+                      setAddress('');
+                      setNotice(null);
+                    }}
+                  >
+                    Cambiar
+                  </Button>
+                </div>
+              ) : null}
+
+              {status === 'failed' && (
+                <p className="rounded-card border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-900">
+                  La última verificación falló — se escribieron 3 montos que no eran. Pedí un
+                  depósito nuevo (uno por día).
+                </p>
+              )}
+              {status === 'expired' && (
+                <p className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                  La última verificación venció sin confirmar — pedí un depósito nuevo.
+                </p>
+              )}
+
+              {verified && payout?.address ? (
+                <div className="flex items-center justify-between rounded-card border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-900">Dirección verificada</p>
+                    <p className="font-mono text-xs text-emerald-900/80">
+                      {trimAddress(payout.address)} · {shortStamp(payout.verified_at)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => {
+                      setEditing(true);
+                      setAddress('');
+                      setNotice({
+                        tone: 'info',
+                        text: 'Cambiar la dirección reinicia la verificación: vas a tener que confirmar un depósito nuevo.',
+                      });
+                    }}
+                  >
+                    Cambiar
+                  </Button>
+                </div>
+              ) : null}
+
+              {notice ? (
+                <p
+                  className={`rounded-card px-4 py-3 text-xs ${
+                    notice.tone === 'error'
+                      ? 'border border-red-200 bg-red-50 text-red-900'
+                      : notice.tone === 'success'
+                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-900'
+                        : 'border border-sand bg-white text-ink-muted'
+                  }`}
+                >
+                  {notice.text}
+                </p>
+              ) : null}
             </Modal.Body>
             <Modal.Footer>
-              <Button fullWidth isPending={saving} onPress={handleSave}>
-                {({ isPending }) => (
-                  <>
-                    {isPending && <Spinner color="current" size="sm" />}
-                    {isPending ? 'Guardando…' : 'Guardar dirección'}
-                  </>
-                )}
-              </Button>
+              {pending ? (
+                <Button fullWidth isPending={busy === 'confirm'} onPress={handleConfirm} isDisabled={!amountOk}>
+                  {({ isPending }) => (
+                    <>
+                      {isPending && <Spinner color="current" size="sm" />}
+                      {isPending ? 'Confirmando…' : 'Confirmar monto'}
+                    </>
+                  )}
+                </Button>
+              ) : !verified ? (
+                <Button
+                  fullWidth
+                  isPending={busy === 'save'}
+                  onPress={handleStart}
+                  isDisabled={showAddressForm && !isValid}
+                >
+                  {({ isPending }) => (
+                    <>
+                      {isPending && <Spinner color="current" size="sm" />}
+                      {isPending ? 'Verificando…' : startLabel}
+                    </>
+                  )}
+                </Button>
+              ) : editing ? (
+                <Button
+                  fullWidth
+                  isPending={busy === 'save'}
+                  onPress={handleStart}
+                  isDisabled={!isValid}
+                >
+                  {({ isPending }) => (
+                    <>
+                      {isPending && <Spinner color="current" size="sm" />}
+                      {isPending ? 'Verificando…' : 'Guardar y verificar'}
+                    </>
+                  )}
+                </Button>
+              ) : null}
             </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
@@ -154,11 +464,27 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     Record<string, { canRelocate: boolean; canRemove: boolean }>
   >({});
   const [bookings, setBookings] = useState<BookingData[]>([]);
+  /** The Owner's review feed (ADR-0008): storefront score + received/given. */
+  const [reviewFeed, setReviewFeed] = useState<ApiOwnerReviews | null>(null);
   const [payoutModalOpen, setPayoutModalOpen] = useState(false);
+  /** The payout state from the api (verification included) — issue #68. */
+  const [payout, setPayout] = useState<PayoutState | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [ownerCountryCode, setOwnerCountryCode] = useState('AR');
   /** The open wizard: `{}` creates, `{ lodging }` edits. */
   const [wizard, setWizard] = useState<{ lodging?: Lodging } | null>(null);
+
+  // Payout state — the api's GET /owners/payout (address, verified_at, the
+  // in-flight verification). PostgREST can't write payout_address since #68,
+  // so everything the modal does goes through /api/owners/payout*.
+  const loadPayout = useCallback(async () => {
+    try {
+      const res = await fetch('/api/owners/payout', { cache: 'no-store' });
+      if (res.ok) setPayout((await res.json()) as PayoutState);
+    } catch {
+      /* the chip keeps showing the business row's stale address */
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -216,7 +542,6 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           ownerSlug: bus.slug,
           ownerName: bus.name,
           tone: apiTone(l.slug),
-          photo: cover ? undefined : FALLBACK_PHOTOS_BY_SLUG[l.slug],
           photoUrl: cover,
           photos: photos.length ? photos.map((p) => p.url) : undefined,
           address: l.property?.address_line1 ?? undefined,
@@ -262,10 +587,21 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       } else if (bookingsData) {
         setBookings(bookingsData as unknown as BookingData[]);
       }
+
+      // 4. The review feed goes through the api: Traveler-facing rows aren't
+      // readable over RLS, only via the service-role RPCs (ADR-0008).
+      fetch('/api/owners/reviews', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: ApiOwnerReviews | null) => d && setReviewFeed(d))
+        .catch(() => {});
+
+      // 5. Payout state — same reason: payout_verifications isn't readable
+      // over RLS at all, only via the api (issue #68).
+      loadPayout();
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadPayout]);
 
   useEffect(() => {
     loadData();
@@ -295,24 +631,6 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         ? 'Alojamiento publicado en el catálogo público'
         : 'Alojamiento pausado del catálogo público'
     );
-  }
-
-  // Action: update payout address
-  async function savePayoutAddress(newAddress: string) {
-    if (!business) return;
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('businesses')
-      .update({ payout_address: newAddress })
-      .eq('id', business.id);
-
-    if (error) {
-      toast(`Error al actualizar cobros: ${error.message}`);
-      return;
-    }
-
-    setBusiness({ ...business, payout_address: newAddress });
-    toast('Dirección de cobro Ripio actualizada');
   }
 
   // Helper action: claim Ramon Guaymas for demo evaluation
@@ -365,6 +683,11 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
   const nextArrival = bookings
     .filter((b) => b.status === 'confirmed')
     .sort((a, b) => a.checkin.localeCompare(b.checkin))[0];
+
+  // Bookings the Owner already reviewed (ADR-0008: one to_traveler per Booking).
+  const givenBookingIds = new Set(
+    (reviewFeed?.given ?? []).map((r) => r.booking_id),
+  );
 
   const displayName =
     business?.name?.split(' ')[0] ||
@@ -445,14 +768,37 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           </h1>
         </div>
 
-        {/* Sensitive data: Payout address */}
+        {/* Cobros Ripio — the verified deposit address (#68). */}
         <div className="flex items-center gap-3 rounded-card border border-sand bg-white px-4 py-2.5">
           <div className="text-left">
             <p className="text-xs text-ink-muted">Cobros Ripio</p>
             <p className="font-mono text-xs font-medium text-ink">
-              {business.payout_address
-                ? `${business.payout_address.slice(0, 6)}…${business.payout_address.slice(-4)}`
-                : 'Sin dirección'}
+              {payout?.address || business.payout_address
+                ? trimAddress(payout?.address ?? business.payout_address)
+                : 'Sin cargar'}
+            </p>
+            <p
+              className={`text-[11px] font-medium ${
+                payout?.verified_at
+                  ? 'text-emerald-700'
+                  : payout?.verification?.status === 'pending'
+                    ? 'text-amber-700'
+                    : payout?.verification?.status === 'failed' ||
+                        payout?.verification?.status === 'expired'
+                      ? 'text-red-700'
+                      : 'text-ink-muted'
+              }`}
+            >
+              {payout?.verified_at
+                ? 'Verificada'
+                : payout?.verification?.status === 'pending'
+                  ? 'Pendiente'
+                  : payout?.verification?.status === 'failed' ||
+                      payout?.verification?.status === 'expired'
+                    ? 'Fallida'
+                    : payout?.address || business.payout_address
+                      ? 'Sin verificar'
+                      : ''}
             </p>
           </div>
           <Button
@@ -461,7 +807,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
             onPress={() => setPayoutModalOpen(true)}
             className="text-xs"
           >
-            Modificar
+            {payout?.verified_at ? 'Ver' : 'Verificar'}
           </Button>
         </div>
       </header>
@@ -531,7 +877,13 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
 
         <div className="mt-4 flex flex-col gap-4">
           {bookings.length > 0 ? (
-            bookings.map((b) => <ReservaCard key={b.id} booking={b} />)
+            bookings.map((b) => (
+              <ReservaCard
+                key={b.id}
+                booking={b}
+                alreadyReviewed={givenBookingIds.has(b.id)}
+              />
+            ))
           ) : (
             <div className="rounded-card border border-dashed border-sand bg-white/60 p-8 text-center text-ink-muted">
               <p className="font-medium text-ink">Aún no hay reservas registradas</p>
@@ -542,6 +894,25 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           )}
         </div>
       </section>
+
+      {/* Reviews Section */}
+      {reviewFeed && reviewFeed.received.length > 0 && (
+        <OwnerReviewsSection
+          feed={reviewFeed}
+          onReplied={(id, body) =>
+            setReviewFeed((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    received: prev.received.map((r) =>
+                      r.review_id === id ? { ...r, reply_body: body, replied_at: new Date().toISOString() } : r,
+                    ),
+                  }
+                : prev,
+            )
+          }
+        />
+      )}
 
       {/* Lodgings Section */}
       <section aria-labelledby="alojamientos-heading">
@@ -599,13 +970,16 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         />
       )}
 
-      {/* Sensitive Data: Payout Address Modal */}
-      {business && (
+      {/* Cobros Ripio — the deposit-address verification (#68). */}
+      {business && payoutModalOpen && (
         <PayoutModal
           isOpen={payoutModalOpen}
           onOpenChange={setPayoutModalOpen}
-          currentAddress={business.payout_address || ''}
-          onSave={savePayoutAddress}
+          payout={payout}
+          currency={lodgings[0]?.currency ?? 'ARS'}
+          onChanged={async () => {
+            await loadPayout();
+          }}
         />
       )}
     </div>

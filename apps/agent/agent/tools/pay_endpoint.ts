@@ -4,21 +4,22 @@ import { z } from "zod";
 import { networkName, NETWORK_CAIP2 } from "../lib/celo";
 import { paymentFetch, readSettlementReceipt } from "../lib/x402";
 
-// Pays an x402-gated HTTP endpoint from the agent wallet. This is the Booking
-// primitive: the Owner's endpoint quotes a price, the Agent signs it, and the
-// facilitator settles — funds land directly in the Owner's wallet (payTo), so
-// the platform never holds booking money. The wallet needs only the quoted
-// asset (USDC/USDT/USAT/wARS/wBRL/wCOP): the facilitator sponsors gas, and for
-// permit2 assets it also sponsors the EIP-2612 permit.
+// Pays an x402-gated HTTP endpoint from the PROJECT wallet — the legacy
+// Booking primitive, dormant now that book_listing pays Bookings from the
+// Traveler's Agent wallet into the Escrow vault (issue #62). Kept for any
+// other x402 endpoint: it quotes a price, the wallet signs it, and the
+// facilitator settles to whatever payTo the endpoint advertised. The wallet
+// needs only the quoted asset (USDC/USDT/USAT/wARS/wBRL/wCOP): the facilitator
+// sponsors gas, and for permit2 assets it also sponsors the EIP-2612 permit.
 //
 // The wallet balance is the hard spend cap — the tool can only pay what the
-// agent actually holds.
+// project actually holds.
 
 const MAX_BODY_CHARS = 4000;
 
 export default defineTool({
   description:
-    "Pay an x402-gated endpoint from the agent wallet and return the response. Use it to execute a Booking against an Owner's payment endpoint after the Traveler has confirmed — never for unrelated purchases.",
+    "Pay an x402-gated endpoint from the project wallet and return the response. Dormant for Bookings — book_listing already pays them from the Traveler's Agent wallet; reserve this for other x402 endpoints, never for unrelated purchases.",
   inputSchema: z.object({
     url: z.string().url().describe("The x402-protected URL to call"),
     method: z.enum(["GET", "POST"]).default("POST"),

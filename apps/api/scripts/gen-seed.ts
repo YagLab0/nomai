@@ -19,6 +19,7 @@ import {
   PROPERTIES,
   RATE_RULES,
 } from "../src/data/inventory.js";
+import { REVIEW_BUSINESS, REVIEW_FIXTURES } from "../src/data/review-fixtures.js";
 
 type Val = string | number | boolean | null | undefined;
 const q = (v: Val) =>
@@ -114,6 +115,42 @@ lines.push(
     ["listing_id","night","status","units_available","price_minor"],
     buildAvailability(new Date()).map((a) => [a.listing_id,a.night,a.status,a.units_available,a.price_minor]),
     400
+  ),
+  ""
+);
+
+lines.push(
+  "-- ---------------------------------------------------------------------------",
+  "-- REVIEW FIXTURES — completed stays + the Traveler's Review (ADR-0008).",
+  "-- ---------------------------------------------------------------------------",
+  insert(
+    "bookings",
+    ["id","listing_id","traveler_id","guest_ref","checkin","checkout","guests","total_minor","currency","status","escrow_status","cancel_deadline","first_release_at","final_release_at","created_at"],
+    REVIEW_FIXTURES.map((r) => [
+      r.booking, r.listing, null, null, r.checkin, r.checkout, r.guests,
+      r.total_minor, r.currency, "completed", "released",
+      // cancel_deadline = checkin - 5d (ADR-0006); releases already happened.
+      new Date(Date.parse(r.checkin + "T00:00:00Z") - 5 * 86400_000).toISOString().slice(0, 10),
+      `${r.checkin}T13:00:00Z`, `${r.checkin}T13:00:00Z`,
+      new Date(Date.parse(r.checkin + "T00:00:00Z") - 20 * 86400_000).toISOString(),
+    ])
+  ),
+  "",
+  insert(
+    "reviews",
+    ["booking_id","direction","author_id","author_name","subject_listing_id","subject_traveler_id","rating","cleanliness","accuracy","checkin","communication","location","value","house_rules","body","reply_body","replied_at","created_at"],
+    REVIEW_FIXTURES.map((r) => [
+      r.booking, "to_lodging", null, r.author, r.listing, null,
+      r.rating, r.scores.cleanliness ?? null, r.scores.accuracy ?? null,
+      r.scores.checkin ?? null, r.scores.communication ?? null,
+      r.scores.location ?? null, r.scores.value ?? null, null,
+      r.body, r.reply ?? null,
+      r.reply ? r.created : null, r.created,
+    ])
+  ),
+  "",
+  ...[...new Set(REVIEW_FIXTURES.map((r) => r.listing))].map(
+    (l) => `select public.refresh_review_scores('${l}', '${REVIEW_BUSINESS[l]}');`
   ),
   ""
 );

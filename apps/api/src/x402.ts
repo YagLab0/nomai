@@ -151,6 +151,20 @@ export const COUNTRY_WFIAT: Record<string, { token: string; fiat: string }> = {
   PE: { token: "wpen", fiat: "PEN" },
 };
 
+/**
+ * Lodging fiat currency → the wFIAT symbol a Booking charges in (issue #58):
+ * an ARS-priced Lodging settles in wARS. Derived from COUNTRY_WFIAT so the
+ * two never drift; only USD falls outside it, settling in USDC. A fiat
+ * with no wFIAT of its own (UYU) has no settlement asset at all — the
+ * Booking fails explicitly rather than charge a wrong amount in another
+ * token. Cross-wFIAT stays a documented gap: a Traveler holding wARS who
+ * books a BRL Lodging must Fund wBRL through the ramp — the Booking does
+ * no FX conversion (ADR-0001 is future work).
+ */
+export const FIAT_WFIAT: Record<string, string> = Object.fromEntries(
+  Object.values(COUNTRY_WFIAT).map((w) => [w.fiat, w.token])
+);
+
 /** Testnet by default, so running this scaffold costs nothing. */
 export const NETWORK: X402Network =
   process.env.X402_NETWORK === "mainnet" ? "mainnet" : "testnet";
@@ -174,9 +188,11 @@ export const WFIAT = Object.entries(COUNTRY_WFIAT)
 export const CAIP2 = CONFIG.caip2;
 
 /**
- * Fallback payTo for the Booking endpoint (book-payment.ts) — used only
- * when a listing has no business.payout_address of its own. There is no
- * generic paid route anymore (D4), so no X402_PRICE.
+ * The platform wallet — the Service-fee destination for when the Escrow
+ * vault releases (ADR-0005/0006). It is NOT the Booking payTo: since #61
+ * every Booking settles into the shared vault (ESCROW_ADDRESS) and paying
+ * the Owner or the platform at settle time is exactly what the vault
+ * prevents. Reserved for the release tooling — nothing reads it yet.
  */
 export const PAY_TO = process.env.X402_PAY_TO;
 

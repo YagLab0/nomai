@@ -28,6 +28,7 @@ import wallet from "./wallet.js";
 import keeper from "./keeper.js";
 import owners from "./owners.js";
 import chats from "./chats.js";
+import payout from "./payout.js";
 import {
   BOOKING_ROUTE_PATTERN,
   bookingPrecheck,
@@ -54,7 +55,7 @@ registerBookingHooks(server);
 
 const paidRoutes: RoutesConfig = {
   // price/payTo resolve per request — a fresh server-side quote and the
-  // listing's own business.payout_address, never a stale quote.
+  // shared Escrow vault (ADR-0006), never a stale quote.
   [BOOKING_ROUTE_PATTERN]: bookingRouteConfig,
 };
 
@@ -82,6 +83,18 @@ if (!process.env.X402_API_KEY) {
 if (!process.env.AGENT_WALLET_MASTER_SECRET) {
   console.warn(
     "⚠️  AGENT_WALLET_MASTER_SECRET is not set — Agent wallet creation will fail with wallet_unavailable."
+  );
+}
+// Every Booking must pay into the vault — warn loudly at boot rather than
+// letting each charge fail at request time (the route answers 503).
+if (!process.env.ESCROW_ADDRESS) {
+  console.warn(
+    "⚠️  ESCROW_ADDRESS is not set — every Booking charge fails until the Escrow vault is configured."
+  );
+}
+if (!process.env.OPS_WALLET_PRIVATE_KEY) {
+  console.warn(
+    "⚠️  OPS_WALLET_PRIVATE_KEY is not set — Owner payout verification sends fail with ops_wallet_unavailable."
   );
 }
 
@@ -113,13 +126,24 @@ app.route("/owners", owners);
 // like /usage: RLS isolates rows per Traveler on the JWT-scoped client.
 app.route("/chats", chats);
 
+// Owner payout verification — the Ripio deposit-address flow (issue #68):
+// PUT the address, send a test deposit from the ops wallet, confirm the
+// amount Ripio credited. Same Bearer scoping; mounted on /owners too.
+app.route("/owners", payout);
+
 // Ops-only Escrow keeper (ADR-0006) — POST /internal/keeper, Bearer
 // KEEPER_SECRET. Cron/manual trigger for process_escrow_releases().
 app.route("/internal", keeper);
 
-const port = Number(process.env.PORT ?? 3001);
-serve({ fetch: app.fetch, port });
-console.log(`nomai x402 seller listening on http://localhost:${port}`);
-console.log(`  network:     ${NETWORK} (${CAIP2})`);
-console.log(`  facilitator: ${CONFIG.facilitator}`);
-console.log(`  data source: ${LISTINGS_DATA_SOURCE}`);
+// On Vercel the default export IS the server (zero-config Hono functions);
+// everywhere else (`pnpm api:dev`, `node dist/index.js`) boot our own.
+export default app;
+
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT ?? 3001);
+  serve({ fetch: app.fetch, port });
+  console.log(`nomai x402 seller listening on http://localhost:${port}`);
+  console.log(`  network:     ${NETWORK} (${CAIP2})`);
+  console.log(`  facilitator: ${CONFIG.facilitator}`);
+  console.log(`  data source: ${LISTINGS_DATA_SOURCE}`);
+}

@@ -179,11 +179,13 @@ export function paymentResponseHeader(settle: FacilitatorResult): string {
 
 // ── Buyer side ──────────────────────────────────────────────────────────────
 // The payment-capable fetch the Agent uses to pay x402-gated endpoints from
-// its wallet (pay_endpoint, book_listing). On a 402 it signs the quoted
-// requirement and retries once; the facilitator sponsors gas, so the wallet
-// only needs the quoted asset. The wallet balance is the hard spend cap.
+// the PROJECT wallet (pay_endpoint — dormant this phase). On a 402 it signs
+// the quoted requirement and retries once; the facilitator sponsors gas, so
+// the wallet only needs the quoted asset. The wallet balance is the hard
+// spend cap. book_listing does NOT use this — Bookings are paid from the
+// Traveler's Agent wallet via payment-auth (see ./nomai-api apiPaidPost).
 
-/** fetch that answers 402 Payment Required by paying from the agent wallet. */
+/** fetch that answers 402 Payment Required by paying from the project wallet. */
 export function paymentFetch(): typeof fetch {
   const network = networkName();
   const client = new x402Client();

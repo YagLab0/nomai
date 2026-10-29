@@ -51,8 +51,8 @@ export function LodgingCard({
             unoptimized={photo.src.startsWith('data:')}
           />
         ) : lodging.photoUrl ? (
-          // Remote API cover (picsum today, CDN later): a plain <img> keeps
-          // next/image remotePatterns out of the way of upstream changes.
+          // Remote API cover (curated shots or Owner Storage uploads): a plain
+          // <img> keeps next/image remotePatterns out of the way of upstream changes.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={lodging.photoUrl}

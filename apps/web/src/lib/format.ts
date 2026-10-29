@@ -48,7 +48,8 @@ export function formatBRL(amount: number, opts: { withCode?: boolean } = {}): st
 /**
  * A wallet balance in its own fiat, always carrying the ISO code:
  * `$ 95.000 ARS`, `R$ 500 BRL`, `S/ 1.20 PEN`. Whole amounts drop their
- * decimals (like formatBRL); fractional ones keep the currency's decimals.
+ * decimals (like formatBRL); fractional ones show at least two decimals —
+ * even zero-decimal currencies like ARS, so `$ 97,86 ARS` never rounds to 98.
  */
 export function formatFiat(amount: number, currency: string): string {
   const display = CURRENCY_DISPLAY[currency];
@@ -58,11 +59,12 @@ export function formatFiat(amount: number, currency: string): string {
       maximumFractionDigits: 2,
     })} ${currency}`;
   }
+  const decimals = Math.max(display.decimals, 2);
   const body = Number.isInteger(amount)
     ? amount.toLocaleString(display.locale)
     : amount.toLocaleString(display.locale, {
-        minimumFractionDigits: display.decimals,
-        maximumFractionDigits: display.decimals,
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
       });
   return `${display.symbol} ${body} ${currency}`;
 }

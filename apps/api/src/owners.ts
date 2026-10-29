@@ -14,6 +14,14 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { createSupabaseUser } from "./supabase.js";
 import { bearerToken, supabaseAdmin, travelerIdFrom } from "./auth.js";
+import {
+  listOwnerReviews,
+  replyToReview,
+  submitReview,
+  travelerScore,
+  type ReviewCategories,
+  type ReviewErrorCode,
+} from "./data/index.js";
 import type { Database } from "./database.types.js";
 
 type PropertyType = Database["public"]["Enums"]["property_type"];
@@ -526,9 +534,12 @@ owners.patch("/lodgings/:id/status", async (c) => {
 /**
  * POST /owners/onboard — the Owner onboarding actions. `claim` (attach an
  * unclaimed seeded business + demo bookings) is a deliberate demo lever run
- * on the admin client; `update-payout` and the create path (business +
- * property + draft listing) run on the caller's JWT so RLS applies, exactly
- * like the old web route's user-session writes.
+ * on the admin client; the create path (business + property + draft
+ * listing) runs on the caller's JWT so RLS applies, exactly like the old
+ * web route's user-session writes. payout_address no longer travels this
+ * path — since #68 it is set through PUT /owners/payout (service_role RPC,
+ * PostgREST writes closed by column grants); a payoutAddress in the create
+ * body is still honored via that RPC after the insert.
  */
 owners.post("/onboard", async (c) => {
   try {
@@ -621,33 +632,7 @@ owners.post("/onboard", async (c) => {
     }
 
     // -----------------------------------------------------------------------
-    // 2. Update payout address (owner only)
-    // -----------------------------------------------------------------------
-    if (action === "update-payout") {
-      const payoutAddress = (body.payoutAddress as string | undefined)?.trim();
-      if (!payoutAddress || !/^0x[a-fA-F0-9]{40}$/.test(payoutAddress)) {
-        return c.json(
-          { error: "Dirección de cobro de Ripio inválida (formato 0x...)." },
-          400
-        );
-      }
-
-      const { data: updated, error: updateErr } = await supabase
-        .from("businesses")
-        .update({ payout_address: payoutAddress })
-        .eq("user_id", userId)
-        .select()
-        .single();
-
-      if (updateErr) {
-        return c.json({ error: updateErr.message }, 500);
-      }
-
-      return c.json({ success: true, business: updated });
-    }
-
-    // -----------------------------------------------------------------------
-    // 3. Create a new business + property + draft listing (user session, RLS)
+    // 2. Create a new business + property + draft listing (user session, RLS)
     // -----------------------------------------------------------------------
     const name = String(body.name || "").trim();
     const town = String(body.town || "").trim();
@@ -684,7 +669,9 @@ owners.post("/onboard", async (c) => {
     const busSlug = `${baseSlug}-${suffix}`;
     const propType: PropertyType = PROPERTY_TYPE_MAP[kindInput] || "posada";
 
-    // Insert new business (RLS checks auth.uid() = user_id)
+    // Insert new business (RLS checks auth.uid() = user_id; column grants
+    // admit only these — status/payout fields can't be smuggled in and take
+    // their defaults: 'pending' / null).
     const { data: newBus, error: busInsertErr } = await supabase
       .from("businesses")
       .insert({
@@ -692,8 +679,6 @@ owners.post("/onboard", async (c) => {
         name,
         slug: busSlug,
         user_id: userId,
-        status: "pending",
-        payout_address: payoutAddress,
       })
       .select()
       .single();
@@ -750,12 +735,176 @@ owners.post("/onboard", async (c) => {
       return c.json({ error: `Error creando publicación: ${lstInsertErr.message}` }, 500);
     }
 
+    // payoutAddress can't ride the insert (column grants); it goes through
+    // the service_role RPC — the same writer PUT /owners/payout uses.
+    if (payoutAddress && /^0x[a-fA-F0-9]{40}$/.test(payoutAddress.trim())) {
+      const { error: payoutErr } = await supabaseAdmin().rpc("set_payout_address", {
+        p_user_id: userId,
+        p_address: payoutAddress.trim(),
+      });
+      if (payoutErr) {
+        return c.json({ error: `Error guardando cobro: ${payoutErr.message}` }, 500);
+      }
+    }
+
     return c.json({
       success: true,
       business: newBus,
       property: newProp,
       listing: newListing,
     });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// reviews (issue #51, ADR-0008) — the Owner's side: read what guests wrote
+// about their Lodgings, reply publicly, review the Traveler after checkout,
+// and read a Traveler's score before accepting them. The Bearer user IS the
+// Owner (businesses.user_id); submit_review re-checks it inside the RPC.
+// ---------------------------------------------------------------------------
+
+function reviewFailureStatus(code: ReviewErrorCode | undefined): 400 | 403 | 404 | 409 {
+  switch (code) {
+    case "forbidden":
+      return 403;
+    case "not_found":
+      return 404;
+    case "not_reviewable":
+    case "window_closed":
+    case "already_reviewed":
+      return 409;
+    default:
+      return 400;
+  }
+}
+
+/**
+ * GET /owners/reviews — { score, received, given }: the business's weighted
+ * storefront pair, the Reviews guests left on its Lodgings (newest first),
+ * and the Reviews it wrote about Travelers.
+ */
+owners.get("/reviews", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para ver tus reseñas.");
+    if ("response" in who) return who.response;
+    const { userId, supabase } = who;
+
+    const { data: business, error: busErr } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (busErr) return c.json({ error: busErr.message }, 500);
+    if (!business) {
+      return c.json({ error: "Primero registrá tu negocio en /owners/join." }, 403);
+    }
+
+    return c.json(await listOwnerReviews(business.id, userId));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * POST /owners/reviews/:id/reply — the Owner's public answer under a guest's
+ * Review (Booking-style reply). reply_to_review() re-checks the Review is a
+ * to_lodging one on a Lodging they own. Body: { body: string }.
+ */
+owners.post("/reviews/:id/reply", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para responder la reseña.");
+    if ("response" in who) return who.response;
+    const { userId } = who;
+
+    const body = (await c.req.json().catch(() => null)) as { body?: string } | null;
+    const r = await replyToReview(userId, c.req.param("id"), body?.body ?? null);
+    if (!r.ok) {
+      return c.json(
+        { error: r.error.message, code: r.error.code },
+        reviewFailureStatus(r.error.code)
+      );
+    }
+    return c.json({ ok: true, review_id: r.review_id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * POST /owners/bookings/:id/review — the Owner's Review of the guest
+ * (Airbnb's second side): completed Booking, 14-day window, one per Booking.
+ * submit_review('to_traveler') re-checks the caller owns the Lodging.
+ * Body: { rating: 1..5, body?: string, categories?: {cleanliness,
+ *          communication, house_rules} }.
+ */
+owners.post("/bookings/:id/review", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para calificar al viajero.");
+    if ("response" in who) return who.response;
+    const { userId } = who;
+
+    const body = (await c.req.json().catch(() => null)) as {
+      rating?: unknown;
+      body?: unknown;
+      categories?: unknown;
+    } | null;
+    if (!Number.isInteger(body?.rating)) {
+      return c.json(
+        { error: "rating must be an integer between 1 and 5", code: "invalid_rating" },
+        400
+      );
+    }
+
+    const r = await submitReview({
+      userId,
+      bookingId: c.req.param("id"),
+      direction: "to_traveler",
+      rating: body!.rating as number,
+      body: typeof body?.body === "string" ? body.body : null,
+      categories: (body?.categories ?? {}) as ReviewCategories,
+    });
+    if (!r.ok) {
+      return c.json(
+        { error: r.error.message, code: r.error.code },
+        reviewFailureStatus(r.error.code)
+      );
+    }
+    return c.json({ ok: true, review_id: r.review_id, score: r.score }, 201);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * GET /owners/travelers/:id/score — the guest's weighted score (Airbnb's
+ * host-facing guest rating). Scoped like the RLS rule: only an Owner who has
+ * hosted this Traveler can read it — checked here against the caller's own
+ * Booking rows (user-session client, so owns_listing applies).
+ */
+owners.get("/travelers/:id/score", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para ver el puntaje.");
+    if ("response" in who) return who.response;
+    const { supabase } = who;
+
+    const travelerId = c.req.param("id");
+    const { data: hosted, error: hErr } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("traveler_id", travelerId)
+      .limit(1);
+    if (hErr) return c.json({ error: hErr.message }, 500);
+    if (!hosted?.length) {
+      return c.json({ error: "Viajero desconocido para tu negocio." }, 404);
+    }
+
+    return c.json(await travelerScore(travelerId));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error inesperado";
     return c.json({ error: message }, 500);

@@ -1,7 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { toast } from '@heroui/react';
 import { CheckBadgeIcon } from '@/components/icons';
+import { ReviewModal, TRAVELER_CATEGORIES, type ReviewPayload } from '@/components/reviews/review-modal';
+import { Stars } from '@/components/reviews/stars';
 import { formatMoney, formatStayRange } from '@/lib/format';
 
 export interface BookingData {
@@ -13,6 +16,7 @@ export interface BookingData {
   currency: string;
   status: string;
   guest_ref?: string | null;
+  traveler_id?: string | null;
   created_at?: string;
   listing?: {
     id: string;
@@ -37,10 +41,60 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
   cancelada: { label: 'Cancelada', className: 'bg-sand/70 text-ink-muted' },
 };
 
+/** The guest's weighted score — Airbnb's host-facing guest rating (ADR-0008). */
+function TravelerScore({ travelerId }: { travelerId: string }) {
+  const [score, setScore] = useState<{ rating: number | null; reviews: number } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/owners/travelers/${encodeURIComponent(travelerId)}/score`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && typeof d.reviews === 'number') setScore(d);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [travelerId]);
+
+  if (!score || !score.reviews || score.rating == null) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-ink-muted" title={`${score.reviews} reseñas de anfitriones`}>
+      <Stars rating={score.rating} size="sm" />
+      {score.rating.toFixed(1)}
+    </span>
+  );
+}
+
 /** A Booking as the Owner sees it: real dates, settled amount in Ripio, guests. */
-export function ReservaCard({ booking }: { booking: BookingData }) {
+export function ReservaCard({
+  booking,
+  alreadyReviewed = false,
+}: {
+  booking: BookingData;
+  /** True once the Owner's to_traveler Review for this Booking exists (ADR-0008). */
+  alreadyReviewed?: boolean;
+}) {
   const status = STATUS_MAP[booking.status] || STATUS_MAP.confirmed;
   const isCanceled = booking.status === 'cancelled' || booking.status === 'cancelada';
+  const isCompleted = booking.status === 'completed' || booking.status === 'completada';
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewed, setReviewed] = useState(alreadyReviewed);
+
+  async function submitReview(payload: ReviewPayload) {
+    const res = await fetch(`/api/owners/bookings/${encodeURIComponent(booking.id)}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error ?? 'No pudimos publicar la reseña.');
+    }
+    setReviewed(true);
+    toast('Reseña del viajero publicada');
+  }
 
   // Calculate nights
   const inD = new Date(booking.checkin);
@@ -67,6 +121,7 @@ export function ReservaCard({ booking }: { booking: BookingData }) {
             <CheckBadgeIcon className="h-3.5 w-3.5 text-agua" />
             identidad verificada
           </span>
+          {booking.traveler_id && <TravelerScore travelerId={booking.traveler_id} />}
           {booking.status === 'confirmed' && (
             <span className="rounded-full bg-terra px-2 py-0.5 text-xs font-medium text-white">
               Cobrada en Ripio
@@ -110,14 +165,36 @@ export function ReservaCard({ booking }: { booking: BookingData }) {
         >
           {formatMoney(booking.total_minor, booking.currency)}
         </span>
-        <button
-          type="button"
-          onClick={() => toast('Pronto vas a poder escribirle al viajero')}
-          className="text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
-        >
-          Contactar al viajero
-        </button>
+        {isCompleted && !reviewed ? (
+          <button
+            type="button"
+            onClick={() => setReviewing(true)}
+            className="text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
+          >
+            Calificar al viajero
+          </button>
+        ) : isCompleted && reviewed ? (
+          <span className="text-xs text-ink-muted">Viajero reseñado</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => toast('Pronto vas a poder escribirle al viajero')}
+            className="text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
+          >
+            Contactar al viajero
+          </button>
+        )}
       </div>
+      <ReviewModal
+        isOpen={reviewing}
+        onOpenChange={setReviewing}
+        title={`¿Cómo fue ${guestName} como huésped?`}
+        subtitle="La reseña queda visible para otros anfitriones — se publica de inmediato."
+        categories={TRAVELER_CATEGORIES}
+        bodyPlaceholder="Contale a otros anfitriones cómo cuidó tu espacio…"
+        submitLabel="Publicar reseña del viajero"
+        onSubmit={submitReview}
+      />
     </article>
   );
 }

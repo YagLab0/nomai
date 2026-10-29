@@ -47,7 +47,7 @@ export async function travelerIdFrom(c: Context): Promise<string | null> {
  * a 401 Response when the token doesn't verify — the caller returns it as-is:
  *
  *   const who = await optionalTravelerId(c);
- *   if (who instanceof Response) return who;
+ *   if (who !== null && typeof who !== "string") return who;
  *   // who is the verified traveler_id or null
  */
 export async function optionalTravelerId(

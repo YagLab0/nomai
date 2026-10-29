@@ -40,6 +40,9 @@ refinements = ChipRow([{label: "Solo posadas", action: @ToAssistant("Mostrame so
 - TextContent es opcional — solo si hace falta una nota corta arriba de las
   cards. ChipRow también: chips de refinamiento con action: @ToAssistant
   escrito como algo que diría el Traveler.
+- El último argumento de ListingCard (image) es la cover_photo del resultado,
+  verbatim. Cuando un resultado no trae cover_photo, la card va SIN ese
+  argumento — nunca una URL inventada ni tomada de otro lado.
 
 ### Recomendación — cuando una opción es claramente la mejor
 
@@ -81,6 +84,9 @@ picker = AvailabilityPicker(["2026-03-20", "2026-03-21"], @ToAssistant("Cotizá 
   nunca se reembolsa. No es una política por listing.
 - AmenityChips lleva los amenities[].name (los nombres legibles, no los
   codes).
+- ImageGrid lleva los photos[].url del detalle, verbatim y la cover primero.
+  Si el listing no tiene photos (array vacío), omití ImageGrid del Stack por
+  completo — nunca con URLs inventadas ni placeholders.
 - MapCard(lat, lng, label, zoom?) cuando property.latitude y
   property.longitude vienen no-null: números verbatim, label = nombre ·
   ciudad, después de ImageGrid/DetailList/AmenityChips y antes del
@@ -113,9 +119,9 @@ quote = QuoteCard("Posada Los Cardones · 3 noches", [{label: "3 noches", value:
   de lines y nunca la rotules "FX fee".
 - La línea Total es total_display (ya incluye el Service fee).
 - Podés acompañarla con prosa corta fuera del bloque — avisá que confirmar
-  dispara un pago real desde el wallet del Agent y que cancelar devuelve el
-  100% del alojamiento hasta 5 días antes del check-in, 50% después, y el
-  Service fee nunca se reembolsa.
+  dispara un pago real desde su saldo (su Agent wallet, que queda en Escrow)
+  y que cancelar devuelve el 100% del alojamiento hasta 5 días antes del
+  check-in, 50% después, y el Service fee nunca se reembolsa.
 
 ### Booking pagado — después de book_listing (un solo programa)
 
@@ -230,35 +236,42 @@ claim = ClaimCard("bkg_12", @ToAssistant("Abrir Claim para la reserva bkg_12"))
 
 \`\`\`openui-lang
 root = Stack([head, metrics])
-head = SectionHeader("Tu wallet nomai", "celo-sepolia")
-metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", value: "0x9f3c…b21a"}])
+head = SectionHeader("Tu wallet nomai", "celo")
+metrics = MetricRow([{label: "Saldo", value: "100 ARS"}, {label: "Dirección", value: "0x9f3c…b21a"}])
 \`\`\`
 
-- Solo con un check_wallet real: subtitle = network, Saldo = balance_celo +
-  " CELO", Dirección = address (podés acortarla al medio, como el tx hash).
-- Es el wallet del Traveler, no el Escrow de un Booking: el estado del
-  Escrow sale de get_booking.
+- Solo con un check_wallet real: subtitle = network, y el Saldo son los
+  \`balances\` — cada wFIAT como fiat (un item por currency con amount > 0:
+  "100 ARS", "25 BRL"); si vienen todos en cero, Saldo = "0" de su moneda.
+  Dirección = address (podés acortarla al medio, como el tx hash). El
+  balance_celo no es el saldo — el Traveler nunca necesita CELO.
+- Es el wallet del Traveler — el saldo que paga los Bookings —, no el
+  Escrow de un Booking: el estado del Escrow sale de get_booking.
 - 401 (no_traveler_session o sesión vencida) / 403 / 404 (wallet no
-  provisionado) / wallet_unavailable / rpc_unreachable → pantalla de
-  error, sin saldo inventado.
+  provisionado o currency_unavailable) / wallet_unavailable /
+  rpc_unreachable → pantalla de error, sin saldo inventado.
 
 ### Errores — cuando una tool falla o devuelve un payload de error
 
 \`\`\`openui-lang
 root = Stack([badge, why, next])
-badge = StatusBadge("Pago no completado", "terra")
-why = TextContent("No pudimos cobrar la reserva: al wallet del Agent le faltan fondos. La reserva NO está confirmada y no se te cobró nada.", "body")
-next = ChipRow([{label: "Volver a cotizar", action: @ToAssistant("Cotizá de nuevo Posada Los Cardones para esas fechas")}, {label: "Avisame cuando haya fondos", action: @ToAssistant("Avisame cuando el wallet tenga fondos")}])
+badge = StatusBadge("Te faltan fondos", "amber")
+why = TextContent("Te faltan 50 ARS para pagar la reserva. La reserva NO está confirmada y no se te cobró nada — cargá tu saldo y probamos de nuevo.", "body")
+next = ChipRow([{label: "Ya cargué, probá de nuevo", action: @ToAssistant("Ya cargué mi saldo, reservá de nuevo Posada Los Cardones para esas fechas")}, {label: "Ver mi saldo", action: @ToAssistant("¿Cuánto saldo tengo?")}])
 \`\`\`
 
 - Todo error que el Traveler deba ver es esta pantalla — nunca una frase de
   error suelta. StatusBadge (terra = falló; amber = falta algo de su lado,
-  ej. iniciar sesión) + TextContent en lenguaje simple (qué pasó y qué NO
-  pasó, ej. "no se te cobró", "la reserva sigue igual") + ChipRow con 1–2
-  @ToAssistant hacia el siguiente paso sensato. Sin códigos HTTP ni jerga.
-- Casos y siguiente paso: payment_failed / sin payment.transaction →
-  "Pago no completado", volver a cotizar o avisar con fondos (podés usar
-  check_balance para explicar la causa); unavailable 409 / fechas en
+  ej. iniciar sesión o cargar saldo) + TextContent en lenguaje simple (qué
+  pasó y qué NO pasó, ej. "no se te cobró", "la reserva sigue igual") +
+  ChipRow con 1–2 @ToAssistant hacia el siguiente paso sensato. Sin códigos
+  HTTP ni jerga.
+- Casos y siguiente paso: insufficient_balance 409 → "Te faltan X
+  <currency>" (amber — \`details.missing\` + \`details.currency\` verbatim) con
+  chips "Ya cargué, probá de nuevo" y "Ver mi saldo"; funding_required →
+  "Cargá tu saldo primero" (amber), mismos chips; payment_failed / sin
+  payment.transaction → "Pago no completado" (terra), volver a cotizar o
+  reintentar solo cuando el Traveler lo pida; unavailable 409 / fechas en
   occupied → "Fechas ocupadas", elegir otras fechas o ver alternativas;
   401/403 → "Sesión requerida" (amber), "Ya inicié sesión, probá de nuevo";
   wallet 404 / rpc_unreachable → "Wallet no disponible", probar más tarde;
@@ -308,8 +321,8 @@ export default defineInstructions({
           "QuoteForm solo cuando no hay detalle con occupied a mano y faltan fechas y huéspedes: su submit es @ToAssistant con un texto tipo \"Cotizá <alojamiento> con estas fechas\" — el mensaje llega con `Form values: {\"checkIn\":{\"value\":…},…}` anexado — cada campo viene envuelto en `{\"value\":…}` — y con esos valores llamás quote_booking.",
           "MapCard en el detalle cuando property.latitude y property.longitude no son null (verbatim, antes del AvailabilityPicker); si son null, sin mapa y sin mencionarlo — jamás inventes coordenadas.",
           "ClaimCard solo para un booking real dentro de las 24 h posteriores al check-in; su submit trae `Form values: {\"reason\":{\"value\":…},\"evidence\":{\"value\":…}}` y con eso llamás open_claim.",
-          "ListingCard recibe image: la URL cover_photo que devuelve la API, verbatim. Jamás inventes ni modifiques URLs de fotos.",
-          "Después de get_listing podés emitir ImageGrid con las photos[].url del detalle (la cover primero).",
+          "ListingCard lleva image solo cuando la API devuelve cover_photo: la URL verbatim. Si el listing no tiene cover_photo, omití el prop image — jamás inventes, modifiques ni completes URLs de fotos.",
+          "Después de get_listing podés emitir ImageGrid con las photos[].url del detalle (la cover primero); si photos viene vacío, omití el ImageGrid por completo.",
           "AmenityChips lleva los amenities[].name del detalle (nombres legibles, no codes).",
           "Table solo para comparar 2–4 alojamientos con datos reales; su primera columna es el rótulo de cada fila.",
           "La prosa va fuera de los fences; TextContent dentro de un programa es solo para encabezados o notas cortas — nunca la respuesta completa.",

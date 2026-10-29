@@ -21,12 +21,28 @@ export type {
   DomainErrorCode,
   ListingCard,
   ListingDetail,
+  ListingReviews,
+  OwnerReviews,
   Quote,
   QuoteError,
   QuoteErrorCode,
+  ReplyResult,
+  ReviewCategories,
+  ReviewDirection,
+  ReviewErrorCode,
+  ReviewView,
   SearchParams,
+  SubmitReviewInput,
+  SubmitReviewResult,
 } from "./repo.js";
-export { formatMoney, releaseMockBooking, settleMockBooking } from "./repo.js";
+export {
+  formatMoney,
+  LODGING_CATEGORIES,
+  releaseMockBooking,
+  REVIEW_WINDOW_DAYS,
+  settleMockBooking,
+  TRAVELER_CATEGORIES,
+} from "./repo.js";
 
 import {
   bookListing as mockBookListing,
@@ -34,11 +50,16 @@ import {
   getBookingById as mockGetBookingById,
   getBookingDetail as mockGetBookingDetail,
   listBookings as mockListBookings,
+  listListingReviews as mockListListingReviews,
+  listOwnerReviews as mockListOwnerReviews,
   openClaim as mockOpenClaim,
   getListingBySlug as mockGetListingBySlug,
   getListingPayTo as mockGetListingPayTo,
   quoteStay as mockQuoteStay,
+  replyToReview as mockReplyToReview,
   searchListings as mockSearchListings,
+  submitReview as mockSubmitReview,
+  travelerScore as mockTravelerScore,
 } from "./repo.js";
 import {
   bookListing as supabaseBookListing,
@@ -46,11 +67,16 @@ import {
   getBookingById as supabaseGetBookingById,
   getBookingDetail as supabaseGetBookingDetail,
   listBookings as supabaseListBookings,
+  listListingReviews as supabaseListListingReviews,
+  listOwnerReviews as supabaseListOwnerReviews,
   openClaim as supabaseOpenClaim,
   getListingBySlug as supabaseGetListingBySlug,
   getListingPayTo as supabaseGetListingPayTo,
   quoteStay as supabaseQuoteStay,
+  replyToReview as supabaseReplyToReview,
   searchListings as supabaseSearchListings,
+  submitReview as supabaseSubmitReview,
+  travelerScore as supabaseTravelerScore,
 } from "./supabase.js";
 
 const dataSource = (process.env.LISTINGS_DATA_SOURCE ?? "mock")
@@ -83,3 +109,13 @@ export const getBookingDetail =
   dataSource === "supabase" ? supabaseGetBookingDetail : mockGetBookingDetail;
 export const openClaim =
   dataSource === "supabase" ? supabaseOpenClaim : mockOpenClaim;
+export const listListingReviews =
+  dataSource === "supabase" ? supabaseListListingReviews : mockListListingReviews;
+export const listOwnerReviews =
+  dataSource === "supabase" ? supabaseListOwnerReviews : mockListOwnerReviews;
+export const submitReview =
+  dataSource === "supabase" ? supabaseSubmitReview : mockSubmitReview;
+export const replyToReview =
+  dataSource === "supabase" ? supabaseReplyToReview : mockReplyToReview;
+export const travelerScore =
+  dataSource === "supabase" ? supabaseTravelerScore : mockTravelerScore;

@@ -7,9 +7,10 @@ export const dynamic = 'force-dynamic';
 /**
  * GET returns the caller's business (user-session read; RLS scopes it).
  * POST proxies to POST {NOMAI_API_URL}/owners/onboard — the onboarding
- * actions (claim, update-payout, create business + property + draft
- * listing) run in apps/api, which holds the secret key now; the user-scoped
- * inserts still execute under the caller's RLS there.
+ * actions (claim, create business + property + draft listing) run in
+ * apps/api, which holds the secret key now; the user-scoped inserts still
+ * execute under the caller's RLS there. The payout address is set
+ * separately through /api/owners/payout since #68.
  */
 export async function GET() {
   try {

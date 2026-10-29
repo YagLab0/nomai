@@ -103,10 +103,24 @@ Cancellation deadline passes, the rest 24 h after check-in if there is no Claim.
 Nomai can only route the funds to that Booking's Traveler or Owner.
 _Avoid_: deposit, hold, platform wallet
 
+**Escrow intent**:
+A `payments` row (kind `release` or `refund`) recording that Escrow owes a
+movement — a release to the Owner's verified Payout address, a refund to the
+Traveler's Agent wallet. The Escrow keeper claims each intent and executes it
+on-chain; the row's `status` (pending → executing → sent, or held/failed) is the
+movement's state machine.
+
 **FX fee**:
 The platform's commission on a currency conversion executed inside the Agent's flow
 (e.g. wARS→wBRL). Charged only when a conversion happens. One of two revenue streams.
 _Avoid_: markup, spread (also a market term — ambiguous)
+
+**Payout address**:
+The Owner's Ripio deposit address on the Celo network — where Escrow releases their
+Bookings to. An exchange deposit address can't sign, so it is verified empirically:
+the platform sends a small test deposit of the Owner's wFIAT and the Owner confirms
+the amount Ripio credited. Product Spanish: *dirección de cobro*.
+_Avoid_: wallet address (it is not a wallet the Owner holds keys for), bank account
 
 ### Verification
 
@@ -114,3 +128,45 @@ _Avoid_: markup, spread (also a market term — ambiguous)
 Identity checks that escalate with risk: phone at signup, first Funding or a
 Self passport proof for higher free Agent usage limits, government ID only at
 Booking time.
+
+### Reputation
+
+**Review**:
+A verified opinion tied one-to-one to a completed Booking — the only proof of
+a real stay, so Reviews can't be invented. Every Review runs in one of two
+directions (`to_lodging` / `to_traveler`), is written inside the Review
+window and is published immediately, with an overall 1–5 stars plus optional
+category scores. Product Spanish: *reseña*.
+_Avoid_: rating (the score it carries, not the piece), comment, testimonial
+
+**`to_lodging` Review**:
+The Traveler's Review of the Lodging they stayed at. Public content: it shows
+on the listing page under the Traveler's first name only, feeds the Lodging's
+and the Owner's scores, and is the only direction that can carry an Owner
+reply. Categories: cleanliness, accuracy, check-in, communication, location,
+value.
+
+**`to_traveler` Review**:
+The Owner's Review of the guest. Never public: readable only by the rated
+Traveler, the Owner who wrote it and Owners who have hosted that Traveler —
+the guest score exists so an Owner can size up a guest, not to shame anyone.
+Categories: cleanliness, communication, house rules.
+
+**Review window**:
+The 14 days after check-out during which each side may post its Review
+(Airbnb's window). Once it closes, the Booking can no longer be reviewed by
+either side.
+_Avoid_: deadline, review period (vague)
+
+**Recency-weighted score**:
+The aggregate the Reviews feed: a weighted average where each Review's weight
+starts at 1 and decays linearly to zero 36 months after it was written
+(Booking's model — recent stays shape the score, old ones fade out). Cached
+on `listings.rating`/`reviews` and `businesses.rating`/`reviews`; the
+Traveler's own score is computed on read and is never public.
+_Avoid_: average, plain rating
+
+**Owner reply**:
+The Owner's public answer shown under a `to_lodging` Review they received —
+one per Review, and posting an empty body clears it.
+Product Spanish: *respuesta del dueño*.

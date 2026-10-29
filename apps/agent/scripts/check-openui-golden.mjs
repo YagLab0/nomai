@@ -98,8 +98,15 @@ metrics = MetricRow([{label: "Pagado", value: "US$ 402", note: "2 reservas"}, {l
   {
     name: "traveler wallet (SectionHeader + MetricRow, after check_wallet)",
     code: `root = Stack([head, metrics])
-head = SectionHeader("Tu wallet nomai", "celo-sepolia")
-metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", value: "0x9f3c…b21a"}])`,
+head = SectionHeader("Tu wallet nomai", "celo")
+metrics = MetricRow([{label: "Saldo", value: "100 ARS"}, {label: "Dirección", value: "0x9f3c…b21a"}])`,
+  },
+  {
+    name: "insufficient balance error (StatusBadge + TextContent + ChipRow)",
+    code: `root = Stack([badge, why, next])
+badge = StatusBadge("Te faltan fondos", "amber")
+why = TextContent("Te faltan 50 ARS para pagar la reserva. La reserva NO está confirmada y no se te cobró nada — cargá tu saldo y probamos de nuevo.", "body")
+next = ChipRow([{label: "Ya cargué, probá de nuevo", action: @ToAssistant("Ya cargué mi saldo, reservá de nuevo Posada Los Cardones para esas fechas")}, {label: "Ver mi saldo", action: @ToAssistant("¿Cuánto saldo tengo?")}])`,
   },
   {
     name: "bare Stack (single inline TextContent child)",
