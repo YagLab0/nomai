@@ -12,6 +12,7 @@
     "dev": "eve dev",
     "start": "eve start",
     "test:openui": "node scripts/check-openui-golden.mjs",
+    "smoke:book": "tsx scripts/smoke-book-traveler-pays.ts",
     "type-check": "tsc"
   },
   "dependencies": {
@@ -29,9 +30,11 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "@types/node": "24.x",
     "just-bash": "^3.6.0",
     "microsandbox": "0.5.5",
+    "tsx": "^4.19.2",
     "typescript": "^5.2.2"
   },
   "engines": {

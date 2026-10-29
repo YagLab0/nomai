@@ -119,9 +119,9 @@ quote = QuoteCard("Posada Los Cardones · 3 noches", [{label: "3 noches", value:
   de lines y nunca la rotules "FX fee".
 - La línea Total es total_display (ya incluye el Service fee).
 - Podés acompañarla con prosa corta fuera del bloque — avisá que confirmar
-  dispara un pago real desde el wallet del Agent y que cancelar devuelve el
-  100% del alojamiento hasta 5 días antes del check-in, 50% después, y el
-  Service fee nunca se reembolsa.
+  dispara un pago real desde su saldo (su Agent wallet, que queda en Escrow)
+  y que cancelar devuelve el 100% del alojamiento hasta 5 días antes del
+  check-in, 50% después, y el Service fee nunca se reembolsa.
 
 ### Booking pagado — después de book_listing (un solo programa)
 
@@ -236,35 +236,42 @@ claim = ClaimCard("bkg_12", @ToAssistant("Abrir Claim para la reserva bkg_12"))
 
 \`\`\`openui-lang
 root = Stack([head, metrics])
-head = SectionHeader("Tu wallet nomai", "celo-sepolia")
-metrics = MetricRow([{label: "Saldo", value: "0.5 CELO"}, {label: "Dirección", value: "0x9f3c…b21a"}])
+head = SectionHeader("Tu wallet nomai", "celo")
+metrics = MetricRow([{label: "Saldo", value: "100 ARS"}, {label: "Dirección", value: "0x9f3c…b21a"}])
 \`\`\`
 
-- Solo con un check_wallet real: subtitle = network, Saldo = balance_celo +
-  " CELO", Dirección = address (podés acortarla al medio, como el tx hash).
-- Es el wallet del Traveler, no el Escrow de un Booking: el estado del
-  Escrow sale de get_booking.
+- Solo con un check_wallet real: subtitle = network, y el Saldo son los
+  \`balances\` — cada wFIAT como fiat (un item por currency con amount > 0:
+  "100 ARS", "25 BRL"); si vienen todos en cero, Saldo = "0" de su moneda.
+  Dirección = address (podés acortarla al medio, como el tx hash). El
+  balance_celo no es el saldo — el Traveler nunca necesita CELO.
+- Es el wallet del Traveler — el saldo que paga los Bookings —, no el
+  Escrow de un Booking: el estado del Escrow sale de get_booking.
 - 401 (no_traveler_session o sesión vencida) / 403 / 404 (wallet no
-  provisionado) / wallet_unavailable / rpc_unreachable → pantalla de
-  error, sin saldo inventado.
+  provisionado o currency_unavailable) / wallet_unavailable /
+  rpc_unreachable → pantalla de error, sin saldo inventado.
 
 ### Errores — cuando una tool falla o devuelve un payload de error
 
 \`\`\`openui-lang
 root = Stack([badge, why, next])
-badge = StatusBadge("Pago no completado", "terra")
-why = TextContent("No pudimos cobrar la reserva: al wallet del Agent le faltan fondos. La reserva NO está confirmada y no se te cobró nada.", "body")
-next = ChipRow([{label: "Volver a cotizar", action: @ToAssistant("Cotizá de nuevo Posada Los Cardones para esas fechas")}, {label: "Avisame cuando haya fondos", action: @ToAssistant("Avisame cuando el wallet tenga fondos")}])
+badge = StatusBadge("Te faltan fondos", "amber")
+why = TextContent("Te faltan 50 ARS para pagar la reserva. La reserva NO está confirmada y no se te cobró nada — cargá tu saldo y probamos de nuevo.", "body")
+next = ChipRow([{label: "Ya cargué, probá de nuevo", action: @ToAssistant("Ya cargué mi saldo, reservá de nuevo Posada Los Cardones para esas fechas")}, {label: "Ver mi saldo", action: @ToAssistant("¿Cuánto saldo tengo?")}])
 \`\`\`
 
 - Todo error que el Traveler deba ver es esta pantalla — nunca una frase de
   error suelta. StatusBadge (terra = falló; amber = falta algo de su lado,
-  ej. iniciar sesión) + TextContent en lenguaje simple (qué pasó y qué NO
-  pasó, ej. "no se te cobró", "la reserva sigue igual") + ChipRow con 1–2
-  @ToAssistant hacia el siguiente paso sensato. Sin códigos HTTP ni jerga.
-- Casos y siguiente paso: payment_failed / sin payment.transaction →
-  "Pago no completado", volver a cotizar o avisar con fondos (podés usar
-  check_balance para explicar la causa); unavailable 409 / fechas en
+  ej. iniciar sesión o cargar saldo) + TextContent en lenguaje simple (qué
+  pasó y qué NO pasó, ej. "no se te cobró", "la reserva sigue igual") +
+  ChipRow con 1–2 @ToAssistant hacia el siguiente paso sensato. Sin códigos
+  HTTP ni jerga.
+- Casos y siguiente paso: insufficient_balance 409 → "Te faltan X
+  <currency>" (amber — \`details.missing\` + \`details.currency\` verbatim) con
+  chips "Ya cargué, probá de nuevo" y "Ver mi saldo"; funding_required →
+  "Cargá tu saldo primero" (amber), mismos chips; payment_failed / sin
+  payment.transaction → "Pago no completado" (terra), volver a cotizar o
+  reintentar solo cuando el Traveler lo pida; unavailable 409 / fechas en
   occupied → "Fechas ocupadas", elegir otras fechas o ver alternativas;
   401/403 → "Sesión requerida" (amber), "Ya inicié sesión, probá de nuevo";
   wallet 404 / rpc_unreachable → "Wallet no disponible", probar más tarde;
