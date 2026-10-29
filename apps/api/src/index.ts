@@ -53,7 +53,7 @@ registerBookingHooks(server);
 
 const paidRoutes: RoutesConfig = {
   // price/payTo resolve per request — a fresh server-side quote and the
-  // listing's own business.payout_address, never a stale quote.
+  // shared Escrow vault (ADR-0006), never a stale quote.
   [BOOKING_ROUTE_PATTERN]: bookingRouteConfig,
 };
 
@@ -81,6 +81,13 @@ if (!process.env.X402_API_KEY) {
 if (!process.env.AGENT_WALLET_MASTER_SECRET) {
   console.warn(
     "⚠️  AGENT_WALLET_MASTER_SECRET is not set — Agent wallet creation will fail with wallet_unavailable."
+  );
+}
+// Every Booking must pay into the vault — warn loudly at boot rather than
+// letting each charge fail at request time (the route answers 503).
+if (!process.env.ESCROW_ADDRESS) {
+  console.warn(
+    "⚠️  ESCROW_ADDRESS is not set — every Booking charge fails until the Escrow vault is configured."
   );
 }
 

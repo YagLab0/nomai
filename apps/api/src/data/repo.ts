@@ -474,7 +474,8 @@ export interface ListingDetail {
   occupied: string[];
 }
 
-/** The Owner's wallet for a listing — the x402 `payTo` for a Booking. */
+/** The Owner's wallet for a listing — where Escrow releases land. It is no
+ *  longer the x402 payTo: Bookings settle into the shared vault (#61). */
 export function getListingPayTo(slug: string): string | null {
   const listing = LISTING_BY_SLUG.get(slug);
   if (!listing || listing.status !== "published") return null;

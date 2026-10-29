@@ -581,7 +581,8 @@ export async function getListingBySlug(slug: string): Promise<ListingDetail | nu
   };
 }
 
-/** The Owner's wallet for a listing — the x402 `payTo` for a Booking. */
+/** The Owner's wallet for a listing — where Escrow releases land. It is no
+ *  longer the x402 payTo: Bookings settle into the shared vault (#61). */
 export async function getListingPayTo(slug: string): Promise<string | null> {
   const { data, error } = await client()
     .from("listings")

@@ -4,7 +4,8 @@
 //   1. search city + dates          → at least one card with stay totals
 //   2. detail                       → carries `occupied` (unavailable nights)
 //   3. quote                        → nights + cleaning + Service fee = total
-//   4. book, no payment             → 402 (x402-gated: the Agent must pay)
+//   4. book, no payment             → 402: payTo = Escrow vault (#61),
+//      asset = the listing's wFIAT (#58), amount at its decimals
 //   5. book, bad body               → 400 (precheck answers before the 402)
 //   6. search again, same dates     → listing still there (a 402 holds nothing)
 //   7. GET /bookings                → 400 without guest_ref; [] for a fresh one
@@ -14,6 +15,10 @@
 //
 // A paid Booking needs a funded buyer wallet — exercise that with
 // `pnpm api:buy`, not here. Everything above is read-only, so re-runs are safe.
+
+import "dotenv/config";
+import { getAddress } from "viem";
+import { FIAT_WFIAT, NETWORK, X402 } from "../src/x402.js";
 
 const BASE = (process.env.NOMAI_API_URL ?? "http://localhost:3001").replace(
   /\/+$/,
@@ -71,6 +76,7 @@ async function main() {
   assert(search.status === 200, `search returned ${search.status}`);
   const cards = (search.body?.results ?? []) as {
     slug: string;
+    currency?: string;
     total_minor?: number;
     total_display?: string;
   }[];
@@ -121,8 +127,13 @@ async function main() {
   );
   ok(`total: ${q?.total_display}`);
 
-  // 4 ─ unpaid book → 402
-  step(`book without payment: ${slug} → expect 402`);
+  // 4 ─ unpaid book → 402 paying the vault in the listing's wFIAT.
+  // x402 v2 carries the requirements base64 in the PAYMENT-REQUIRED header
+  // (the JSON body stays {}). Asserts: payTo is always ESCROW_ADDRESS (#61 —
+  // Bookings never settle to the Owner directly), asset is the listing
+  // currency's wFIAT — or USDC for USD (#58) — and amount is the stay total
+  // at that token's decimals.
+  step(`book without payment: ${slug} → expect 402 (vault + wFIAT)`);
   const book = await post(`/listings/${slug}/book`, {
     checkin,
     checkout,
@@ -130,10 +141,52 @@ async function main() {
     guest_ref: guestRef,
   });
   assert(book.status === 402, `book returned ${book.status}`);
+  const requiredHeader = book.headers.get("payment-required");
   assert(
-    book.headers.has("payment-required") || book.body != null,
+    requiredHeader != null || book.body != null,
     "402 carries the payment requirements"
   );
+  if (requiredHeader) {
+    const required = JSON.parse(
+      Buffer.from(requiredHeader, "base64").toString("utf8")
+    ) as {
+      accepts?: {
+        payTo?: string;
+        asset?: string;
+        amount?: string;
+        extra?: Record<string, unknown>;
+      }[];
+    };
+    const accept = required.accepts?.[0];
+    const vault = process.env.ESCROW_ADDRESS;
+    assert(
+      !!vault && accept?.payTo === getAddress(vault),
+      `payTo is the Escrow vault (${accept?.payTo})`
+    );
+    const currency = (cards[0].currency ?? "").toUpperCase();
+    const symbol = FIAT_WFIAT[currency] ?? (currency === "USD" ? "usdc" : null);
+    const def = symbol ? X402[NETWORK].tokens[symbol] : undefined;
+    assert(
+      !!def && accept?.asset === getAddress(def.address),
+      `asset is the ${currency} wFIAT → ${symbol} (${accept?.asset})`
+    );
+    if (def && accept?.amount && cards[0].total_minor != null) {
+      const want = (
+        BigInt(cards[0].total_minor) *
+        10n ** BigInt(def.decimals - 6)
+      ).toString();
+      assert(
+        accept.amount === want,
+        `amount ${accept.amount} = total_minor at ${def.decimals} decimals`
+      );
+    }
+    if (def?.transferMethod === "permit2") {
+      assert(
+        accept?.extra?.assetTransferMethod === "permit2",
+        "wFIAT carries assetTransferMethod: permit2"
+      );
+    }
+  }
 
   // 5 ─ bad body → 400 before the paywall
   step("book with a bad body → expect 400");
