@@ -27,6 +27,7 @@ import usage from "./usage.js";
 import wallet from "./wallet.js";
 import keeper from "./keeper.js";
 import owners from "./owners.js";
+import chats from "./chats.js";
 import {
   BOOKING_ROUTE_PATTERN,
   bookingPrecheck,
@@ -107,6 +108,10 @@ app.route("/wallet", wallet);
 // Bearer-scoped to the verified user id; the web /api/owners/* routes are
 // now thin proxies that forward the session token.
 app.route("/owners", owners);
+
+// Chat threads — the Traveler's saved Nomito conversations. Bearer-scoped
+// like /usage: RLS isolates rows per Traveler on the JWT-scoped client.
+app.route("/chats", chats);
 
 // Ops-only Escrow keeper (ADR-0006) — POST /internal/keeper, Bearer
 // KEEPER_SECRET. Cron/manual trigger for process_escrow_releases().
