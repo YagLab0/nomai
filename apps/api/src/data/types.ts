@@ -66,6 +66,10 @@ export interface Business {
   payout_address?: string;
   email?: string;
   phone?: string;
+  /** Storefront aggregate — recency-weighted across the business's Lodgings,
+   * recomputed by refresh_review_scores() (ADR-0008). Null without Reviews. */
+  rating?: number | null;
+  reviews?: number;
   status: BusinessStatus;
   created_at: string;
   updated_at: string;

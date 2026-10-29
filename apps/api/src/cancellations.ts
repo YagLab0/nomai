@@ -23,25 +23,34 @@ import {
   getBookingDetail,
   listBookings,
   openClaim,
+  submitReview,
   type CancelErrorCode,
   type ClaimErrorCode,
   type ClaimReason,
+  type ReviewCategories,
+  type ReviewErrorCode,
 } from "./data/index.js";
 import { travelerIdFrom } from "./auth.js";
 
 const bookings = new Hono();
 
 function errorStatus(
-  code: CancelErrorCode | ClaimErrorCode
-): 403 | 404 | 409 | 500 {
+  code: CancelErrorCode | ClaimErrorCode | ReviewErrorCode
+): 400 | 403 | 404 | 409 | 500 {
   switch (code) {
     case "not_found":
       return 404;
     case "forbidden":
       return 403;
+    case "invalid_rating":
+    case "invalid":
+      return 400;
     case "not_cancellable":
     case "invalid_state":
     case "claim_window_closed":
+    case "not_reviewable":
+    case "window_closed":
+    case "already_reviewed":
       return 409;
     default:
       // no_policy — broken data, not the caller's fault.
@@ -177,6 +186,42 @@ bookings.post("/:id/cancel", async (c) => {
     refund_display: x.refund_display,
     currency: x.currency,
   });
+});
+
+// POST /bookings/:id/review — the Traveler's Review of the stay (issue #51,
+// ADR-0008). Bearer-required: submit_review() re-checks inside one
+// transaction that the Booking completed, the 14-day window is open and the
+// caller IS that Booking's Traveler — the route never trusts body fields.
+// Body: { rating: 1..5, body?: string, categories?: {cleanliness, accuracy,
+//          checkin, communication, location, value} }.
+bookings.post("/:id/review", async (c) => {
+  const userId = await travelerIdFrom(c);
+  if (!userId)
+    return c.json({ error: "Iniciá sesión para dejar tu reseña." }, 401);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    rating?: unknown;
+    body?: unknown;
+    categories?: unknown;
+  } | null;
+  if (!Number.isInteger(body?.rating))
+    return c.json({ error: "rating must be an integer between 1 and 5", code: "invalid_rating" }, 400);
+
+  const cats = (body?.categories ?? {}) as ReviewCategories;
+  const r = await submitReview({
+    userId,
+    bookingId: c.req.param("id"),
+    direction: "to_lodging",
+    rating: body!.rating as number,
+    body: typeof body?.body === "string" ? body.body : null,
+    categories: cats,
+  });
+  if (!r.ok)
+    return c.json(
+      { error: r.error.message, code: r.error.code },
+      errorStatus(r.error.code)
+    );
+  return c.json({ ok: true, review_id: r.review_id, score: r.score }, 201);
 });
 
 export default bookings;

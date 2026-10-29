@@ -10,6 +10,7 @@ import { optionalTravelerId } from "./auth.js";
 import {
   bookListing,
   getListingBySlug,
+  listListingReviews,
   quoteStay,
   searchListings,
   type DomainErrorCode,
@@ -72,6 +73,16 @@ listings.get("/:slug", async (c) => {
   const detail = await getListingBySlug(c.req.param("slug"));
   if (!detail) return c.json({ error: "listing not found" }, 404);
   return c.json(detail);
+});
+
+// GET /listings/:slug/reviews — the Lodging's public Reviews (issue #51,
+// ADR-0008): weighted score, per-category averages and the written reviews,
+// newest first. Registered before /:slug? No — Hono matches exact segments
+// first, so /:slug/reviews never falls into /:slug.
+listings.get("/:slug/reviews", async (c) => {
+  const r = await listListingReviews(c.req.param("slug"));
+  if (!r) return c.json({ error: "listing not found" }, 404);
+  return c.json(r);
 });
 
 // GET /listings/:slug/quote?checkin=&checkout=&guests= — night-by-night price.

@@ -4008,6 +4008,49 @@ insert into public.availability_nights (listing_id,night,status,units_available,
 ('lst_depto_parkway','2027-01-26','open',1,null)
 on conflict do nothing;
 
+-- ---------------------------------------------------------------------------
+-- REVIEW FIXTURES — completed stays + the Traveler's Review (ADR-0008).
+-- ---------------------------------------------------------------------------
+insert into public.bookings (id,listing_id,traveler_id,guest_ref,checkin,checkout,guests,total_minor,currency,status,escrow_status,cancel_deadline,first_release_at,final_release_at,created_at) values
+('bkg_seed_adobe_1','lst_casa_de_adobe',null,null,'2026-10-10','2026-10-13',2,300000000000,'ARS','completed','released','2026-10-05','2026-10-10T13:00:00Z','2026-10-10T13:00:00Z','2026-09-20T00:00:00.000Z'),
+('bkg_seed_adobe_2','lst_casa_de_adobe',null,null,'2026-08-21','2026-08-24',3,300000000000,'ARS','completed','released','2026-08-16','2026-08-21T13:00:00Z','2026-08-21T13:00:00Z','2026-08-01T00:00:00.000Z'),
+('bkg_seed_adobe_3','lst_casa_de_adobe',null,null,'2026-06-12','2026-06-15',2,300000000000,'ARS','completed','released','2026-06-07','2026-06-12T13:00:00Z','2026-06-12T13:00:00Z','2026-05-23T00:00:00.000Z'),
+('bkg_seed_adobe_4','lst_casa_de_adobe',null,null,'2026-02-20','2026-02-23',4,300000000000,'ARS','completed','released','2026-02-15','2026-02-20T13:00:00Z','2026-02-20T13:00:00Z','2026-01-31T00:00:00.000Z'),
+('bkg_seed_algarrobo_1','lst_posada_el_algarrobo',null,null,'2026-09-18','2026-09-21',2,234000000000,'ARS','completed','released','2026-09-13','2026-09-18T13:00:00Z','2026-09-18T13:00:00Z','2026-08-29T00:00:00.000Z'),
+('bkg_seed_algarrobo_2','lst_posada_el_algarrobo',null,null,'2026-07-04','2026-07-07',2,234000000000,'ARS','completed','released','2026-06-29','2026-07-04T13:00:00Z','2026-07-04T13:00:00Z','2026-06-14T00:00:00.000Z'),
+('bkg_seed_algarrobo_3','lst_posada_el_algarrobo',null,null,'2026-04-11','2026-04-13',1,156000000000,'ARS','completed','released','2026-04-06','2026-04-11T13:00:00Z','2026-04-11T13:00:00Z','2026-03-22T00:00:00.000Z'),
+('bkg_seed_colores_1','lst_cabanas_siete_colores',null,null,'2026-10-02','2026-10-05',2,342000000000,'ARS','completed','released','2026-09-27','2026-10-02T13:00:00Z','2026-10-02T13:00:00Z','2026-09-12T00:00:00.000Z'),
+('bkg_seed_colores_2','lst_cabanas_siete_colores',null,null,'2026-08-08','2026-08-11',3,342000000000,'ARS','completed','released','2026-08-03','2026-08-08T13:00:00Z','2026-08-08T13:00:00Z','2026-07-19T00:00:00.000Z'),
+('bkg_seed_colores_3','lst_cabanas_siete_colores',null,null,'2026-05-16','2026-05-19',2,342000000000,'ARS','completed','released','2026-05-11','2026-05-16T13:00:00Z','2026-05-16T13:00:00Z','2026-04-26T00:00:00.000Z'),
+('bkg_seed_marina_1','lst_posada_marina',null,null,'2026-09-25','2026-09-28',2,720000000,'BRL','completed','released','2026-09-20','2026-09-25T13:00:00Z','2026-09-25T13:00:00Z','2026-09-05T00:00:00.000Z'),
+('bkg_seed_marina_2','lst_posada_marina',null,null,'2026-06-19','2026-06-22',2,720000000,'BRL','completed','released','2026-06-14','2026-06-19T13:00:00Z','2026-06-19T13:00:00Z','2026-05-30T00:00:00.000Z'),
+('bkg_seed_getsemani_1','lst_casa_getsemani',null,null,'2026-10-16','2026-10-19',4,1140000000000,'COP','completed','released','2026-10-11','2026-10-16T13:00:00Z','2026-10-16T13:00:00Z','2026-09-26T00:00:00.000Z'),
+('bkg_seed_getsemani_2','lst_casa_getsemani',null,null,'2026-07-24','2026-07-27',3,1140000000000,'COP','completed','released','2026-07-19','2026-07-24T13:00:00Z','2026-07-24T13:00:00Z','2026-07-04T00:00:00.000Z')
+on conflict do nothing;
+
+insert into public.reviews (booking_id,direction,author_id,author_name,subject_listing_id,subject_traveler_id,rating,cleanliness,accuracy,checkin,communication,location,value,house_rules,body,reply_body,replied_at,created_at) values
+('bkg_seed_adobe_1','to_lodging',null,'Sofía','lst_casa_de_adobe',null,5,5,5,5,5,5,5,null,'La casa es igualita a las fotos: el patio con la parral es un sueño y la vajilla de barro, un detalle precioso. Ramón nos esperó con la estufa prendida y una lista de bodegas. Volveríamos sin pensarlo.','¡Gracias Sofía! Los esperamos para la vendimia, el patio pide vino de por medio.','2026-10-15T19:20:00-03:00','2026-10-15T19:20:00-03:00'),
+('bkg_seed_adobe_2','to_lodging',null,'Diego','lst_casa_de_adobe',null,4,4,4,5,5,5,4,null,'Ubicación perfecta, a dos cuadras de la plaza. La casa está impecable y el check-in fue rapidísimo. Único detalle: el wifi anduvo flojo a la noche.',null,null,'2026-08-25T11:05:00-03:00'),
+('bkg_seed_adobe_3','to_lodging',null,'Martina','lst_casa_de_adobe',null,5,5,5,4,5,5,5,null,'Hermosa estadía. El parrilla y el patio son para quedarse a vivir, y Cafayate en invierno es otra cosa. Súper recomendable.',null,null,'2026-06-17T09:40:00-03:00'),
+('bkg_seed_adobe_4','to_lodging',null,'Camila','lst_casa_de_adobe',null,4,4,4,4,4,5,4,null,'Todo correcto y el lugar es precioso. El colchón del cuarto principal algo blando para mi gusto, pero la experiencia general muy buena.',null,null,'2026-02-25T14:00:00-03:00'),
+('bkg_seed_algarrobo_1','to_lodging',null,'Lucas','lst_posada_el_algarrobo',null,5,5,5,5,5,4,5,null,'Desayuno casero de otra época y una atención que no se ve seguido. Graciela nos ayudó con los paseos a Cafayate y Purmamarca. Volvería seguro.',null,null,'2026-09-22T10:15:00-03:00'),
+('bkg_seed_algarrobo_2','to_lodging',null,'Julián','lst_posada_el_algarrobo',null,4,4,4,5,5,4,4,null,'Posada cálida en pleno invierno, la estufa a leña se agradece. A pie del centro pero con algo de subida; lo que pierde en ubicación lo gana en tranquilidad.',null,null,'2026-07-08T16:30:00-03:00'),
+('bkg_seed_algarrobo_3','to_lodging',null,'Valeria','lst_posada_el_algarrobo',null,5,5,5,5,5,4,5,null,'Escapada corta y perfecta. Silencio total a la noche y un pan casero que vale el viaje.',null,null,'2026-04-14T08:50:00-03:00'),
+('bkg_seed_colores_1','to_lodging',null,'Bruno','lst_cabanas_siete_colores',null,5,5,5,5,5,5,5,null,'Despertarse mirando el Cerro de los Siete Colores no tiene precio. La cabaña impecable, la calefacción a leña un golazo y Lidia siempre a un mensaje de distancia.','¡Gracias Bruno! Nos encanta recibir viajeros que aprovechan la quebrada. Cuando quieran volver, acá estamos.','2026-10-06T20:10:00-03:00','2026-10-06T20:10:00-03:00'),
+('bkg_seed_colores_2','to_lodging',null,'Antonella','lst_cabanas_siete_colores',null,5,5,5,5,4,5,5,null,'La vista es exactamente la de las fotos, algo raro de encontrar. Cabaña cómoda y muy limpia. El Paseo de los Colorados a diez minutos caminando.',null,null,'2026-08-12T12:45:00-03:00'),
+('bkg_seed_colores_3','to_lodging',null,'Federico','lst_cabanas_siete_colores',null,4,4,4,4,5,5,4,null,'Muy buena cabaña y ubicación inmejorable. Le faltaría algo de vajilla extra si van más de dos personas, pero la vista lo compensa todo.',null,null,'2026-05-20T09:00:00-03:00'),
+('bkg_seed_marina_1','to_lodging',null,'Thiago','lst_posada_marina',null,5,5,5,5,5,5,4,null,'Pousada a dois quarteirões da praia do Campeche, café da manhã excelente e a Marina sempre disponível. Quarto limpíssimo, cama confortável. Voltaremos no verão.',null,null,'2026-09-29T13:20:00-03:00'),
+('bkg_seed_marina_2','to_lodging',null,'Renata','lst_posada_marina',null,4,4,4,4,5,5,4,null,'Posada a pasos del Campeche, atención de Marina impecable y desayuno riquísimo. La habitación algo chica para una estadía larga, pero para un finde va perfecto.',null,null,'2026-06-23T15:35:00-03:00'),
+('bkg_seed_getsemani_1','to_lodging',null,'Andrés','lst_casa_getsemani',null,5,5,5,5,5,5,5,null,'Getsemaní es el barrio para quedarse en Cartagena y esta casa lo demuestra: patio interno, ventiladores en todos lados y la Plaza de la Trinidad a la vuelta. Valentina resolvió todo por WhatsApp en minutos.',null,null,'2026-10-20T18:00:00-05:00'),
+('bkg_seed_getsemani_2','to_lodging',null,'Paulina','lst_casa_getsemani',null,4,4,4,5,5,5,4,null,'Casa con mucho carácter en el mejor barrio de la ciudad. Aviso para sonos livianos: el fin de semana se escucha la movida de la Trinidad; para nosotros fue parte del encanto.',null,null,'2026-07-28T10:25:00-05:00')
+on conflict do nothing;
+
+select public.refresh_review_scores('lst_casa_de_adobe', 'bus_ramon_guaymas');
+select public.refresh_review_scores('lst_posada_el_algarrobo', 'bus_graciela_torres');
+select public.refresh_review_scores('lst_cabanas_siete_colores', 'bus_lidia_condori');
+select public.refresh_review_scores('lst_posada_marina', 'bus_marina_rios');
+select public.refresh_review_scores('lst_casa_getsemani', 'bus_valentina_herrera');
+
 insert into public.businesses (id, name, slug, payout_address, email, status, user_id) values
   ('biz_test','Posada Test','posada-test','0x0000000000000000000000000000000000000001','duena@nomai.dev','active',null)
 on conflict (id) do nothing;

@@ -21,7 +21,12 @@ import { createSupabaseAdmin } from "../supabase.js";
 import { AMENITY_BY_CODE, AMENITY_BY_ID } from "./catalog.js";
 import { isoDay, nightsBetween } from "./availability.js";
 import { resolvePhotoUrl } from "./photo-url.js";
-import { formatMoney, toBookingDetail, toBookingSummary } from "./repo.js";
+import {
+  formatMoney,
+  LODGING_CATEGORIES,
+  toBookingDetail,
+  toBookingSummary,
+} from "./repo.js";
 import type {
   BookInput,
   BookResult,
@@ -38,10 +43,17 @@ import type {
   DomainError,
   ListingCard,
   ListingDetail,
+  ListingReviews,
+  OwnerReviews,
   Quote,
   QuoteError,
   QuoteErrorCode,
+  ReplyResult,
+  ReviewErrorCode,
+  ReviewView,
   SearchParams,
+  SubmitReviewInput,
+  SubmitReviewResult,
 } from "./repo.js";
 import type {
   AvailabilityNight,
@@ -160,6 +172,8 @@ function toBusiness(row: BusinessRow): Business {
     payout_address: row.payout_address ?? undefined,
     email: row.email ?? undefined,
     phone: row.phone ?? undefined,
+    rating: row.rating,
+    reviews: row.reviews,
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -685,6 +699,10 @@ export async function searchListings(
       reviews: listing.reviews,
       owner_name: owner?.name ?? "",
       owner_slug: owner?.slug ?? "",
+      // The storefront aggregate — businesses.rating/reviews, recomputed by
+      // refresh_review_scores() on every submitted Review (ADR-0008).
+      owner_rating: owner?.rating ?? null,
+      owner_reviews: owner?.reviews ?? 0,
       amenities: amenities.map((a) => a.code),
     };
 
@@ -904,9 +922,12 @@ export async function cancelBooking(
 // ---------------------------------------------------------------------------
 
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
-type BookingWithSlug = BookingRow & { listings: { slug: string } | null };
+type BookingWithSlug = BookingRow & {
+  listings: { slug: string } | null;
+  reviews: { direction: string }[] | null;
+};
 
-const BOOKING_SELECT = "*, listings(slug)";
+const BOOKING_SELECT = "*, listings(slug), reviews(direction)";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -927,6 +948,9 @@ function toRecord(row: BookingWithSlug): BookingRecord {
     final_release_at: row.final_release_at,
     claim_reason: row.claim_reason,
     claim_resolution: row.claim_resolution,
+    lodging_reviewed: (row.reviews ?? []).some(
+      (r) => r.direction === "to_lodging"
+    ),
   };
 }
 
@@ -1027,6 +1051,199 @@ export async function processEscrowReleases(): Promise<EscrowReleaseResult> {
   const { data, error } = await client().rpc("process_escrow_releases");
   if (error) throw error;
   return data as unknown as EscrowReleaseResult;
+}
+
+// ---------------------------------------------------------------------------
+// reviews (issue #51, ADR-0008). Public reads hit the reviews table straight
+// (RLS exposes to_lodging rows); writes go through the service_role-only
+// submit_review / reply_to_review RPCs, which re-check the Booking's status,
+// window and ownership inside one transaction.
+// ---------------------------------------------------------------------------
+
+type ReviewRow = Database["public"]["Tables"]["reviews"]["Row"] & {
+  booking: {
+    checkout: string;
+    listing: { slug: string; title: string } | null;
+    traveler: { full_name: string | null } | null;
+  } | null;
+};
+
+const REVIEW_SELECT =
+  "id, booking_id, direction, author_name, rating, body, reply_body, replied_at, created_at, " +
+  "cleanliness, accuracy, checkin, communication, location, value, house_rules, " +
+  "booking:bookings!inner (checkout, listing:listings!inner (slug, title), traveler:travelers (full_name))";
+
+function toReviewView(r: ReviewRow): ReviewView {
+  return {
+    review_id: r.id,
+    booking_id: r.booking_id,
+    direction: r.direction,
+    author_name: r.author_name,
+    listing_slug: r.booking?.listing?.slug,
+    listing_title: r.booking?.listing?.title,
+    subject_name:
+      r.booking?.traveler?.full_name?.split(" ")[0] ?? undefined,
+    rating: r.rating,
+    categories: Object.fromEntries(
+      [...LODGING_CATEGORIES, "house_rules" as const]
+        .map((k) => [k, r[k]] as const)
+        .filter(([, v]) => v != null)
+    ),
+    body: r.body,
+    reply_body: r.reply_body,
+    replied_at: r.replied_at,
+    created_at: r.created_at,
+    stayed_checkout: r.booking?.checkout,
+  };
+}
+
+function categoryAverages(rows: ReviewRow[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of LODGING_CATEGORIES) {
+    const vals = rows.map((r) => r[k]).filter((v): v is number => v != null);
+    if (vals.length)
+      out[k] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+  }
+  return out;
+}
+
+export async function listListingReviews(
+  slug: string
+): Promise<ListingReviews | null> {
+  const { data: listing, error: lErr } = await client()
+    .from("listings")
+    .select("id, rating, reviews")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+  if (lErr) throw lErr;
+  if (!listing) return null;
+
+  const { data, error } = await client()
+    .from("reviews")
+    .select(REVIEW_SELECT)
+    .eq("direction", "to_lodging")
+    .eq("subject_listing_id", listing.id)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as ReviewRow[];
+  return {
+    // listings.rating/reviews is the weighted pair refresh_review_scores
+    // maintains — same number the cards show. Null while there are none.
+    rating: rows.length ? (listing.rating ?? null) : null,
+    reviews: listing.reviews ?? rows.length,
+    categories: categoryAverages(rows),
+    items: rows.map(toReviewView),
+  };
+}
+
+export async function listOwnerReviews(
+  businessId: string,
+  userId: string
+): Promise<OwnerReviews> {
+  const { data: business, error: bErr } = await client()
+    .from("businesses")
+    .select("rating, reviews")
+    .eq("id", businessId)
+    .single();
+  if (bErr) throw bErr;
+
+  const { data: listingRows, error: lErr } = await client()
+    .from("listings")
+    .select("id, property:properties!inner (business_id)")
+    .eq("property.business_id", businessId);
+  if (lErr) throw lErr;
+  const listingIds = (listingRows ?? []).map((l) => l.id);
+
+  const { data: received, error: rErr } = listingIds.length
+    ? await client()
+        .from("reviews")
+        .select(REVIEW_SELECT)
+        .eq("direction", "to_lodging")
+        .in("subject_listing_id", listingIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null };
+  if (rErr) throw rErr;
+
+  const { data: given, error: gErr } = await client()
+    .from("reviews")
+    .select(REVIEW_SELECT)
+    .eq("direction", "to_traveler")
+    .eq("author_id", userId)
+    .order("created_at", { ascending: false });
+  if (gErr) throw gErr;
+
+  return {
+    score: { rating: business?.rating ?? null, reviews: business?.reviews ?? 0 },
+    received: ((received ?? []) as unknown as ReviewRow[]).map(toReviewView),
+    given: ((given ?? []) as unknown as ReviewRow[]).map(toReviewView),
+  };
+}
+
+export async function travelerScore(travelerId: string): Promise<{
+  rating: number | null;
+  reviews: number;
+}> {
+  const { data, error } = await client().rpc("traveler_score", {
+    p_traveler_id: travelerId,
+  });
+  if (error) throw error;
+  const d = data as unknown as { rating: number | null; reviews: number };
+  return { rating: d?.rating ?? null, reviews: d?.reviews ?? 0 };
+}
+
+type SubmitReviewPayload =
+  | {
+      ok: true;
+      review_id: string;
+      listing?: { rating: number | null; reviews: number };
+      traveler?: { rating: number | null; reviews: number };
+    }
+  | { ok: false; error: { code: ReviewErrorCode; message: string } };
+
+export async function submitReview(
+  input: SubmitReviewInput
+): Promise<SubmitReviewResult> {
+  const { data, error } = await client().rpc("submit_review", {
+    p_user_id: input.userId,
+    p_booking_id: input.bookingId,
+    p_direction: input.direction,
+    p_rating: input.rating,
+    p_body: input.body ?? undefined,
+    p_cleanliness: input.categories?.cleanliness ?? undefined,
+    p_accuracy: input.categories?.accuracy ?? undefined,
+    p_checkin: input.categories?.checkin ?? undefined,
+    p_communication: input.categories?.communication ?? undefined,
+    p_location: input.categories?.location ?? undefined,
+    p_value: input.categories?.value ?? undefined,
+    p_house_rules: input.categories?.house_rules ?? undefined,
+  });
+  if (error) throw error;
+  const r = data as unknown as SubmitReviewPayload;
+  if (!r.ok) return { ok: false, error: r.error };
+  const score =
+    (r.ok && (r.listing ?? r.traveler)) || { rating: null, reviews: 0 };
+  return { ok: true, review_id: r.review_id, score };
+}
+
+export async function replyToReview(
+  userId: string,
+  reviewId: string,
+  body: string | null | undefined
+): Promise<ReplyResult> {
+  const { data, error } = await client().rpc("reply_to_review", {
+    p_user_id: userId,
+    p_review_id: reviewId,
+    // An empty body clears the reply — nullif(btrim(''),'') inside the RPC.
+    p_body: body ?? "",
+  });
+  if (error) throw error;
+  const r = data as unknown as
+    | { ok: true; review_id: string }
+    | { ok: false; error: { code: ReviewErrorCode; message: string } };
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, review_id: r.review_id };
 }
 
 // ---------------------------------------------------------------------------

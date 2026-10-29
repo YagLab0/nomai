@@ -20,6 +20,8 @@ const card = (over: Partial<ApiListingCard> = {}): ApiListingCard => ({
   reviews: 12,
   owner_name: 'Lidia Condori',
   owner_slug: 'lidia-condori',
+  owner_rating: null,
+  owner_reviews: 0,
   ...over,
 });
 

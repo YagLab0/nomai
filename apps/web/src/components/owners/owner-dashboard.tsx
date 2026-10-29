@@ -15,7 +15,9 @@ import {
 
 import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
+import { OwnerReviewsSection } from '@/components/owners/owner-reviews';
 import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
+import type { ApiOwnerReviews } from '@/lib/api';
 import { formatMoney, formatShortDate } from '@/lib/format';
 import {
   apiCityCode,
@@ -153,6 +155,8 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     Record<string, { canRelocate: boolean; canRemove: boolean }>
   >({});
   const [bookings, setBookings] = useState<BookingData[]>([]);
+  /** The Owner's review feed (ADR-0008): storefront score + received/given. */
+  const [reviewFeed, setReviewFeed] = useState<ApiOwnerReviews | null>(null);
   const [payoutModalOpen, setPayoutModalOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [ownerCountryCode, setOwnerCountryCode] = useState('AR');
@@ -260,6 +264,13 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       } else if (bookingsData) {
         setBookings(bookingsData as unknown as BookingData[]);
       }
+
+      // 4. The review feed goes through the api: Traveler-facing rows aren't
+      // readable over RLS, only via the service-role RPCs (ADR-0008).
+      fetch('/api/owners/reviews', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: ApiOwnerReviews | null) => d && setReviewFeed(d))
+        .catch(() => {});
     } finally {
       setLoading(false);
     }
@@ -363,6 +374,11 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
   const nextArrival = bookings
     .filter((b) => b.status === 'confirmed')
     .sort((a, b) => a.checkin.localeCompare(b.checkin))[0];
+
+  // Bookings the Owner already reviewed (ADR-0008: one to_traveler per Booking).
+  const givenBookingIds = new Set(
+    (reviewFeed?.given ?? []).map((r) => r.booking_id),
+  );
 
   const displayName =
     business?.name?.split(' ')[0] ||
@@ -529,7 +545,13 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
 
         <div className="mt-4 flex flex-col gap-4">
           {bookings.length > 0 ? (
-            bookings.map((b) => <ReservaCard key={b.id} booking={b} />)
+            bookings.map((b) => (
+              <ReservaCard
+                key={b.id}
+                booking={b}
+                alreadyReviewed={givenBookingIds.has(b.id)}
+              />
+            ))
           ) : (
             <div className="rounded-card border border-dashed border-sand bg-white/60 p-8 text-center text-ink-muted">
               <p className="font-medium text-ink">Aún no hay reservas registradas</p>
@@ -540,6 +562,25 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           )}
         </div>
       </section>
+
+      {/* Reviews Section */}
+      {reviewFeed && reviewFeed.received.length > 0 && (
+        <OwnerReviewsSection
+          feed={reviewFeed}
+          onReplied={(id, body) =>
+            setReviewFeed((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    received: prev.received.map((r) =>
+                      r.review_id === id ? { ...r, reply_body: body, replied_at: new Date().toISOString() } : r,
+                    ),
+                  }
+                : prev,
+            )
+          }
+        />
+      )}
 
       {/* Lodgings Section */}
       <section aria-labelledby="alojamientos-heading">

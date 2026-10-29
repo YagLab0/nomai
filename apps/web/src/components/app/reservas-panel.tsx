@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 
 import { WidgetCard } from '@/components/app/widget-card';
+import { CheckBadgeIcon } from '@/components/icons';
+import { LODGING_CATEGORIES, ReviewModal, type ReviewPayload } from '@/components/reviews/review-modal';
 import { formatStayRange } from '@/lib/format';
 import { useLodgings } from '@/lib/use-lodgings';
 
@@ -14,6 +16,8 @@ interface BookingSummary {
   checkin: string;
   checkout: string;
   total_display: string;
+  /** Present on completed Bookings (ADR-0008). */
+  review_state?: 'eligible' | 'reviewed' | 'expired';
 }
 
 type Tone = 'agua' | 'terra' | 'amber' | 'neutral';
@@ -45,6 +49,7 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; bookings
 /** The signed-in Traveler's Bookings, read through /api/bookings. */
 export function ReservasPanel() {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const [reviewing, setReviewing] = useState<BookingSummary | null>(null);
   const lodgings = useLodgings();
 
   useEffect(() => {
@@ -61,6 +66,33 @@ export function ReservasPanel() {
       alive = false;
     };
   }, []);
+
+  async function submitReview(payload: ReviewPayload) {
+    if (!reviewing) return;
+    const res = await fetch(`/api/bookings/${encodeURIComponent(reviewing.booking_id)}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error ?? 'No pudimos publicar tu reseña.');
+    }
+    markReviewed(reviewing.booking_id);
+  }
+
+  function markReviewed(bookingId: string) {
+    setState((prev) =>
+      prev.kind !== 'ready'
+        ? prev
+        : {
+            kind: 'ready',
+            bookings: prev.bookings.map((b) =>
+              b.booking_id === bookingId ? { ...b, review_state: 'reviewed' as const } : b,
+            ),
+          },
+    );
+  }
 
   return (
     <WidgetCard title="Mis reservas">
@@ -91,6 +123,20 @@ export function ReservasPanel() {
                     <span className="font-mono">{formatStayRange(b.checkin.slice(0, 10), b.checkout.slice(0, 10))}</span>
                     {b.total_display && <span className="font-mono"> · {b.total_display}</span>}
                   </p>
+                  {b.review_state === 'eligible' && (
+                    <button
+                      type="button"
+                      onClick={() => setReviewing(b)}
+                      className="mt-1 text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
+                    >
+                      Dejá tu reseña
+                    </button>
+                  )}
+                  {b.review_state === 'reviewed' && (
+                    <p className="mt-1 inline-flex items-center gap-1 text-xs text-ink-muted">
+                      <CheckBadgeIcon className="h-3.5 w-3.5 text-agua" /> reseñada
+                    </p>
+                  )}
                 </div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASS[status.tone]}`}>
                   {status.label}
@@ -100,6 +146,16 @@ export function ReservasPanel() {
           })}
         </ul>
       )}
+      <ReviewModal
+        isOpen={reviewing != null}
+        onOpenChange={(open) => {
+          if (!open) setReviewing(null);
+        }}
+        title={`¿Cómo fue tu estadía en ${reviewing ? (lodgings.find((l) => l.id === reviewing.listing_slug)?.name ?? humanize(reviewing.listing_slug)) : ''}?`}
+        subtitle="Solo vos y el anfitrión saben que esta reseña es tuya — se publica de inmediato."
+        categories={LODGING_CATEGORIES}
+        onSubmit={submitReview}
+      />
     </WidgetCard>
   );
 }
