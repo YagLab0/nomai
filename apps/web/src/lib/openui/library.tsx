@@ -78,7 +78,7 @@ const listingCardProps = z.object({
   blurb: z.string().optional(),
   /** Three-letter ticket code for the stub column, e.g. "CFY". */
   code: z.string().optional(),
-  /** Photo URL — always the listing's cover_photo returned by the API, verbatim. */
+  /** Photo URL — the listing's cover_photo returned by the API, verbatim. Omit it when the API returns none; never invent one. */
   image: z.string().optional(),
 });
 
@@ -218,6 +218,7 @@ const imageGridProps = z.object({
 });
 
 function ImageGridView({ props }: ComponentRenderProps<z.infer<typeof imageGridProps>>) {
+  if (props.images.length === 0) return null;
   const [cover, ...rest] = props.images;
   return (
     <div className="mt-3 grid grid-cols-3 gap-2 overflow-hidden rounded-2xl">
@@ -246,7 +247,7 @@ const ImageGrid = defineComponent({
   name: 'ImageGrid',
   props: imageGridProps,
   description:
-    'Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs.',
+    'Photo mosaic for a single listing detail: one large cover image plus up to 3 thumbnails. Use after get_listing with the photos[].url values — never invent URLs. Omit it entirely when the listing has no photos.',
   component: ImageGridView,
 });
 

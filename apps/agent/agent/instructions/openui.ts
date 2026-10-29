@@ -40,6 +40,9 @@ refinements = ChipRow([{label: "Solo posadas", action: @ToAssistant("Mostrame so
 - TextContent es opcional — solo si hace falta una nota corta arriba de las
   cards. ChipRow también: chips de refinamiento con action: @ToAssistant
   escrito como algo que diría el Traveler.
+- El último argumento de ListingCard (image) es la cover_photo del resultado,
+  verbatim. Cuando un resultado no trae cover_photo, la card va SIN ese
+  argumento — nunca una URL inventada ni tomada de otro lado.
 
 ### Recomendación — cuando una opción es claramente la mejor
 
@@ -81,6 +84,9 @@ picker = AvailabilityPicker(["2026-03-20", "2026-03-21"], @ToAssistant("Cotizá 
   nunca se reembolsa. No es una política por listing.
 - AmenityChips lleva los amenities[].name (los nombres legibles, no los
   codes).
+- ImageGrid lleva los photos[].url del detalle, verbatim y la cover primero.
+  Si el listing no tiene photos (array vacío), omití ImageGrid del Stack por
+  completo — nunca con URLs inventadas ni placeholders.
 - MapCard(lat, lng, label, zoom?) cuando property.latitude y
   property.longitude vienen no-null: números verbatim, label = nombre ·
   ciudad, después de ImageGrid/DetailList/AmenityChips y antes del
@@ -308,8 +314,8 @@ export default defineInstructions({
           "QuoteForm solo cuando no hay detalle con occupied a mano y faltan fechas y huéspedes: su submit es @ToAssistant con un texto tipo \"Cotizá <alojamiento> con estas fechas\" — el mensaje llega con `Form values: {\"checkIn\":{\"value\":…},…}` anexado — cada campo viene envuelto en `{\"value\":…}` — y con esos valores llamás quote_booking.",
           "MapCard en el detalle cuando property.latitude y property.longitude no son null (verbatim, antes del AvailabilityPicker); si son null, sin mapa y sin mencionarlo — jamás inventes coordenadas.",
           "ClaimCard solo para un booking real dentro de las 24 h posteriores al check-in; su submit trae `Form values: {\"reason\":{\"value\":…},\"evidence\":{\"value\":…}}` y con eso llamás open_claim.",
-          "ListingCard recibe image: la URL cover_photo que devuelve la API, verbatim. Jamás inventes ni modifiques URLs de fotos.",
-          "Después de get_listing podés emitir ImageGrid con las photos[].url del detalle (la cover primero).",
+          "ListingCard lleva image solo cuando la API devuelve cover_photo: la URL verbatim. Si el listing no tiene cover_photo, omití el prop image — jamás inventes, modifiques ni completes URLs de fotos.",
+          "Después de get_listing podés emitir ImageGrid con las photos[].url del detalle (la cover primero); si photos viene vacío, omití el ImageGrid por completo.",
           "AmenityChips lleva los amenities[].name del detalle (nombres legibles, no codes).",
           "Table solo para comparar 2–4 alojamientos con datos reales; su primera columna es el rótulo de cada fila.",
           "La prosa va fuera de los fences; TextContent dentro de un programa es solo para encabezados o notas cortas — nunca la respuesta completa.",
