@@ -449,6 +449,11 @@ async function main() {
 
     step("unhappy paths (real code, zero spend)");
     const stamp = Date.now();
+    // A real --confirm-mainnet run just took bookBody's nights: re-pick a free window.
+    const fresh = CONFIRM_MAINNET ? await cheapestArsStay() : stay;
+    if (!fresh) throw new Error("no free ARS window left for the unhappy paths");
+    const unhappyPath = `/listings/${fresh.slug}/book`;
+    const unhappyBody = { ...bookBody, checkin: fresh.checkin, checkout: fresh.checkout };
 
     const broke = await makeTraveler(`smoke-book-broke-${stamp}@example.com`);
     ids.push(broke.id);
@@ -459,8 +464,8 @@ async function main() {
       .is("funded_at", null);
     assert(!fundErr, `funded_at seeded for zero-balance Traveler`);
     const brokeRes = await apiPaidPost<Record<string, unknown>>(
-      bookPath,
-      bookBody,
+      unhappyPath,
+      unhappyBody,
       { token: broke.token, travelerId: broke.id },
       { beforePaidRetry: () => false }
     );
@@ -477,8 +482,8 @@ async function main() {
     const unfunded = await makeTraveler(`smoke-book-unfunded-${stamp}@example.com`);
     ids.push(unfunded.id);
     const unfundedRes = await apiPaidPost<Record<string, unknown>>(
-      bookPath,
-      bookBody,
+      unhappyPath,
+      unhappyBody,
       { token: unfunded.token, travelerId: unfunded.id },
       { beforePaidRetry: () => false }
     );
