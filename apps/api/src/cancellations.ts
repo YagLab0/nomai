@@ -22,11 +22,15 @@ import {
   cancelBooking,
   getBookingDetail,
   listBookings,
+  listMessages,
+  markThreadRead,
   openClaim,
+  sendMessage,
   submitReview,
   type CancelErrorCode,
   type ClaimErrorCode,
   type ClaimReason,
+  type MessageErrorCode,
   type ReviewCategories,
   type ReviewErrorCode,
 } from "./data/index.js";
@@ -35,13 +39,14 @@ import { travelerIdFrom } from "./auth.js";
 const bookings = new Hono();
 
 function errorStatus(
-  code: CancelErrorCode | ClaimErrorCode | ReviewErrorCode
+  code: CancelErrorCode | ClaimErrorCode | ReviewErrorCode | MessageErrorCode
 ): 400 | 403 | 404 | 409 | 500 {
   switch (code) {
     case "not_found":
       return 404;
     case "forbidden":
       return 403;
+    case "empty_body":
     case "invalid_rating":
     case "invalid":
       return 400;
@@ -222,6 +227,52 @@ bookings.post("/:id/review", async (c) => {
       errorStatus(r.error.code)
     );
   return c.json({ ok: true, review_id: r.review_id, score: r.score }, 201);
+});
+
+// GET /bookings/:id/messages — the Traveler's side of the Booking's private
+// thread (issues #73/#74, ADR-0009). Bearer-required: the party check inside
+// the repo re-derives the caller's role from the Booking. Reading the thread
+// marks the counterpart's messages read; `unread` answers the count BEFORE
+// this read marked them — the badge the caller came in with.
+bookings.get("/:id/messages", async (c) => {
+  const userId = await travelerIdFrom(c);
+  if (!userId)
+    return c.json({ error: "Iniciá sesión para ver tus mensajes." }, 401);
+
+  const id = c.req.param("id");
+  const t = await listMessages(userId, id, "traveler");
+  if (!t.ok)
+    return c.json(
+      { error: t.error.message, code: t.error.code },
+      errorStatus(t.error.code)
+    );
+  await markThreadRead(userId, id, "traveler");
+  return c.json(t.thread);
+});
+
+// POST /bookings/:id/messages — the Traveler posts on the thread. Body:
+//   { body: string } → 201 { message }. send_message derives sender_role
+// server-side; the route never sends it.
+bookings.post("/:id/messages", async (c) => {
+  const userId = await travelerIdFrom(c);
+  if (!userId)
+    return c.json({ error: "Iniciá sesión para enviar mensajes." }, 401);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    body?: unknown;
+  } | null;
+  const r = await sendMessage(
+    userId,
+    c.req.param("id"),
+    typeof body?.body === "string" ? body.body : "",
+    "traveler"
+  );
+  if (!r.ok)
+    return c.json(
+      { error: r.error.message, code: r.error.code },
+      errorStatus(r.error.code)
+    );
+  return c.json({ message: r.message }, 201);
 });
 
 export default bookings;

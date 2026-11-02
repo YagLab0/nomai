@@ -17,6 +17,7 @@ import {
   PROPERTIES,
   RATE_RULES,
 } from "./inventory.js";
+import { MESSAGE_FIXTURES } from "./message-fixtures.js";
 import { REVIEW_FIXTURES } from "./review-fixtures.js";
 import type {
   AvailabilityNight,
@@ -763,6 +764,18 @@ export function bookListing(slug: string, input: BookInput): BookResult {
   };
   bookings.push(booking);
 
+  // Mirror the bookings AFTER INSERT trigger: the thread opens with a
+  // 'system' welcome row (see the chat section below).
+  chatMessages.push({
+    id: `msg_${++chatSeq}`,
+    booking_id: booking.id,
+    sender_id: null,
+    sender_role: "system",
+    body: SYSTEM_MESSAGE_BODY,
+    read_at: null,
+    created_at: booking.created_at,
+  });
+
   // Consume one unit per night; a night with remaining units stays open.
   for (const n of nightsBetween(input.checkin, input.checkout)) {
     const row = nightIndex.get(`${listing.id}|${n}`)!;
@@ -989,6 +1002,10 @@ export interface BookingSummary {
    * `eligible` inside the 14-day window, `reviewed` once submitted,
    * `expired` after it. Absent until the Booking completes. */
   review_state?: "eligible" | "reviewed" | "expired";
+  /** Counterpart messages still unread by the Traveler (ADR-0009) — the
+   * badge on the thread row. Absent when the caller can't be tied to the
+   * Booking's Traveler (e.g. a guest_ref-only list). */
+  unread_messages?: number;
 }
 
 export interface BookingDetail extends BookingSummary {
@@ -1020,6 +1037,9 @@ export interface BookingRecord {
   claim_resolution: ClaimResolution | null;
   /** Whether a to_lodging Review already exists for this Booking. */
   lodging_reviewed: boolean;
+  /** Unread counterpart messages for the viewing Traveler (ADR-0009); the
+   * supabase leg leaves it undefined when the Traveler isn't identified. */
+  unread_messages?: number;
 }
 
 export function toBookingSummary(r: BookingRecord): BookingSummary {
@@ -1046,6 +1066,7 @@ export function toBookingSummary(r: BookingRecord): BookingSummary {
     currency: r.currency,
     created_at: r.created_at,
     review_state,
+    unread_messages: r.unread_messages,
   };
 }
 
@@ -1106,6 +1127,17 @@ function mockRecord(b: Booking): BookingRecord {
     lodging_reviewed: reviews.some(
       (r) => r.booking_id === b.id && r.direction === "to_lodging"
     ),
+    // The viewer of /bookings is always the Traveler, so the counterpart is
+    // the Owner: only owner-sent rows can badge. sender_id != null mirrors
+    // the SQL `sender_id <> caller` rule — NULL-sender system/fixture rows
+    // never count as unread.
+    unread_messages: chatMessages.filter(
+      (m) =>
+        m.booking_id === b.id &&
+        m.sender_id != null &&
+        m.sender_role === "owner" &&
+        m.read_at == null
+    ).length,
   };
 }
 
@@ -1416,4 +1448,230 @@ export function replyToReview(
   r.reply_body = body?.trim() || null;
   r.replied_at = r.reply_body ? new Date().toISOString() : null;
   return { ok: true, review_id: r.id };
+}
+
+// ---------------------------------------------------------------------------
+// booking messages (issues #73/#74, ADR-0009) — the private Traveler↔Owner
+// thread per Booking, plus 'system' lifecycle rows. Mirrors the
+// send_message/mark_thread_read RPCs. Mock simplifications, by design (same
+// spirit as submitReview): the mock Booking carries no traveler_id and the
+// mock has no user→business link, so party checks can't run — any verified
+// caller may read/post a real Booking's thread on the side the route
+// claims. The unread/mark rules mirror the SQL `sender_id <> caller`
+// semantics by role: NULL-sender rows (system notices and the synthetic
+// fixtures) never badge and never get marked.
+// ---------------------------------------------------------------------------
+
+export type SenderRole = "traveler" | "owner" | "system";
+
+/** Which side of the thread the caller is on — the route's surface decides
+ * (traveler routes pass 'traveler', owner routes 'owner'). The supabase leg
+ * re-derives the real role from the Booking and answers forbidden when the
+ * claim doesn't match; the mock trusts it (no user→party link). */
+export type ChatSide = "traveler" | "owner";
+
+export interface ChatMessage {
+  id: string;
+  booking_id: string;
+  sender_role: SenderRole;
+  /** sender_role equals the caller's role on this Booking. */
+  mine: boolean;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface ChatThread {
+  booking_id: string;
+  messages: ChatMessage[];
+  /** Counterpart messages still unread BEFORE the route marks the thread
+   * (see markThreadRead) — the badge count the caller came in with. */
+  unread: number;
+}
+
+export interface InboxEntry {
+  booking_id: string;
+  guest_name: string;
+  listing_title: string;
+  last_body: string | null;
+  last_at: string | null;
+  /** Messages the Traveler sent that the Owner hasn't opened yet. */
+  unread: number;
+}
+
+export type MessageErrorCode = "empty_body" | "not_found" | "forbidden";
+
+export type SendMessageResult =
+  | { ok: true; message: ChatMessage }
+  | { ok: false; error: { code: MessageErrorCode; message: string } };
+
+export type ListMessagesResult =
+  | { ok: true; thread: ChatThread }
+  | { ok: false; error: { code: MessageErrorCode; message: string } };
+
+export type MarkThreadResult =
+  | { ok: true; marked: number }
+  | { ok: false; error: { code: MessageErrorCode; message: string } };
+
+/** Same welcome copy the booking_messages_on_booking trigger inserts. */
+const SYSTEM_MESSAGE_BODY =
+  "Reserva recibida — ya podés coordinar los detalles de tu estadía.";
+
+interface ChatMessageRow {
+  id: string;
+  booking_id: string;
+  sender_id: string | null;
+  sender_role: SenderRole;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+// The store starts with the fixture exchange plus the 'system' welcome row
+// every fixture Booking would have received from the trigger — the same rows
+// a fresh `db reset` + seed produces, so mock and supabase legs agree.
+const chatMessages: ChatMessageRow[] = [
+  ...REVIEW_FIXTURES.map((r, i) => ({
+    id: `msg_seed_sys_${i + 1}`,
+    booking_id: r.booking,
+    sender_id: null,
+    sender_role: "system" as SenderRole,
+    body: SYSTEM_MESSAGE_BODY,
+    read_at: null,
+    created_at: new Date(
+      Date.parse(`${r.checkin}T00:00:00Z`) - 20 * 86_400_000
+    ).toISOString(),
+  })),
+  ...MESSAGE_FIXTURES.map((m) => ({
+    id: m.id,
+    booking_id: m.booking,
+    sender_id: null,
+    sender_role: m.sender_role,
+    body: m.body,
+    read_at: m.read_at,
+    created_at: m.created,
+  })),
+];
+let chatSeq = 0;
+
+const messageErr = (
+  code: MessageErrorCode,
+  message: string
+): { ok: false; error: { code: MessageErrorCode; message: string } } => ({
+  ok: false,
+  error: { code, message },
+});
+
+function toChatMessage(m: ChatMessageRow, side: ChatSide): ChatMessage {
+  return {
+    id: m.id,
+    booking_id: m.booking_id,
+    sender_role: m.sender_role,
+    mine: m.sender_role === side,
+    body: m.body,
+    read_at: m.read_at,
+    created_at: m.created_at,
+  };
+}
+
+/** The SQL `sender_id <> caller AND read_at is null` rule, by role: only
+ * counterpart messages with a real sender badge — system/fixture rows
+ * (sender_id null) never do. */
+function isUnreadFor(m: ChatMessageRow, side: ChatSide): boolean {
+  return m.sender_id != null && m.sender_role !== side && m.read_at == null;
+}
+
+export function listMessages(
+  userId: string,
+  bookingId: string,
+  side: ChatSide
+): ListMessagesResult {
+  const b = findBooking(bookingId);
+  if (!b) return messageErr("not_found", "booking not found");
+  // No party check — see the section header; the route's claimed side stands.
+  void userId;
+  const rows = chatMessages
+    .filter((m) => m.booking_id === bookingId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return {
+    ok: true,
+    thread: {
+      booking_id: bookingId,
+      messages: rows.map((m) => toChatMessage(m, side)),
+      unread: rows.filter((m) => isUnreadFor(m, side)).length,
+    },
+  };
+}
+
+export function sendMessage(
+  userId: string,
+  bookingId: string,
+  body: string,
+  side: ChatSide
+): SendMessageResult {
+  const trimmed = (body ?? "").trim();
+  if (!trimmed) return messageErr("empty_body", "message body is empty");
+  const b = findBooking(bookingId);
+  if (!b) return messageErr("not_found", "booking not found");
+
+  const row: ChatMessageRow = {
+    id: `msg_${++chatSeq}`,
+    booking_id: bookingId,
+    sender_id: userId,
+    sender_role: side,
+    body: trimmed,
+    read_at: null,
+    created_at: new Date().toISOString(),
+  };
+  chatMessages.push(row);
+  return { ok: true, message: toChatMessage(row, side) };
+}
+
+export function markThreadRead(
+  userId: string,
+  bookingId: string,
+  side: ChatSide
+): MarkThreadResult {
+  const b = findBooking(bookingId);
+  if (!b) return messageErr("not_found", "booking not found");
+  void userId;
+  let marked = 0;
+  const now = new Date().toISOString();
+  for (const m of chatMessages) {
+    if (m.booking_id === bookingId && isUnreadFor(m, side)) {
+      m.read_at = now;
+      marked += 1;
+    }
+  }
+  return { ok: true, marked };
+}
+
+/** The Owner's thread list — every non-cancelled Booking of the business
+ * with its last message and the unread badge. businessId comes from the
+ * route's verified business lookup (the mock has no user→business link;
+ * the supabase leg filters the same way). */
+export function listOwnerInbox(businessId: string): InboxEntry[] {
+  const listingIds = new Set(
+    PROPERTIES.filter((p) => p.business_id === businessId).flatMap((p) =>
+      LISTINGS.filter((l) => l.property_id === p.id).map((l) => l.id)
+    )
+  );
+  return bookings
+    .filter((b) => b.status !== "cancelled" && listingIds.has(b.listing_id))
+    .map((b) => {
+      const msgs = chatMessages
+        .filter((m) => m.booking_id === b.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const last = msgs[0];
+      return {
+        booking_id: b.id,
+        guest_name: b.guest_ref ?? "Viajero",
+        listing_title:
+          LISTINGS.find((l) => l.id === b.listing_id)?.title ?? "",
+        last_body: last?.body ?? null,
+        last_at: last?.created_at ?? null,
+        unread: msgs.filter((m) => isUnreadFor(m, "owner")).length,
+      };
+    })
+    .sort((a, b) => (b.last_at ?? "").localeCompare(a.last_at ?? ""));
 }

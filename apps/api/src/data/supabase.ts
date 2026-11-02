@@ -34,6 +34,8 @@ import type {
   BookingOwner,
   BookingRecord,
   BookingSummary,
+  ChatMessage,
+  ChatSide,
   ClaimErrorCode,
   ClaimInput,
   ClaimResult,
@@ -41,9 +43,13 @@ import type {
   CancelInput,
   CancelResult,
   DomainError,
+  InboxEntry,
   ListingCard,
   ListingDetail,
   ListingReviews,
+  ListMessagesResult,
+  MarkThreadResult,
+  MessageErrorCode,
   OwnerReviews,
   Quote,
   QuoteError,
@@ -52,6 +58,7 @@ import type {
   ReviewErrorCode,
   ReviewView,
   SearchParams,
+  SendMessageResult,
   SubmitReviewInput,
   SubmitReviewResult,
 } from "./repo.js";
@@ -932,7 +939,7 @@ const BOOKING_SELECT = "*, listings(slug), reviews(direction)";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function toRecord(row: BookingWithSlug): BookingRecord {
+function toRecord(row: BookingWithSlug, unread?: number): BookingRecord {
   return {
     id: row.id,
     listing_slug: row.listings?.slug ?? "",
@@ -952,7 +959,30 @@ function toRecord(row: BookingWithSlug): BookingRecord {
     lodging_reviewed: (row.reviews ?? []).some(
       (r) => r.direction === "to_lodging"
     ),
+    unread_messages: unread,
   };
+}
+
+/** One batched unread count per Booking for the given reader — the SQL
+ * `sender_id <> caller AND read_at is null` rule (PostgREST .neq already
+ * drops NULL senders, so system rows never badge). Grouped in JS over the
+ * already-fetched ids — one query, no N+1. */
+async function fetchUnreadCounts(
+  bookingIds: string[],
+  userId: string
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (bookingIds.length === 0) return counts;
+  const { data, error } = await client()
+    .from("booking_messages")
+    .select("booking_id")
+    .in("booking_id", bookingIds)
+    .is("read_at", null)
+    .neq("sender_id", userId);
+  if (error) throw error;
+  for (const r of data ?? [])
+    counts.set(r.booking_id, (counts.get(r.booking_id) ?? 0) + 1);
+  return counts;
 }
 
 function owns(row: BookingRow, owner: BookingOwner): boolean {
@@ -986,8 +1016,19 @@ export async function listBookings(
   if (owner.traveler_id != null) q = q.eq("traveler_id", owner.traveler_id);
   const { data, error } = await q;
   if (error) throw error;
-  return ((data ?? []) as unknown as BookingWithSlug[]).map((r) =>
-    toBookingSummary(toRecord(r))
+  const rows = (data ?? []) as unknown as BookingWithSlug[];
+  // The unread badge needs the identified Traveler (sender_id <> caller) —
+  // a guest_ref-only list leaves it undefined, same as the mock contract.
+  const unread = owner.traveler_id
+    ? await fetchUnreadCounts(rows.map((r) => r.id), owner.traveler_id)
+    : new Map<string, number>();
+  return rows.map((r) =>
+    toBookingSummary(
+      toRecord(
+        r,
+        owner.traveler_id ? (unread.get(r.id) ?? 0) : undefined
+      )
+    )
   );
 }
 
@@ -1000,7 +1041,11 @@ export async function getBookingDetail(
     return { ok: false, error: { code: "not_found", message: "booking not found" } };
   if (owner && (owner.guest_ref != null || owner.traveler_id != null) && !owns(row, owner))
     return { ok: false, error: { code: "forbidden", message: "not your booking" } };
-  return { ok: true, booking: toBookingDetail(toRecord(row)) };
+  const unread =
+    owner?.traveler_id != null && row.traveler_id === owner.traveler_id
+      ? (await fetchUnreadCounts([row.id], owner.traveler_id)).get(row.id) ?? 0
+      : undefined;
+  return { ok: true, booking: toBookingDetail(toRecord(row, unread)) };
 }
 
 type OpenClaimPayload =
@@ -1289,3 +1334,268 @@ const norm = (s: string) =>
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
+
+// ---------------------------------------------------------------------------
+// booking messages (issues #73/#74, ADR-0009) — the private Traveler↔Owner
+// thread per Booking. Every entry first runs the same party precheck
+// is_booking_party() runs in SQL (bookings → listings → properties →
+// businesses, one joined query) so the API answers its own 404/403; the
+// writes then go through the service_role-only send_message /
+// mark_thread_read RPCs, which re-check the party inside the transaction.
+// `side` is the route's claimed side — it must match the caller's derived
+// role or the answer is forbidden (a self-booked Owner is the Traveler on
+// that thread and belongs on the traveler surface).
+// ---------------------------------------------------------------------------
+
+type BookingMessageRow =
+  Database["public"]["Tables"]["booking_messages"]["Row"];
+
+interface BookingParty {
+  traveler_id: string | null;
+  owner_user_id: string | null;
+}
+
+type BookingPartyRow = {
+  traveler_id: string | null;
+  listings: {
+    properties: { businesses: { user_id: string | null } | null } | null;
+  } | null;
+};
+
+async function fetchBookingParty(
+  bookingId: string
+): Promise<BookingParty | null> {
+  const { data, error } = await client()
+    .from("bookings")
+    .select(
+      "traveler_id, listings!inner (properties!inner (businesses!inner (user_id)))"
+    )
+    .eq("id", bookingId)
+    .limit(1);
+  if (error) throw error;
+  const row = (data ?? [])[0] as unknown as BookingPartyRow | undefined;
+  if (!row) return null;
+  return {
+    traveler_id: row.traveler_id,
+    owner_user_id: row.listings?.properties?.businesses?.user_id ?? null,
+  };
+}
+
+/** Same precedence as send_message(): the Booking's Traveler wins when the
+ * caller is both sides at once (a self-booked Owner). */
+function callerSide(party: BookingParty, userId: string): ChatSide | null {
+  if (party.traveler_id != null && party.traveler_id === userId)
+    return "traveler";
+  if (party.owner_user_id != null && party.owner_user_id === userId)
+    return "owner";
+  return null;
+}
+
+const messageErr = (
+  code: MessageErrorCode,
+  message: string
+): { ok: false; error: { code: MessageErrorCode; message: string } } => ({
+  ok: false,
+  error: { code, message },
+});
+
+/** Resolves booking → caller role, or the error result to return. */
+async function requireParty(
+  userId: string,
+  bookingId: string,
+  side: ChatSide
+): Promise<{ role: ChatSide } | { error: ReturnType<typeof messageErr> }> {
+  const party = await fetchBookingParty(bookingId);
+  if (!party)
+    return { error: messageErr("not_found", "booking not found") };
+  const role = callerSide(party, userId);
+  if (role == null || role !== side)
+    return {
+      error: messageErr(
+        "forbidden",
+        "only the booking parties can use this thread"
+      ),
+    };
+  return { role };
+}
+
+function toChatMessage(m: BookingMessageRow, role: ChatSide): ChatMessage {
+  return {
+    id: m.id,
+    booking_id: m.booking_id,
+    sender_role: m.sender_role as ChatMessage["sender_role"],
+    mine: m.sender_role === role,
+    body: m.body,
+    read_at: m.read_at,
+    created_at: m.created_at,
+  };
+}
+
+/** Counterpart messages still unread — the `sender_id <> caller` rule:
+ * NULL-sender system rows never badge. */
+function isUnreadFor(m: BookingMessageRow, userId: string): boolean {
+  return m.sender_id != null && m.sender_id !== userId && m.read_at == null;
+}
+
+export async function listMessages(
+  userId: string,
+  bookingId: string,
+  side: ChatSide
+): Promise<ListMessagesResult> {
+  const who = await requireParty(userId, bookingId, side);
+  if ("error" in who) return who.error;
+
+  const { data, error } = await client()
+    .from("booking_messages")
+    .select("*")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as BookingMessageRow[];
+  return {
+    ok: true,
+    thread: {
+      booking_id: bookingId,
+      messages: rows.map((m) => toChatMessage(m, who.role)),
+      unread: rows.filter((m) => isUnreadFor(m, userId)).length,
+    },
+  };
+}
+
+type SendMessagePayload = {
+  message?: BookingMessageRow;
+  error?: { code?: string; message?: string };
+};
+
+export async function sendMessage(
+  userId: string,
+  bookingId: string,
+  body: string,
+  side: ChatSide
+): Promise<SendMessageResult> {
+  const trimmed = (body ?? "").trim();
+  if (!trimmed) return messageErr("empty_body", "message body is empty");
+  const who = await requireParty(userId, bookingId, side);
+  if ("error" in who) return who.error;
+
+  const { data, error } = await client().rpc("send_message", {
+    p_user_id: userId,
+    p_booking_id: bookingId,
+    p_body: trimmed,
+  });
+  if (error) throw error;
+  const r = data as unknown as SendMessagePayload;
+  if (!r.message)
+    return {
+      ok: false,
+      error: {
+        code: (r.error?.code ?? "forbidden") as MessageErrorCode,
+        message: r.error?.message ?? "could not send the message",
+      },
+    };
+  return { ok: true, message: toChatMessage(r.message, who.role) };
+}
+
+export async function markThreadRead(
+  userId: string,
+  bookingId: string,
+  side: ChatSide
+): Promise<MarkThreadResult> {
+  const who = await requireParty(userId, bookingId, side);
+  if ("error" in who) return who.error;
+
+  const { data, error } = await client().rpc("mark_thread_read", {
+    p_user_id: userId,
+    p_booking_id: bookingId,
+  });
+  if (error) throw error;
+  const r = data as unknown as {
+    marked?: number;
+    error?: { code?: string; message?: string };
+  };
+  if (r.error)
+    return {
+      ok: false,
+      error: {
+        code: (r.error.code ?? "forbidden") as MessageErrorCode,
+        message: r.error.message ?? "could not mark the thread",
+      },
+    };
+  return { ok: true, marked: r.marked ?? 0 };
+}
+
+/** The Owner's thread list: every non-cancelled Booking of the business
+ * with its last message, the guest's name and the unread badge. Three
+ * batched queries (bookings → messages → travelers), no N+1. */
+export async function listOwnerInbox(
+  businessId: string,
+  userId: string
+): Promise<InboxEntry[]> {
+  const { data: bkData, error: bkErr } = await client()
+    .from("bookings")
+    .select(
+      "id, traveler_id, guest_ref, listings!inner (title, properties!inner (business_id))"
+    )
+    .eq("listings.properties.business_id", businessId)
+    .neq("status", "cancelled");
+  if (bkErr) throw bkErr;
+  const bkRows = (bkData ?? []) as unknown as {
+    id: string;
+    traveler_id: string | null;
+    guest_ref: string | null;
+    listings: { title: string } | null;
+  }[];
+  if (bkRows.length === 0) return [];
+
+  const ids = bkRows.map((r) => r.id);
+  const { data: msgData, error: msgErr } = await client()
+    .from("booking_messages")
+    .select("booking_id, sender_id, body, read_at, created_at")
+    .in("booking_id", ids)
+    .order("created_at", { ascending: false });
+  if (msgErr) throw msgErr;
+
+  const travelerIds = [
+    ...new Set(
+      bkRows.map((r) => r.traveler_id).filter((t): t is string => t != null)
+    ),
+  ];
+  const { data: trData, error: trErr } = travelerIds.length
+    ? await client()
+        .from("travelers")
+        .select("id, full_name")
+        .in("id", travelerIds)
+    : { data: [], error: null };
+  if (trErr) throw trErr;
+  const nameByTraveler = new Map(
+    (trData ?? []).map((t) => [t.id, t.full_name] as const)
+  );
+
+  const byBooking = new Map<string, BookingMessageRow[]>();
+  for (const m of (msgData ?? []) as BookingMessageRow[]) {
+    const list = byBooking.get(m.booking_id) ?? [];
+    list.push(m);
+    byBooking.set(m.booking_id, list);
+  }
+
+  return bkRows
+    .map((b) => {
+      // Sorted desc above — the first row is the thread's last message.
+      const msgs = byBooking.get(b.id) ?? [];
+      const last = msgs[0];
+      const guest =
+        (b.traveler_id &&
+          nameByTraveler.get(b.traveler_id)?.split(" ")[0]) ||
+        b.guest_ref ||
+        "Viajero";
+      return {
+        booking_id: b.id,
+        guest_name: guest,
+        listing_title: b.listings?.title ?? "",
+        last_body: last?.body ?? null,
+        last_at: last?.created_at ?? null,
+        unread: msgs.filter((m) => isUnreadFor(m, userId)).length,
+      };
+    })
+    .sort((a, b) => (b.last_at ?? "").localeCompare(a.last_at ?? ""));
+}

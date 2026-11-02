@@ -13,11 +13,12 @@ import {
   toast,
 } from '@heroui/react';
 
+import { ChatModal } from '@/components/chat/chat-modal';
 import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
 import { OwnerReviewsSection } from '@/components/owners/owner-reviews';
 import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
-import type { ApiOwnerReviews } from '@/lib/api';
+import type { ApiInboxEntry, ApiOwnerReviews } from '@/lib/api';
 import { formatMoney, formatShortDate } from '@/lib/format';
 import {
   apiCityCode,
@@ -102,6 +103,16 @@ const trimAddress = (a?: string | null) =>
 
 const shortStamp = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+/** Inbox stamps: '14:32' for today's threads, '12 nov' for older ones. */
+const chatStamp = (iso?: string | null) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+    : formatShortDate(iso.slice(0, 10));
+};
 
 /**
  * The verification modal (issue #68): the Owner's Ripio deposit address can
@@ -466,6 +477,10 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
   const [bookings, setBookings] = useState<BookingData[]>([]);
   /** The Owner's review feed (ADR-0008): storefront score + received/given. */
   const [reviewFeed, setReviewFeed] = useState<ApiOwnerReviews | null>(null);
+  /** The Owner's message inbox (ADR-0009) — one thread per Booking. */
+  const [inbox, setInbox] = useState<ApiInboxEntry[] | null>(null);
+  /** The inbox thread whose chat is open. */
+  const [chatThread, setChatThread] = useState<ApiInboxEntry | null>(null);
   const [payoutModalOpen, setPayoutModalOpen] = useState(false);
   /** The payout state from the api (verification included) — issue #68. */
   const [payout, setPayout] = useState<PayoutState | null>(null);
@@ -483,6 +498,19 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       if (res.ok) setPayout((await res.json()) as PayoutState);
     } catch {
       /* the chip keeps showing the business row's stale address */
+    }
+  }, []);
+
+  // The message inbox — same reason: the chat tables aren't readable over
+  // RLS, only via the api (ADR-0009).
+  const loadInbox = useCallback(async () => {
+    try {
+      const res = await fetch('/api/owners/inbox', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { threads?: ApiInboxEntry[] };
+      setInbox(Array.isArray(data.threads) ? data.threads : []);
+    } catch {
+      /* the section just stays on its last snapshot */
     }
   }, []);
 
@@ -598,10 +626,14 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       // 5. Payout state — same reason: payout_verifications isn't readable
       // over RLS at all, only via the api (issue #68).
       loadPayout();
+
+      // 6. The message inbox (ADR-0009) — one thread per Booking, with the
+      // unread counts the ReservaCards badge from.
+      loadInbox();
     } finally {
       setLoading(false);
     }
-  }, [loadPayout]);
+  }, [loadPayout, loadInbox]);
 
   useEffect(() => {
     loadData();
@@ -688,6 +720,9 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
   const givenBookingIds = new Set(
     (reviewFeed?.given ?? []).map((r) => r.booking_id),
   );
+
+  // Unread chat messages per Booking, for the ReservaCard badges (ADR-0009).
+  const inboxUnread = new Map((inbox ?? []).map((t) => [t.booking_id, t.unread]));
 
   const displayName =
     business?.name?.split(' ')[0] ||
@@ -859,6 +894,53 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         )}
       </section>
 
+      {/* Inbox Section — the chat thread of each Booking (ADR-0009). */}
+      {inbox && inbox.length > 0 && (
+        <section aria-labelledby="mensajes-heading">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 id="mensajes-heading" className="font-brand text-2xl font-medium text-ink">
+                Mensajes
+              </h2>
+              <p className="mt-1 text-sm text-ink-muted">
+                El chat privado de cada reserva — solo vos y el viajero lo ven.
+              </p>
+            </div>
+            <span className="rounded-full bg-sand/60 px-3 py-1 font-mono text-xs font-medium text-ink">
+              {inbox.length} {inbox.length === 1 ? 'chat' : 'chats'}
+            </span>
+          </div>
+
+          <ul className="mt-4 flex flex-col gap-2">
+            {inbox.map((t) => (
+              <li key={t.booking_id}>
+                <button
+                  type="button"
+                  onClick={() => setChatThread(t)}
+                  className="flex w-full items-center gap-3 rounded-card border border-sand bg-white px-4 py-3 text-left transition-colors hover:border-terra/50 focus-visible:outline-2 focus-visible:outline-terra"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {t.guest_name}
+                      <span className="font-normal text-ink-muted"> · {t.listing_title}</span>
+                    </p>
+                    <p className="truncate text-sm text-ink-muted">{t.last_body}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-xs text-ink-muted">{chatStamp(t.last_at)}</span>
+                    {t.unread > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-terra px-1.5 text-xs font-semibold leading-none text-white">
+                        {t.unread}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Bookings Section */}
       <section aria-labelledby="reservas-heading">
         <div className="flex items-center justify-between">
@@ -882,6 +964,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
                 key={b.id}
                 booking={b}
                 alreadyReviewed={givenBookingIds.has(b.id)}
+                unreadMessages={inboxUnread.get(b.id) ?? 0}
               />
             ))
           ) : (
@@ -980,6 +1063,25 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           onChanged={async () => {
             await loadPayout();
           }}
+        />
+      )}
+
+      {/* The Booking's chat with the Traveler, opened from the inbox (ADR-0009). */}
+      {chatThread && (
+        <ChatModal
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) {
+              setChatThread(null);
+              // Opening the thread marked it read — refresh the badges.
+              void loadInbox();
+            }
+          }}
+          title={`Chat con ${chatThread.guest_name}`}
+          subtitle={chatThread.listing_title}
+          endpoint={`/api/owners/bookings/${encodeURIComponent(chatThread.booking_id)}/messages`}
+          bookingId={chatThread.booking_id}
+          emptyHint={`Todavía no hay mensajes — escribile a ${chatThread.guest_name}.`}
         />
       )}
     </div>
