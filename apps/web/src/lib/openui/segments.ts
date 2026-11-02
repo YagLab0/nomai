@@ -5,15 +5,16 @@
  * - `prose`   — plain text, rendered as the usual chat bubble.
  * - `openui`  — the body of a complete ```openui-lang / ```openui fenced block.
  * - `pending` — a fence opened but not yet closed at end of text. While
- *   streaming this renders as a skeleton; once the message finishes, an
- *   unclosed fence's partial body is emitted as `openui` instead so parse
- *   errors surface rather than disappearing silently.
+ *   streaming this renders as a skeleton shaped by the partial `code`
+ *   received so far; once the message finishes, an unclosed fence's partial
+ *   body is emitted as `openui` instead so parse errors surface rather than
+ *   disappearing silently.
  */
 
 export type Segment =
   | { type: 'prose'; text: string }
   | { type: 'openui'; code: string }
-  | { type: 'pending' };
+  | { type: 'pending'; code: string };
 
 /** ```openui-lang or ```openui on its own line (also matches at end of text). */
 const OPEN_RE = /```(?:openui-lang|openui)\b[^\S\r\n]*(?:\r?\n|$)/;
@@ -38,7 +39,7 @@ export function parseSegments(text: string, opts?: { isStreaming?: boolean }): S
     if (!close) {
       // Unclosed fence at the tail.
       if (isStreaming) {
-        segments.push({ type: 'pending' });
+        segments.push({ type: 'pending', code: body });
       } else if (body.trim().length > 0) {
         // Stream ended mid-program: render the partial code anyway so the
         // resulting parse errors are visible instead of swallowed.

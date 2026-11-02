@@ -1258,6 +1258,258 @@ const Table = defineComponent({
   component: TableView,
 });
 
+const fundingCardProps = z.object({
+  /** What the Traveler is missing, display-ready — e.g. "te faltan US$ 45". */
+  description: z.string(),
+  /** Display-ready amount to load, e.g. "AR$ 50.000" — from the tool, verbatim. */
+  amount: z.string(),
+  /** The funding URL from get_funding_link, as an open_url action. */
+  fund: action(),
+});
+
+function FundingCardView({ props }: ComponentRenderProps<z.infer<typeof fundingCardProps>>) {
+  const triggerAction = useTriggerAction();
+  return (
+    <section
+      aria-label="Cargar saldo"
+      className="rounded-2xl border border-sand bg-white p-4"
+    >
+      <p className="font-brand text-lg font-medium leading-tight text-ink">Cargar tu saldo</p>
+      <p className="mt-1 text-sm text-ink-muted">{props.description}</p>
+      <p className="mt-2 font-mono text-2xl font-semibold tracking-tight text-ink">
+        {props.amount}
+      </p>
+      <div className="mt-4">
+        <Button fullWidth size="lg" onPress={() => void triggerAction('Cargar saldo', undefined, props.fund)}>
+          Cargar con Ripio
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+const FundingCard = defineComponent({
+  name: 'FundingCard',
+  props: fundingCardProps,
+  description:
+    'Wallet top-up card shown right after get_funding_link: description = what is missing (from the book error, verbatim), amount = the load amount display-ready, fund = @OpenUrl with the exact url the tool returned — never an invented or shortened link.',
+  component: FundingCardView,
+});
+
+const reviewSummaryProps = z.object({
+  /** Display-ready weighted score, e.g. "4.6" — from get_reviews, verbatim. */
+  rating: z.string(),
+  /** Total review count, e.g. "12 reseñas". */
+  count: z.string(),
+  /** Per-category averages — label + "x.x" score, verbatim from categories. */
+  categories: z.array(
+    z.object({
+      label: z.string(),
+      score: z.string(),
+    }),
+  ),
+});
+
+function ReviewSummaryView({ props }: ComponentRenderProps<z.infer<typeof reviewSummaryProps>>) {
+  const score = Number.parseFloat(props.rating);
+  const full = Number.isFinite(score) ? Math.round(score) : 0;
+  return (
+    <section
+      aria-label={`Puntuación ${props.rating} en ${props.count}`}
+      className="rounded-2xl border border-sand bg-white p-4"
+    >
+      <div className="flex items-baseline gap-2">
+        <p className="font-brand text-3xl font-semibold tracking-tight text-ink">{props.rating}</p>
+        <p className="text-sm text-ink-muted" aria-hidden>
+          {'★'.repeat(full)}{'☆'.repeat(5 - full)}
+        </p>
+        <p className="text-sm text-ink-muted">{props.count}</p>
+      </div>
+      <dl className="mt-3 flex flex-col gap-1.5">
+        {props.categories.map((cat) => {
+          const value = Number.parseFloat(cat.score);
+          const pct = Number.isFinite(value) ? Math.min(100, Math.max(0, (value / 5) * 100)) : 0;
+          return (
+            <div key={cat.label} className="flex items-center gap-3">
+              <dt className="w-28 shrink-0 text-xs text-ink-muted">{cat.label}</dt>
+              <dd className="h-1.5 flex-1 overflow-hidden rounded-full bg-sand/70">
+                <span className="block h-full rounded-full bg-terra" style={{ width: `${pct}%` }} />
+              </dd>
+              <dd className="w-8 shrink-0 text-right font-mono text-xs text-ink">{cat.score}</dd>
+            </div>
+          );
+        })}
+      </dl>
+    </section>
+  );
+}
+
+const ReviewSummary = defineComponent({
+  name: 'ReviewSummary',
+  props: reviewSummaryProps,
+  description:
+    'Weighted review score card: rating = get_reviews rating verbatim, count = "N reseñas", categories = the per-category averages. Render ONLY with a real get_reviews result — rating is null (no reviews yet) → say so in prose, never render an empty score.',
+  component: ReviewSummaryView,
+});
+
+const reviewListProps = z.object({
+  items: z.array(
+    z.object({
+      author: z.string(),
+      /** Display-ready date, e.g. "mar 2026" — verbatim from the item. */
+      date: z.string(),
+      rating: z.number().min(1).max(5),
+      body: z.string().optional(),
+    }),
+  ),
+});
+
+function ReviewListView({ props }: ComponentRenderProps<z.infer<typeof reviewListProps>>) {
+  return (
+    <ul aria-label="Reseñas" className="flex w-full max-w-md flex-col gap-3">
+      {props.items.map((item, i) => (
+        <li key={`${item.author}-${item.date}-${i}`} className="rounded-2xl border border-sand bg-white p-3.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm font-medium text-ink">{item.author}</p>
+            <p className="shrink-0 text-xs text-ink-muted">
+              <span aria-hidden className="mr-1 text-terra">{'★'.repeat(item.rating)}</span>
+              {item.date}
+            </p>
+          </div>
+          {item.body ? <p className="mt-1.5 text-sm leading-snug text-ink">{item.body}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const ReviewList = defineComponent({
+  name: 'ReviewList',
+  props: reviewListProps,
+  description:
+    'Written reviews for a Lodging — one row per get_reviews item (author, date, 1-5 rating, optional body). Pass fields verbatim; omit items without text from the list only if the summary already covers them.',
+  component: ReviewListView,
+});
+
+const reviewFormProps = z.object({
+  /** The real booking id being reviewed, e.g. "bkg_12". */
+  bookingId: z.string(),
+  /** Fires continue_conversation with formState {rating, body, categories}. */
+  submit: action(),
+});
+
+function StarPicker({
+  value,
+  onChange,
+  name,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  name: string;
+}) {
+  return (
+    <div className="flex gap-1" role="radiogroup" aria-label={name}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={value === n}
+          aria-label={`${n} de 5`}
+          onClick={() => onChange(n)}
+          className={`text-xl leading-none transition-colors ${
+            n <= value ? 'text-terra' : 'text-sand hover:text-terra/60'
+          }`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const REVIEW_CATEGORIES = [
+  { key: 'cleanliness', label: 'Limpieza' },
+  { key: 'accuracy', label: 'Exactitud' },
+  { key: 'checkin', label: 'Check-in' },
+  { key: 'communication', label: 'Comunicación' },
+  { key: 'location', label: 'Ubicación' },
+  { key: 'value', label: 'Precio/calidad' },
+] as const;
+
+function ReviewFormView({ props }: ComponentRenderProps<z.infer<typeof reviewFormProps>>) {
+  const setFieldValue = useSetFieldValue();
+  const triggerAction = useTriggerAction();
+  const [rating, setRating] = useState(0);
+  const [body, setBody] = useState('');
+  const [cats, setCats] = useState<Record<string, number>>({});
+
+  const onSubmit = () => {
+    if (!rating) return;
+    setFieldValue(undefined, undefined, 'rating', rating);
+    setFieldValue(undefined, undefined, 'body', body.trim());
+    setFieldValue(undefined, undefined, 'categories', cats);
+    void triggerAction('Enviar reseña', undefined, props.submit);
+  };
+
+  return (
+    <section
+      aria-label={`Reseña de la reserva ${props.bookingId}`}
+      className="rounded-2xl border border-sand bg-white p-4"
+    >
+      <p className="font-brand text-lg font-medium leading-tight text-ink">Dejá tu reseña</p>
+      <p className="mt-0.5 font-mono text-xs tracking-widest text-ink-muted">{props.bookingId}</p>
+      <fieldset className="mt-3">
+        <legend className="text-xs text-ink-muted">Tu puntuación general</legend>
+        <div className="mt-1.5">
+          <StarPicker
+            value={rating}
+            onChange={setRating}
+            name={`review-rating-${props.bookingId}`}
+          />
+        </div>
+      </fieldset>
+      <fieldset className="mt-3">
+        <legend className="text-xs text-ink-muted">Por categoría (opcional)</legend>
+        <div className="mt-1.5 flex flex-col gap-1.5">
+          {REVIEW_CATEGORIES.map((cat) => (
+            <div key={cat.key} className="flex items-center justify-between gap-3">
+              <span className="text-sm text-ink">{cat.label}</span>
+              <StarPicker
+                value={cats[cat.key] ?? 0}
+                onChange={(v) => setCats((prev) => ({ ...prev, [cat.key]: v }))}
+                name={`review-${cat.key}-${props.bookingId}`}
+              />
+            </div>
+          ))}
+        </div>
+      </fieldset>
+      <label className="mt-3 block">
+        <span className="text-xs text-ink-muted">Contanos cómo fue (opcional)</span>
+        <textarea
+          rows={3}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          className={`${inputClass} resize-none`}
+        />
+      </label>
+      <div className="mt-4">
+        <Button fullWidth isDisabled={!rating} onPress={onSubmit}>
+          Enviar reseña
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+const ReviewForm = defineComponent({
+  name: 'ReviewForm',
+  props: reviewFormProps,
+  description:
+    'Review form for a completed Booking: overall stars (required), optional per-category stars (cleanliness, accuracy, checkin, communication, location, value) and optional text; fires submit with formState {rating, body, categories}. bookingId = the real booking id — only render for a completed Booking the Traveler actually has, inside the 14-day review window.',
+  component: ReviewFormView,
+});
+
 const stackProps = z.object({
   children: z.array(
     z.union([
@@ -1283,6 +1535,10 @@ const stackProps = z.object({
       ApprovalCard.ref,
       TaskRows.ref,
       RecommendationCard.ref,
+      FundingCard.ref,
+      ReviewSummary.ref,
+      ReviewList.ref,
+      ReviewForm.ref,
     ]),
   ),
   direction: z.enum(['column', 'row']).optional(),
@@ -1334,6 +1590,10 @@ export const library = createLibrary({
     ApprovalCard,
     TaskRows,
     RecommendationCard,
+    FundingCard,
+    ReviewSummary,
+    ReviewList,
+    ReviewForm,
   ],
   componentGroups: [
     { name: 'Layout', components: ['Stack', 'TextContent'] },
@@ -1359,6 +1619,10 @@ export const library = createLibrary({
         'MetricRow',
         'ApprovalCard',
         'TaskRows',
+        'FundingCard',
+        'ReviewSummary',
+        'ReviewList',
+        'ReviewForm',
         'RecommendationCard',
       ],
     },

@@ -2,7 +2,7 @@
   "root": "Stack",
   "components": {
     "Stack": {
-      "signature": "Stack(children: (string | TextContent | ListingCard | ListingCarousel | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow | ApprovalCard | TaskRows | RecommendationCard)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
+      "signature": "Stack(children: (string | TextContent | ListingCard | ListingCarousel | QuoteCard | ImageGrid | SectionHeader | ChipRow | DetailList | AmenityChips | QuoteForm | BookingCard | Table | MapCard | StatusBadge | Stepper | AvailabilityPicker | ClaimCard | MetricRow | ApprovalCard | TaskRows | RecommendationCard | FundingCard | ReviewSummary | ReviewList | ReviewForm)[], direction?: \"column\" | \"row\", gap?: \"sm\" | \"md\" | \"lg\")",
       "description": "Root layout container every program starts with: stacks children vertically (default) or horizontally with a gap."
     },
     "TextContent": {
@@ -88,6 +88,22 @@
     "RecommendationCard": {
       "signature": "RecommendationCard(title: string, description: string, confidence: number, accept: ActionExpression, alternatives?: {label: string, action: ActionExpression}[])",
       "description": "One top pick after a search: title + why, a 0-100 confidence meter, an \"Elegir\" CTA and an \"Alternativas\" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented."
+    },
+    "FundingCard": {
+      "signature": "FundingCard(description: string, amount: string, fund: ActionExpression)",
+      "description": "Wallet top-up card shown right after get_funding_link: description = what is missing (from the book error, verbatim), amount = the load amount display-ready, fund = @OpenUrl with the exact url the tool returned — never an invented or shortened link."
+    },
+    "ReviewSummary": {
+      "signature": "ReviewSummary(rating: string, count: string, categories: {label: string, score: string}[])",
+      "description": "Weighted review score card: rating = get_reviews rating verbatim, count = \"N reseñas\", categories = the per-category averages. Render ONLY with a real get_reviews result — rating is null (no reviews yet) → say so in prose, never render an empty score."
+    },
+    "ReviewList": {
+      "signature": "ReviewList(items: {author: string, date: string, rating: number, body?: string}[])",
+      "description": "Written reviews for a Lodging — one row per get_reviews item (author, date, 1-5 rating, optional body). Pass fields verbatim; omit items without text from the list only if the summary already covers them."
+    },
+    "ReviewForm": {
+      "signature": "ReviewForm(bookingId: string, submit: ActionExpression)",
+      "description": "Review form for a completed Booking: overall stars (required), optional per-category stars (cleanliness, accuracy, checkin, communication, location, value) and optional text; fires submit with formState {rating, body, categories}. bookingId = the real booking id — only render for a completed Booking the Traveler actually has, inside the 14-day review window."
     }
   },
   "componentGroups": [
@@ -120,6 +136,10 @@
         "MetricRow",
         "ApprovalCard",
         "TaskRows",
+        "FundingCard",
+        "ReviewSummary",
+        "ReviewList",
+        "ReviewForm",
         "RecommendationCard"
       ]
     }
@@ -193,6 +213,18 @@
       },
       "RecommendationCard": {
         "$ref": "#/$defs/RecommendationCard"
+      },
+      "FundingCard": {
+        "$ref": "#/$defs/FundingCard"
+      },
+      "ReviewSummary": {
+        "$ref": "#/$defs/ReviewSummary"
+      },
+      "ReviewList": {
+        "$ref": "#/$defs/ReviewList"
+      },
+      "ReviewForm": {
+        "$ref": "#/$defs/ReviewForm"
       }
     },
     "required": [
@@ -217,7 +249,11 @@
       "MetricRow",
       "ApprovalCard",
       "TaskRows",
-      "RecommendationCard"
+      "RecommendationCard",
+      "FundingCard",
+      "ReviewSummary",
+      "ReviewList",
+      "ReviewForm"
     ],
     "additionalProperties": false,
     "$defs": {
@@ -293,6 +329,18 @@
                 },
                 {
                   "$ref": "#/$defs/RecommendationCard"
+                },
+                {
+                  "$ref": "#/$defs/FundingCard"
+                },
+                {
+                  "$ref": "#/$defs/ReviewSummary"
+                },
+                {
+                  "$ref": "#/$defs/ReviewList"
+                },
+                {
+                  "$ref": "#/$defs/ReviewForm"
                 }
               ]
             }
@@ -980,6 +1028,119 @@
         ],
         "additionalProperties": false,
         "description": "One top pick after a search: title + why, a 0-100 confidence meter, an \"Elegir\" CTA and an \"Alternativas\" drawer of other real options. Emit at most ONE per reply and only when one result is clearly stronger — confidence must come from rating/fit, never invented."
+      },
+      "FundingCard": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "fund": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        "required": [
+          "description",
+          "amount",
+          "fund"
+        ],
+        "additionalProperties": false,
+        "description": "Wallet top-up card shown right after get_funding_link: description = what is missing (from the book error, verbatim), amount = the load amount display-ready, fund = @OpenUrl with the exact url the tool returned — never an invented or shortened link."
+      },
+      "ReviewSummary": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "string"
+          },
+          "count": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "score"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "rating",
+          "count",
+          "categories"
+        ],
+        "additionalProperties": false,
+        "description": "Weighted review score card: rating = get_reviews rating verbatim, count = \"N reseñas\", categories = the per-category averages. Render ONLY with a real get_reviews result — rating is null (no reviews yet) → say so in prose, never render an empty score."
+      },
+      "ReviewList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "author": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "rating": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "body": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "author",
+                "date",
+                "rating"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Written reviews for a Lodging — one row per get_reviews item (author, date, 1-5 rating, optional body). Pass fields verbatim; omit items without text from the list only if the summary already covers them."
+      },
+      "ReviewForm": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "submit": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        "required": [
+          "bookingId",
+          "submit"
+        ],
+        "additionalProperties": false,
+        "description": "Review form for a completed Booking: overall stars (required), optional per-category stars (cleanliness, accuracy, checkin, communication, location, value) and optional text; fires submit with formState {rating, body, categories}. bookingId = the real booking id — only render for a completed Booking the Traveler actually has, inside the 14-day review window."
       }
     }
   },

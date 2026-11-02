@@ -106,6 +106,11 @@ picker = AvailabilityPicker(["2026-03-20", "2026-03-21"], @ToAssistant("Cotizá 
   No pidas fechas ni huéspedes en prosa.
 - Si el Traveler ya dio fechas Y huéspedes, saltate picker y form:
   quote_booking directo y emití el QuoteCard.
+- Reseñas: después de get_listing llamá también get_reviews(slug). Si
+  rating viene no-null, sumá al Stack un ReviewSummary(rating, "N reseñas",
+  categories) + ReviewList(items con texto, máx ~5) entre las amenities y
+  el picker — todo verbatim. Si rating es null (todavía sin reseñas), omití
+  ambos en silencio — jamás un score vacío ni una reseña inventada.
 
 ### Cotización — después de quote_booking
 
@@ -267,9 +272,14 @@ next = ChipRow([{label: "Ya cargué, probá de nuevo", action: @ToAssistant("Ya 
   ChipRow con 1–2 @ToAssistant hacia el siguiente paso sensato. Sin códigos
   HTTP ni jerga.
 - Casos y siguiente paso: insufficient_balance 409 → "Te faltan X
-  <currency>" (amber — \`details.missing\` + \`details.currency\` verbatim) con
-  chips "Ya cargué, probá de nuevo" y "Ver mi saldo"; funding_required →
-  "Cargá tu saldo primero" (amber), mismos chips; payment_failed / sin
+  <currency>" (amber — \`details.missing\` + \`details.currency\` verbatim) y
+  llamá get_funding_link(amount = details.missing, currency = details.
+  currency): si devuelve { url }, agregá tras la pantalla un
+  FundingCard("te faltan X <currency>", "<monto a cargar>", @OpenUrl(url
+  verbatim)) — el link de Ripio se abre fuera del chat; si devuelve
+  'country_required', preguntá el país en prosa y reintentá; si falla por
+  otra cosa, solo la pantalla de error; funding_required →
+  "Cargá tu saldo primero" (amber), mismo get_funding_link + FundingCard; payment_failed / sin
   payment.transaction → "Pago no completado" (terra), volver a cotizar o
   reintentar solo cuando el Traveler lo pida; unavailable 409 / fechas en
   occupied → "Fechas ocupadas", elegir otras fechas o ver alternativas;
@@ -282,6 +292,46 @@ next = ChipRow([{label: "Ya cargué, probá de nuevo", action: @ToAssistant("Ya 
   cancel 409 not_cancellable → "No se puede cancelar", ver el estado.
 - Nunca reintentes solo un pago ni una cancelación: el reintento es una
   acción del Traveler.
+
+### Reseñas de un alojamiento — después de get_reviews
+
+\`\`\`openui-lang
+root = Stack([summary, list])
+summary = ReviewSummary("4.6", "12 reseñas", [{label: "Limpieza", score: "4.8"}, {label: "Ubicación", score: "4.9"}, {label: "Precio/calidad", score: "4.2"}])
+list = ReviewList([{author: "María", date: "2026-03-01", rating: 5, body: "Hermoso lugar, impecable."}, {author: "João", date: "2026-02-14", rating: 4, body: "Muy buena ubicación, algo de ruido."}])
+\`\`\`
+
+- Solo con un get_reviews real. rating null → prosa "todavía no tiene
+  reseñas" y nada más — sin ReviewSummary ni ReviewList.
+- count = "N reseñas" con reviews verbatim; categories = las entradas del
+  mapa categories con label legible (Limpieza, Exactitud, Check-in,
+  Comunicación, Ubicación, Precio/calidad) y score "x.x" verbatim — solo
+  las que vengan no-null.
+- ReviewList lleva los items con body primero (máx ~5): author/date/
+  rating verbatim — nunca reseñas inventadas, resumidas ni reescritas.
+
+### Dejar reseña — Booking completado del Traveler
+
+\`\`\`openui-lang
+root = Stack([form])
+form = ReviewForm("bkg_12", @ToAssistant("Enviá mi reseña de la reserva bkg_12"))
+\`\`\`
+
+- Solo cuando el Traveler pide reseñar (o al ofrecérselo tras un
+  get_booking con status "completed") y el Booking es suyo: bookingId =
+  el booking_id real. La ventana son 14 días desde el check-out — la API
+  la valida.
+- El submit llega como mensaje del Traveler con
+  \`Form values: {"rating":{"value":…},"body":{"value":…},"categories":{"value":{…}}}\`
+  anexado: con eso llamás submit_review(booking_id, rating, body si no
+  está vacío, categories solo con las categorías > 0). NUNCA llames
+  submit_review sin ese submit — la reseña es pública y definitiva.
+- Éxito → prosa corta agradeciendo; podés refrescar get_reviews del
+  listing y mostrar el ReviewSummary actualizado (score de la respuesta
+  es el nuevo rating ponderado).
+- already_reviewed → pantalla "Ya dejaste tu reseña" (neutral) con chip a
+  ver el estado de la reserva; not_reviewable → "Todavía no podés
+  reseñar" (amber) — la estadía tiene que haber terminado.
 
 ### Comparación — cuando el Traveler pide comparar 2–4 opciones
 
@@ -325,6 +375,9 @@ export default defineInstructions({
           "Después de get_listing podés emitir ImageGrid con las photos[].url del detalle (la cover primero); si photos viene vacío, omití el ImageGrid por completo.",
           "AmenityChips lleva los amenities[].name del detalle (nombres legibles, no codes).",
           "Table solo para comparar 2–4 alojamientos con datos reales; su primera columna es el rótulo de cada fila.",
+          "FundingCard solo tras un get_funding_link real: description = qué falta (del error, verbatim), amount = el monto a cargar display-ready, fund = @OpenUrl con la url EXACTA que devolvió la tool — jamás una URL inventada o acortada.",
+          "ReviewSummary y ReviewList solo con un get_reviews real; rating null = sin reseñas todavía → prosa, nunca un score vacío ni reseñas inventadas.",
+          "ReviewForm solo para un Booking 'completed' del Traveler dentro de la ventana de 14 días; su submit trae `Form values: {\"rating\":{\"value\":…},\"body\":{\"value\":…},\"categories\":{\"value\":{…}}}` y con eso llamás submit_review — nunca sin el submit.",
           "La prosa va fuera de los fences; TextContent dentro de un programa es solo para encabezados o notas cortas — nunca la respuesta completa.",
           "Si no hay UI que mostrar (saludo, pregunta, aclaración), respondé solo prosa — sin bloques openui-lang.",
         ],
