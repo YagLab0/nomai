@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nomai · Diapositivas del modelo de negocio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&family=Saira+Semi+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #fbf6f0;
+    --ficha: #ffffff;
+    --tinta: #2a1e17;
+    --piedra: #7a6a5e;
+    --linea: #eadfd2;
+    --senal: #f5b301;
+    --m: #b4552d;
+    --m-fondo: #f3e2d6;
+    --p: #2c7a72;
+    --p-fondo: #ddf0ec;
+    --d: #bd6147;
+    --d-fondo: #f3d9d1;
+    --a: #3e7d57;
+    --a-fondo: #d9edde;
+    --sans: "Saira", "Helvetica Neue", Arial, sans-serif;
+    --cond: "Saira Semi Condensed", "Arial Narrow", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #1c1612; color: var(--tinta);
+    font-family: var(--sans); overflow: hidden;
+  }
+  .deck {
+    width: 100vw; height: 100vh;
+    display: grid; place-items: center;
+    padding: 20px;
+  }
+  .slide {
+    display: none;
+    width: min(94vw, calc(88vh * 16 / 9));
+    aspect-ratio: 16 / 9;
+    background: var(--papel);
+    border: 2px solid var(--linea);
+    border-radius: 22px;
+    padding: clamp(22px, 3vw, 42px) clamp(28px, 3.6vw, 52px);
+    position: relative;
+    box-shadow: 0 35px 90px rgba(0,0,0,.55);
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+  .slide.active { display: flex; }
+  .slide::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 7px;
+    background: linear-gradient(90deg, var(--senal), var(--m), var(--p));
+  }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+    border-bottom: 1.5px solid var(--linea); padding-bottom: 12px;
+  }
+  .kicker {
+    font: 700 13px var(--cond); letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--m);
+  }
+  h1 {
+    margin: 2px 0 0;
+    font: 800 clamp(24px, 2.6vw, 38px)/1.08 var(--cond);
+    color: var(--tinta);
+  }
+  .num-slide {
+    font: 700 13px var(--cond); color: var(--piedra);
+    background: var(--ficha); border: 1px solid var(--linea);
+    border-radius: 999px; padding: 4px 14px; white-space: nowrap;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; flex: 1; align-content: center; margin: 16px 0; }
+  .card {
+    background: var(--ficha); border: 1.5px solid var(--linea);
+    border-radius: 16px; padding: 20px 24px;
+  }
+  .card.m { background: var(--m-fondo); border-color: var(--m); border-left-width: 6px; }
+  .card.p { background: var(--p-fondo); border-color: var(--p); border-left-width: 6px; }
+  .card h2 { margin: 0 0 10px; font: 700 clamp(18px, 1.8vw, 24px) var(--cond); }
+  .card p { margin: 0; font-size: clamp(14px, 1.3vw, 18px); line-height: 1.45; }
+  .banner {
+    background: var(--ficha); border: 1.5px solid var(--linea); border-left: 6px solid var(--senal);
+    border-radius: 12px; padding: 12px 18px; font-size: clamp(13px, 1.15vw, 16px);
+  }
+  .bmc-mini {
+    display: grid; gap: 8px; flex: 1; margin: 12px 0;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: 1fr 1fr auto;
+    grid-template-areas:
+      "soc act val rel seg"
+      "soc rec val can seg"
+      "cos cos ing ing ing";
+  }
+  .bmc-mini > div {
+    background: var(--ficha); border: 1.5px solid var(--linea); border-radius: 10px;
+    padding: 8px 11px; font-size: clamp(11px, .95vw, 13.5px); line-height: 1.3;
+  }
+  .bmc-mini h3 { margin: 0 0 5px; font: 700 12px var(--cond); text-transform: uppercase; letter-spacing: .7px; color: var(--m); }
+  .bmc-mini ul { margin: 0; padding-left: 15px; }
+  .bmc-mini li { margin-bottom: 3px; }
+  .bmc-mini .soc { grid-area: soc; } .bmc-mini .act { grid-area: act; } .bmc-mini .rec { grid-area: rec; }
+  .bmc-mini .val { grid-area: val; background: #fdf3d3; border-color: var(--senal); }
+  .bmc-mini .rel { grid-area: rel; } .bmc-mini .can { grid-area: can; } .bmc-mini .seg { grid-area: seg; }
+  .bmc-mini .cos { grid-area: cos; } .bmc-mini .ing { grid-area: ing; background: var(--a-fondo); border-color: var(--a); }
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: var(--ficha); border: 1.5px solid var(--tinta); border-radius: 12px; overflow: hidden;
+    font-size: clamp(12px, 1.05vw, 15px);
+  }
+  th { background: var(--linea); text-align: left; padding: 8px 12px; font: 700 12px var(--cond); text-transform: uppercase; }
+  td { padding: 9px 12px; border-top: 1px solid var(--linea); vertical-align: top; }
+  footer {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: var(--piedra); border-top: 1px solid var(--linea); padding-top: 8px;
+  }
+  .nav-controls {
+    position: fixed; bottom: 14px; right: 22px; display: flex; gap: 8px; z-index: 20;
+  }
+  .nav-controls button {
+    background: var(--ficha); color: var(--tinta); border: 1px solid var(--linea);
+    border-radius: 999px; padding: 6px 14px; font: 700 12px var(--cond); cursor: pointer;
+  }
+  @media print {
+    @page { size: 16in 9in; margin: 0; }
+    html, body { overflow: visible; height: auto; background: #fff; }
+    .deck { display: block; padding: 0; height: auto; }
+    .slide { display: flex !important; width: 100vw; height: 100vh; border-radius: 0; border: 0; box-shadow: none; break-after: page; }
+    .nav-controls { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- LÁMINA 1: PROPUESTA DE VALOR -->
+  <section class="slide active">
+    <header>
+      <div>
+        <div class="kicker">nomai · Propuesta de valor bilateral (actualizada 2026)</div>
+        <h1>Garantía Escrow + Tarifa Directa sobre rieles wFIAT / Celo / x402</h1>
+      </div>
+      <span class="num-slide">1 / 4</span>
+    </header>
+
+    <div class="grid-2">
+      <div class="card m">
+        <h2>[V] Para el Viajero (Fase 1: ARS 7% · Fase 2: LATAM 8%)</h2>
+        <p><b>Fase 1 (Local en pesos, 100% lista hoy):</b> evita las estafas de señas por CBU/WhatsApp y el dólar tarjeta de Airbnb (+30% ARCA). <b>Fase 2 (Hackatón/Expansión):</b> turistas de Brasil (+22% YoY) y LATAM pagan desde su moneda local con el <b>100% protegido en contrato de Escrow (reembolso automático 100%/50%)</b> (<code>A1</code>, <code>A2</code>).</p>
+      </div>
+      <div class="card p">
+        <h2>[D] Para el Dueño (Owner · 0% comisión siempre)</h2>
+        <p>Ayuda al <b>dueño de cabañas y posadas en Jujuy, Salta (44% ocupación) y LATAM</b> a convertir consultas de WhatsApp eliminando el <b>15,5% de comisión de Airbnb y 15%–18% de Booking</b> (<code>D6</code>, <code>D7</code>), recibiendo el <b>100% de su precio en pesos en 2 tramos asegurados</b> (<code>A6</code>, <code>A8</code>).</p>
+      </div>
+    </div>
+
+    <div class="banner">
+      <b>Economía unitaria vs. escala:</b> Margen bruto del <b>85%–95% por reserva</b> (~8% ingreso vs. ~USD 2 costo variable). El piloto de 15 cabañas genera ~22 reservas/mes; el punto de equilibrio exige <b>120–400 reservas/mes (100–600 propiedades)</b>.
+    </div>
+
+    <footer>
+      <span>nomai · Norte Argentino (Jujuy / Salta) hacia LATAM</span>
+      <span>Usá las flechas ◀ ▶ del teclado para navegar</span>
+    </footer>
+  </section>
+
+  <!-- LÁMINA 2: BUSINESS MODEL CANVAS RESUMIDO -->
+  <section class="slide">
+    <header>
+      <div>
+        <div class="kicker">nomai · Business Model Canvas</div>
+        <h1>Cómo se crea, entrega y captura el valor</h1>
+      </div>
+      <span class="num-slide">2 / 4</span>
+    </header>
+
+    <div class="bmc-mini">
+      <div class="soc">
+        <h3>8. Socios clave</h3>
+        <ul>
+          <li><b>Ripio:</b> wFIAT en Celo (jul/26), rampa 0% y PSAV.</li>
+          <li><b>Celo + x402:</b> Linux Foundation, gas $0.</li>
+          <li><b>Textile FX:</b> swap wBRL↔wARS.</li>
+        </ul>
+      </div>
+      <div class="act">
+        <h3>7. Actividades</h3>
+        <ul>
+          <li>Entrevistas H1 (15 posadas) → escalar a 100–600.</li>
+          <li>Conectar swap en <code>book-payment.ts</code>.</li>
+          <li>Operar keeper 50%/50% y Claims.</li>
+        </ul>
+      </div>
+      <div class="rec">
+        <h3>6. Recursos</h3>
+        <ul>
+          <li>Web, API x402, MCP y agente Nomito.</li>
+          <li><code>Escrow.sol</code>, <code>keeper.ts</code>, <code>payout.ts</code>.</li>
+          <li>Equipo local en Jujuy.</li>
+        </ul>
+      </div>
+      <div class="val">
+        <h3>2. Propuesta de valor</h3>
+        <ul>
+          <li><b>[V] Viajero:</b> garantía Escrow 100%/50% (vs. kamiPay) + tarifa directa en su moneda (vs. OTAs).</li>
+          <li><b>[D] Dueño:</b> 0% comisión y link <code>/owners/[slug]</code> para cerrar extranjeros por WhatsApp.</li>
+        </ul>
+      </div>
+      <div class="rel">
+        <h3>4. Relación</h3>
+        <ul>
+          <li><b>[D]</b> Alta presencial + micro-depósito Ripio.</li>
+          <li><b>[V]</b> Chat 24/7 con Nomito + reseñas verificadas.</li>
+        </ul>
+      </div>
+      <div class="can">
+        <h3>3. Canales</h3>
+        <ul>
+          <li><b>[D]</b> Visita directa en Jujuy/Salta + remoto.</li>
+          <li><b>[V]</b> Link <code>/owners/[slug]</code> en WhatsApp + MCP.</li>
+        </ul>
+      </div>
+      <div class="seg">
+        <h3>1. Segmentos</h3>
+        <ul>
+          <li><b>[V] Fase 1:</b> turista argentino/NOA en ARS (&gt;80%).</li>
+          <li><b>[V] Fase 2:</b> turista Brasil/LATAM cross-border.</li>
+          <li><b>[D] Dueño ($0):</b> 15 piloto → 100–600 escala.</li>
+        </ul>
+      </div>
+      <div class="cos">
+        <h3>9. Estructura de costos (margen bruto 85%–95%)</h3>
+        <ul>
+          <li>Costo variable ~USD 0,50–2 / reserva (gas x402 $0 · keeper &lt; USD 0,01 · swap ~0,01% · DeepSeek) · Break-even fijo: 120–400 reservas/mes.</li>
+        </ul>
+      </div>
+      <div class="ing">
+        <h3>5. Fuentes de ingreso (100% del lado Viajero)</h3>
+        <ul>
+          <li><b>Service fee: 7% fijo</b> sobre el alquiler + <b>FX fee: ~1%</b> en conversión · <b>Dueño: 0%</b>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      <span>Patrón: Plataforma multilateral con subsidio cruzado (0% al Dueño) + distribución abierta MCP</span>
+      <span>Business Model Canvas: Strategyzer, CC BY-SA 3.0</span>
+    </footer>
+  </section>
+
+  <!-- LÁMINA 3: COMPETENCIA Y DIFERENCIAL -->
+  <section class="slide">
+    <header>
+      <div>
+        <div class="kicker">nomai · Competencia y defensa en 2026</div>
+        <h1>Por qué el diferencial es el Escrow + Precio Directo (no el cambio suelto)</h1>
+      </div>
+      <span class="num-slide">3 / 4</span>
+    </header>
+
+    <table>
+      <thead>
+        <tr><th>Tipo</th><th>Alternativa actual</th><th>Qué resuelve hoy</th><th>Por qué pierde frente a nomai</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Directa (#1 en PIX)</b></td>
+          <td><b>kamiPay</b> (+25M tx, ticket USD 421)</td>
+          <td>Brasileños pagan con PIX a hoteles argentinos con 0% de abono fijo al hotel.</td>
+          <td><b>No tiene contrato de Escrow ni reembolso automático:</b> el giro es irreversible si el viajero cancela, y no trae demanda nueva (sin agente IA ni MCP).</td>
+        </tr>
+        <tr>
+          <td><b>Directa (OTAs)</b></td>
+          <td><b>Airbnb (15,5%) y Booking (15–18%)</b></td>
+          <td>Demanda global, tarjeta y confianza.</td>
+          <td>Retienen <b>15%–18% al dueño</b> (que infla su precio) más el <b>~8% de tarjeta internacional brasileña</b> (3,5% IOF + spread).</td>
+        </tr>
+        <tr>
+          <td><b>Indirecta</b></td>
+          <td><b>WhatsApp + CBU / efectivo</b></td>
+          <td>0% comisión y trato directo.</td>
+          <td>Un brasileño con PIX <b>no puede transferir a un CBU argentino</b>; sin garantía para el viajero y con *no-shows* para el dueño.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="banner">
+      <b>Realidad 2026:</b> Con el IOF brasileño en 3,5% (~8% en tarjeta), el 8% de Nomai empata en cambio. El viajero elige Nomai por **(1) la Garantía Escrow 100%/50% frente a kamiPay/WhatsApp** y **(2) el precio directo del dueño (10–12% menor que en Airbnb/Booking)**.
+    </div>
+
+    <footer>
+      <span>5 Fuerzas de Porter: 4 altas 🔴 · Barrera a construir: 100–600 alojamientos con reseñas verificadas en cadena + acuerdo Ripio</span>
+      <span>Ver detalle en docs/negocio/business-model-canvas.md</span>
+    </footer>
+  </section>
+
+  <!-- LÁMINA 4: DIAGNÓSTICO, HIPÓTESIS Y PRÓXIMOS PASOS -->
+  <section class="slide">
+    <header>
+      <div>
+        <div class="kicker">nomai · Diagnóstico y validación</div>
+        <h1>Veredicto: 🟡 Planteado a medias · Los 5 ajustes concretos</h1>
+      </div>
+      <span class="num-slide">4 / 4</span>
+    </header>
+
+    <table>
+      <thead>
+        <tr><th>Hipótesis crítica</th><th>Experimento inmediato (esta temporada)</th><th>Criterio de éxito</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>H1 · Adopción y tarifa directa del Dueño:</b> Posadas de Jujuy/Salta abren Ripio y publican en <code>/owners/[slug]</code> un 10–12% menos que en Booking/Airbnb.</td>
+          <td>Visitar en persona a <b>15 dueños en Purmamarca, Tilcara y Cafayate</b> con guion <i>Mom Test</i> (relevando uso de kamiPay) y verificar Ripio con centavos (`payout.ts`).</td>
+          <td><b>≥ 5/15</b> verifican su cuenta de Ripio en la visita y <b>≥ 4/5</b> publican tarifa directa con descuento frente a OTAs.</td>
+        </tr>
+        <tr>
+          <td><b>H2 + H3 · Conversión del link y rampa en Fase 1 (`ARS / wARS`):</b> El viajero argentino/del NOA paga 100% adelantado en pesos en <code>/owners/[slug]</code> valorando la garantía Escrow (anti-estafa CBU) y ahorrando frente a Airbnb en USD.</td>
+          <td>Piloto local en Jujuy/Salta con las primeras 50 consultas de viajeros argentinos (flujo <code>wARS → Escrow.sol → wARS</code> ya activo al 100% hoy) + test de pasillo con 5 viajeros locales.</td>
+          <td><b>≥ 20%</b> de consultas con fecha libre pagan; ≥ 4/5 viajeros superan el test de carga en &lt; 15 min.</td>
+        </tr>
+        <tr>
+          <td><b>H4 + H5 · Swap `wBRL→wARS` y ruta a 100–600 posadas:</b> Cerrar el pago cross-wFIAT y escalar a las 120–400 reservas/mes del break-even.</td>
+          <td>Conectar Textile FX en <code>book-payment.ts</code>, sumar <b>bloqueo manual de fechas</b> en `/app/lodgings` y probar captación remota en Salta, Bariloche e Iguazú.</td>
+          <td><b>1 reserva real</b> `wBRL→wARS` en Celo mainnet, <b>0% sobreventas</b> y <b>≥ 10%</b> de alta remota de dueños.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="banner">
+      <b>Prioridad #1 esta semana:</b> Ejecutar las entrevistas de campo `H1` en Jujuy/Salta, agregar el bloqueo de fechas y conectar el swap `wBRL → wARS` (toda la tesis depende de medir la conversión real de los links de los dueños).
+    </div>
+
+    <footer>
+      <span>nomai · Documentación completa en docs/negocio/</span>
+      <span>Método Testing Business Ideas · Strategyzer</span>
+    </footer>
+  </section>
+
+</div>
+
+<div class="nav-controls">
+  <button type="button" onclick="go(-1)">◀ Anterior</button>
+  <button type="button" onclick="go(1)">Siguiente ▶</button>
+</div>
+
+<script>
+  var slides = document.querySelectorAll('.slide');
+  var idx = 0;
+  function go(delta) {
+    slides[idx].classList.remove('active');
+    idx = (idx + delta + slides.length) % slides.length;
+    slides[idx].classList.add('active');
+  }
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') go(1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1);
+  });
+</script>
+</body>
+</html>

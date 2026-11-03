@@ -1,0 +1,1314 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nomai · Modelo de negocio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&family=Saira+Semi+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #f8f6f1;
+    --ficha: #ffffff;
+    --tinta: #29241c;
+    --piedra: #6f675b;
+    --linea: #e7e2d6;
+    --senal: #f5b301;
+    --cobre: #a8662f;
+    --oscuro: #1c1915;
+    --m: #a8662f;            /* Segmento A: [V] Viajero */
+    --m-fondo: #f2d2a3;
+    --m-borde: #dda96f;
+    --p: #2f6f68;            /* Segmento B: [D] Dueño */
+    --p-fondo: #a9dcd0;
+    --p-borde: #6cb8ab;
+    --n-fondo: #efece3;      /* neutro: trabajos y productos */
+    --n-borde: #ddd6c7;
+    --n-borde-izq: #a39a88;
+    --senal-fondo: #fdf3d3;
+    --grano: #eae5d9;
+    /* Familia dolor: dolores + aliviadores (terracota suave) */
+    --d: #bd6147;
+    --d-fondo: #f3d9d1;
+    --d-borde: #e0ac9f;
+    --d-zona: #f8ebe6;
+    --d-deep: #9c4534;
+    --d-cod: #a84f38;
+    /* Familia alegría: alegrías + creadores (verde suave) */
+    --a: #4e8f66;
+    --a-fondo: #d9edde;
+    --a-borde: #a6cfB4;
+    --a-zona: #ecf5ee;
+    --a-deep: #35704c;
+    --a-cod: #3e7d57;
+    --t-zona: #f3f0e8;
+    --cod-tx: #ffffff;
+    --sans: "Saira", "Helvetica Neue", Arial, sans-serif;
+    --cond: "Saira Semi Condensed", "Arial Narrow", "Saira", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --papel: #14110d;
+      --ficha: #211d18;
+      --tinta: #eee8dd;
+      --piedra: #afa694;
+      --linea: #3a342b;
+      --senal: #f5b301;
+      --cobre: #e0a36b;
+      --m: #e0a36b;
+      --m-fondo: #4a3319;
+      --m-borde: #8a6132;
+      --p: #7cc4ba;
+      --p-fondo: #1a4038;
+      --p-borde: #386a60;
+      --n-fondo: #2c2720;
+      --n-borde: #494336;
+      --n-borde-izq: #8b8270;
+      --senal-fondo: #3a2f12;
+      --grano: #262119;
+      --d: #e08a6f;
+      --d-fondo: #47271f;
+      --d-borde: #7d4a3c;
+      --d-zona: #291b15;
+      --d-deep: #eda587;
+      --d-cod: #cf7a5e;
+      --a: #7cc496;
+      --a-fondo: #1e3d2a;
+      --a-borde: #3d6b4d;
+      --a-zona: #172a1e;
+      --a-deep: #9fd8b3;
+      --a-cod: #5f9d77;
+      --t-zona: #1d1913;
+      --cod-tx: #1c1915;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background-color: var(--papel);
+    background-image: radial-gradient(var(--grano) 1.1px, transparent 1.1px);
+    background-size: 24px 24px;
+    color: var(--tinta);
+    font: 14px/1.45 var(--sans);
+  }
+  main { max-width: 1240px; margin: 0 auto; padding: 30px 22px 70px; display: grid; gap: 30px; }
+
+  /* ---------- Hojas (una por sección, una por página impresa) ---------- */
+  .hoja {
+    position: relative;
+    background: var(--ficha);
+    border: 1px solid var(--linea);
+    border-radius: 18px;
+    padding: 26px 30px 30px;
+    overflow: hidden;
+    box-shadow: 0 30px 70px -38px rgba(41, 36, 28, .35);
+  }
+  .hoja::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 5px;
+    background: linear-gradient(90deg, var(--senal), var(--cobre));
+  }
+  section.vpc-m::before { background: linear-gradient(90deg, var(--senal), var(--m)); }
+  section.vpc-p::before { background: linear-gradient(90deg, var(--senal), var(--p)); }
+  .hoja-tit {
+    display: flex; align-items: center; gap: 11px;
+    margin: 0 0 15px;
+    font: 700 20px/1.1 var(--cond);
+    letter-spacing: .4px;
+  }
+  .hoja-tit .seg { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .seg.m { background: var(--m); }
+  .seg.p { background: var(--p); }
+  .hoja-tit .pg {
+    margin-left: auto;
+    font: 600 11px var(--sans); letter-spacing: .4px;
+    color: var(--piedra); border: 1px solid var(--linea);
+    border-radius: 999px; padding: 3px 11px; white-space: nowrap;
+  }
+
+  /* ---------- Encabezado ---------- */
+  .cabecera {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 26px;
+    padding-bottom: 18px; margin-bottom: 20px;
+    border-bottom: 1px solid var(--linea);
+  }
+  h1 {
+    margin: 0;
+    font: 800 clamp(26px, 3.4vw, 36px)/1 var(--cond);
+    letter-spacing: -.5px;
+  }
+  h1 em { font-style: normal; color: var(--cobre); }
+  h1 .rest { font-weight: 500; color: var(--piedra); }
+  .sub { margin: 7px 0 0; color: var(--piedra); font-size: 13.5px; }
+  .sub time { color: var(--tinta); font-weight: 600; }
+  .tag-innoa {
+    margin-left: auto;
+    font-size: 12.5px; color: var(--tinta); white-space: nowrap;
+    border: 1px solid var(--linea); background: var(--papel);
+    border-radius: 999px; padding: 5px 14px;
+  }
+  .leyenda { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+  .leyenda li {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--tinta);
+    border: 1px solid var(--linea); background: var(--papel);
+    border-radius: 999px; padding: 3.5px 12px;
+  }
+  .leyenda li.grupo { border: 0; background: transparent; padding: 3.5px 0; font-size: 11px; font-weight: 600; color: var(--piedra); letter-spacing: .4px; }
+  .leyenda .lg { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .leyenda .leyenda-txt { color: var(--piedra); }
+
+  /* ---------- Post-its ---------- */
+  ul.post { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  ul.post li {
+    font-size: 12px; line-height: 1.32;
+    padding: 4px 8px 4px 9px;
+    background: var(--n-fondo);
+    border: 1px solid var(--n-borde);
+    border-left: 3px solid var(--n-borde-izq);
+    border-radius: 2px 6px 6px 2px;
+    box-shadow: 0 1px 2px rgba(41, 36, 28, .08);
+  }
+  ul.post li:nth-child(3n+1) { transform: rotate(-.4deg); }
+  ul.post li:nth-child(3n+2) { transform: rotate(.3deg); }
+  ul.post li.m { background: var(--m-fondo); border-color: var(--m-borde); border-left-color: var(--m); }
+  ul.post li.p { background: var(--p-fondo); border-color: var(--p-borde); border-left-color: var(--p); }
+  ul.post li.d { background: var(--d-fondo); border-color: var(--d-borde); border-left-color: var(--d); }
+  ul.post li.a { background: var(--a-fondo); border-color: var(--a-borde); border-left-color: var(--a); }
+  ul.post li.hueco { background: transparent; border-style: dashed; box-shadow: none; }
+  .tag {
+    margin-left: 4px; font-size: 9.5px; font-weight: 600; white-space: nowrap;
+    color: var(--piedra); border: 1px solid var(--n-borde);
+    background: rgba(255, 255, 255, .45); border-radius: 99px; padding: 0 6px;
+  }
+  .road {
+    margin-left: 4px; font-size: 9.5px; font-weight: 700; white-space: nowrap;
+    color: #29241c; background: var(--senal); border-radius: 3px; padding: 1px 5px;
+  }
+  .sup { font-style: italic; color: var(--piedra); font-size: 11px; white-space: nowrap; }
+
+  /* post-its del VPC: texto + chips de código y de encaje */
+  .vpc ul.post li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 1px 6px; font-size: 13px; line-height: 1.35; padding: 6px 9px 6px 10px; }
+  .vpc ul.post li .tx { flex: 1 1 14ch; }
+  .cod {
+    flex: none; align-self: center;
+    font: 700 9.5px/1.7 var(--cond); letter-spacing: .4px;
+    border-radius: 99px; padding: 0 7px;
+    background: var(--n-borde-izq); color: var(--cod-tx);
+  }
+  li.d > .cod { background: var(--d-cod); }
+  li.a > .cod { background: var(--a-cod); }
+  .fit {
+    flex: none; align-self: center;
+    font: 600 9.5px/1.7 var(--cond); letter-spacing: .3px; white-space: nowrap;
+    border-radius: 99px; padding: 0 7px;
+    color: var(--piedra); border: 1px solid var(--n-borde); background: rgba(255, 255, 255, .4);
+  }
+  .fit.d { color: var(--d-deep); border-color: var(--d-borde); }
+  .fit.a { color: var(--a-deep); border-color: var(--a-borde); }
+  .hueco-tag {
+    flex: none; align-self: center;
+    font: 700 8.5px/1.7 var(--cond); letter-spacing: .7px; text-transform: uppercase; white-space: nowrap;
+    color: var(--piedra); border: 1px dashed var(--piedra); border-radius: 99px; padding: 0 7px;
+  }
+
+  /* ---------- Value Proposition Canvas ---------- */
+  .vpc-titulos { display: grid; grid-template-columns: .9fr 40px 1.14fr; margin: 0 0 9px; }
+  .vpc-titulos span {
+    font: 700 12px var(--cond); letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--piedra); text-align: center;
+  }
+  .paso {
+    display: inline-grid; place-items: center; width: 17px; height: 17px; margin-right: 6px;
+    border-radius: 50%; background: var(--senal); color: var(--oscuro);
+    font: 700 10.5px var(--cond); letter-spacing: 0; vertical-align: 1px;
+  }
+  .vpc-titulos span:last-child { color: var(--tinta); }
+  .como-leer {
+    list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+    margin: 0 0 12px; padding: 7px 12px; font-size: 12px; color: var(--tinta);
+    background: var(--papel); border: 1px solid var(--linea); border-radius: 10px;
+  }
+  .como-leer .t { font: 700 11px var(--cond); letter-spacing: 1px; text-transform: uppercase; color: var(--piedra); }
+  .como-leer .fit { font-size: 9px; }
+  .vpc { display: grid; grid-template-columns: .9fr 40px 1.14fr; align-items: stretch; }
+  .encaje { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  .encaje::before {
+    content: ""; position: absolute; top: 9%; bottom: 9%; left: 50%;
+    border-left: 2px dashed var(--linea);
+  }
+  .encaje b {
+    position: relative; width: 34px; height: 34px; flex: none;
+    display: grid; place-items: center;
+    background: var(--ficha); border: 1.5px solid var(--cobre); border-radius: 50%;
+    color: var(--cobre);
+  }
+  .encaje b svg { width: 16px; height: 16px; }
+  .encaje small { position: relative; font: 600 9px var(--cond); letter-spacing: 1px; text-transform: uppercase; color: var(--piedra); background: var(--ficha); padding: 0 2px; }
+
+  .cuadrado, .circulo { background: var(--papel); border: 2px solid var(--tinta); }
+  .cuadrado {
+    border-radius: 14px; overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "prod crea" "prod alivia";
+  }
+  .cuadrado > div { padding: 13px 14px; }
+  .cuadrado .prod { grid-area: prod; border-right: 1px solid var(--piedra); background: var(--t-zona); }
+  .cuadrado .crea { grid-area: crea; border-bottom: 1px solid var(--piedra); background: var(--a-zona); }
+  .cuadrado .alivia { grid-area: alivia; background: var(--d-zona); }
+
+  /* círculo: tres sectores con la geometría del lienzo original */
+  .circulo {
+    position: relative; align-self: center;
+    width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 50%; overflow: hidden;
+  }
+  .sectores { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .sectores .sec-t { fill: var(--t-zona); }
+  .sectores .sec-a { fill: var(--a-zona); }
+  .sectores .sec-d { fill: var(--d-zona); }
+  .sectores line { stroke: var(--piedra); stroke-width: .55; }
+  .circulo .zona { position: absolute; display: flex; flex-direction: column; justify-content: center; }
+  .circulo .zona ul { width: 100%; }
+  .circulo .zona h3 { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; }
+  .circulo .z-trabajo h3 { position: static; transform: none; justify-content: center; }
+  .z-alegria h3 { left: 80%; top: -11%; }
+  .z-dolor h3 { left: 80%; top: 107%; }
+  .circulo ul.post { gap: 5px; }
+  .circulo ul.post li { display: block; font-size: 12px; padding: 4px 8px 4px 9px; }
+  .circulo ul.post li .tx { display: inline; }
+  .circulo .cod, .circulo .fit { font-size: 9px; padding: 0 6px; }
+  .circulo .cod { margin-right: 6px; }
+  .circulo .fit, .circulo .tag { margin-left: 4px; }
+  .circulo .hueco-tag { font-size: 8px; margin-left: 4px; }
+  .z-trabajo { left: 62%; right: 6%; top: 27%; bottom: 27%; }
+  .z-alegria { left: 14%; right: 47.5%; top: 12%; bottom: 51%; }
+  .z-dolor   { left: 14%; right: 47.5%; top: 52%; bottom: 12%; }
+  .z-alegria, .z-dolor { align-items: center; }
+  .z-alegria ul, .z-dolor ul { width: 90%; }
+
+  .zona h3 {
+    display: flex; align-items: center; gap: 6px;
+    margin: 0 0 8px;
+    font: 700 12.5px var(--cond); letter-spacing: .9px; text-transform: uppercase;
+    color: var(--tinta);
+  }
+  .zona h3 { flex-wrap: wrap; row-gap: 0; }
+  .zona h3 .of { flex-basis: 100%; padding-left: 20px; font: italic 500 10.5px var(--cond); letter-spacing: .3px; text-transform: none; color: var(--piedra); }
+  .circulo .zona h3 { justify-content: center; text-align: center; }
+  .circulo .zona h3 .of { padding-left: 0; }
+  .z-alegria h3 svg, .z-dolor h3 svg { display: none; }
+  .circulo .z-trabajo h3 { white-space: normal; }
+  .zona h3 svg { width: 14px; height: 14px; color: var(--piedra); flex: none; }
+  .zona.alivia h3 svg, .z-dolor h3 svg { color: var(--d-deep); }
+  .zona.crea h3 svg, .z-alegria h3 svg { color: var(--a-deep); }
+
+  /* Hoja: caso de uso */
+  .hu {
+    display: flex; gap: 12px; margin: 0 0 22px; padding: 12px 16px; font-size: 14px; line-height: 1.5;
+    background: var(--papel); border: 1px solid var(--linea); border-left: 4px solid var(--senal); border-radius: 10px;
+  }
+  .linea { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; counter-reset: paso; }
+  .linea li {
+    position: relative; counter-increment: paso; display: flex; flex-direction: column; gap: 6px;
+    padding: 24px 14px 14px; background: var(--ficha); border: 1px solid var(--linea); border-radius: 12px; font-size: 13px; line-height: 1.45;
+  }
+  .linea li::before {
+    content: counter(paso); position: absolute; top: -12px; left: 14px;
+    display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--senal); color: var(--oscuro); font: 700 13px var(--cond);
+  }
+  .linea li + li::after { content: ""; position: absolute; top: 50%; left: -14px; width: 14px; border-top: 2px dashed var(--piedra); }
+  .linea p { margin: 0; }
+  .linea h3 { margin: 0; font: 700 15px var(--cond); color: var(--tinta); }
+  .linea .cuando { font: 700 11px var(--cond); letter-spacing: 1px; text-transform: uppercase; color: var(--cobre); }
+  .linea .quien { font-size: 11.5px; color: var(--piedra); }
+  .linea .cita { font-style: italic; }
+  .linea .chips { margin-top: auto; display: flex; flex-wrap: wrap; gap: 4px; padding-top: 4px; }
+  .linea .chips .fit { margin: 0; }
+  .hu-bandas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+  .banda { margin: 0; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; border: 1px solid var(--linea); background: var(--papel); }
+  .banda b { display: block; font: 700 11px var(--cond); letter-spacing: .8px; text-transform: uppercase; margin-bottom: 2px; }
+  .banda.ok { background: var(--a-fondo); border-color: var(--a-borde); }
+  .banda.ok b { color: var(--a-deep); }
+  .banda.no { background: var(--d-fondo); border-color: var(--d-borde); }
+  .banda.no b { color: var(--d-deep); }
+  .banda .road { margin-left: 4px; }
+  /* Hoja: beneficios */
+  .ben-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .ben-col h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 700 13px var(--cond); letter-spacing: .9px; text-transform: uppercase; color: var(--tinta); }
+  .ben-col h3 .seg { width: 10px; height: 10px; border-radius: 3px; }
+  .ben-nota { font: italic 500 11px var(--cond); letter-spacing: 0; text-transform: none; color: var(--piedra); }
+  .ben { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+  .ben li { position: relative; padding: 8px 12px 8px 12px; padding-right: 92px; font-size: 12.5px; line-height: 1.4; background: var(--m-fondo); border: 1px solid var(--linea); border-left: 4px solid var(--m); border-radius: 8px; }
+  .ben li.p { background: var(--p-fondo); border-left-color: var(--p); }
+  .ben li b { display: block; font-size: 13px; }
+  .ben li > .fit { position: absolute; right: 10px; top: 9px; margin: 0; }
+  .ab-tit { margin-top: 18px !important; }
+  table.ab { width: 100%; font-size: 12px; }
+  table.ab td:last-child { font-weight: 600; }
+  /* Hoja 1: cómo funciona */
+  .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+  .rol { padding: 12px 14px; font-size: 13px; line-height: 1.45; background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; }
+  .rol.m { background: var(--m-fondo); border-color: var(--m); }
+  .rol.p { background: var(--p-fondo); border-color: var(--p); }
+  .rol b { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; font: 700 13px var(--cond); letter-spacing: .8px; text-transform: uppercase; }
+  .rol .seg { width: 10px; height: 10px; border-radius: 3px; }
+  .rec-tit { margin: 0 0 10px; font: 700 13px var(--cond); letter-spacing: .9px; text-transform: uppercase; color: var(--piedra); }
+  .recorrido { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; counter-reset: rec; }
+  .recorrido li { position: relative; counter-increment: rec; padding: 22px 10px 10px; font-size: 12px; line-height: 1.4; background: var(--ficha); border: 1px solid var(--linea); border-radius: 10px; }
+  .recorrido li::before { content: counter(rec); position: absolute; top: -11px; left: 10px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--senal); color: var(--oscuro); font: 700 12px var(--cond); }
+  .recorrido li b { display: block; font: 700 13px var(--cond); color: var(--tinta); margin-bottom: 2px; }
+  .hu-bandas.dos { grid-template-columns: repeat(2, 1fr); }
+  .hu-bandas.cinco { grid-template-columns: repeat(5, 1fr); }
+  .declaracion {
+    display: flex; gap: 12px; align-items: flex-start;
+    margin-top: 16px; padding: 12px 16px;
+    background: var(--papel); border: 1px solid var(--linea); border-left: 4px solid var(--senal);
+    border-radius: 10px;
+    font: 500 15px/1.45 var(--cond); letter-spacing: .1px;
+  }
+  .declaracion svg { flex: none; width: 20px; height: 20px; color: var(--cobre); margin-top: 1px; }
+  .nota { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 12px; color: var(--piedra); }
+  .nota svg { flex: none; width: 15px; height: 15px; margin-top: 1px; }
+  .nota b { color: var(--tinta); font-weight: 600; }
+  .nota .fit { font-size: 9px; }
+
+  /* ---------- Business Model Canvas ---------- */
+  .bmc {
+    display: grid; gap: 1px;
+    background: var(--linea);
+    border: 2px solid var(--tinta); border-radius: 14px; overflow: hidden;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-areas:
+      "soc soc act act val val rel rel seg seg"
+      "soc soc rec rec val val can can seg seg"
+      "cos cos cos cos cos ing ing ing ing ing";
+  }
+  .bmc > div { background: var(--ficha); padding: 11px 13px; }
+  .bmc .soc { grid-area: soc; } .bmc .act { grid-area: act; } .bmc .rec { grid-area: rec; }
+  .bmc .val { grid-area: val; background: var(--senal-fondo); }
+  .bmc .rel { grid-area: rel; } .bmc .can { grid-area: can; }
+  .bmc .seg-b { grid-area: seg; } .bmc .cos { grid-area: cos; } .bmc .ing { grid-area: ing; }
+  .bmc h3 {
+    display: flex; align-items: center; gap: 7px;
+    margin: 0 0 8px;
+    font: 700 11.5px var(--cond); letter-spacing: .7px; text-transform: uppercase;
+    color: var(--tinta);
+  }
+  .bmc h3 .num {
+    flex: none; width: 19px; height: 19px; border-radius: 6px;
+    display: grid; place-items: center;
+    background: var(--tinta); color: var(--senal);
+    font: 700 11.5px var(--cond);
+  }
+  .bmc h3 svg { width: 15px; height: 15px; color: var(--piedra); margin-left: auto; flex: none; }
+
+  /* ---------- Hipótesis / Tablas ---------- */
+  .tabla-scroll { overflow-x: auto; }
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: var(--ficha);
+    border: 2px solid var(--tinta); border-radius: 12px; overflow: hidden;
+    font-size: 12.5px;
+  }
+  th {
+    text-align: left; padding: 8px 12px;
+    font: 700 11px var(--cond); letter-spacing: .8px; text-transform: uppercase;
+    color: var(--piedra); background: var(--papel);
+    border-bottom: 1.5px solid var(--tinta);
+  }
+  td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--linea); line-height: 1.35; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.h { font: 800 13px var(--cond); color: var(--cobre); white-space: nowrap; }
+  .tipo {
+    display: inline-flex; align-items: center; white-space: nowrap;
+    font-size: 11px; color: var(--tinta);
+    border: 1px solid var(--linea); background: var(--papel);
+    border-radius: 999px; padding: 1px 9px;
+  }
+  .tipo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--piedra); }
+  .tipo.d::before { background: var(--senal); }
+  .tipo.v::before { background: var(--cobre); }
+  .tipo.f::before { background: var(--tinta); }
+
+  /* ---------- Pie ---------- */
+  .pie {
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px;
+    margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--linea);
+    font-size: 11.5px; color: var(--piedra);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media screen and (max-width: 960px) {
+    .recorrido { grid-template-columns: repeat(2, 1fr); gap: 16px 10px; }
+    .roles { grid-template-columns: 1fr; }
+    .linea { grid-template-columns: repeat(2, 1fr); gap: 20px 14px; }
+    .linea li + li::after { display: none; }
+    .vpc, .vpc-titulos { grid-template-columns: 1fr; }
+    .vpc-titulos { display: none; }
+    .circulo { order: -2; }
+    .encaje { order: -1; }
+    .vpc { gap: 16px; }
+    .encaje { flex-direction: row; height: 40px; }
+    .encaje::before { top: 50%; bottom: auto; left: 6%; right: 6%; border-left: 0; border-top: 2px dashed var(--linea); }
+    .circulo { aspect-ratio: auto; border-radius: 26px; }
+    .circulo .sectores { display: none; }
+    .circulo .zona { position: static; padding: 14px 16px; }
+    .circulo .zona + .zona { border-top: 1px solid var(--linea); }
+    .circulo .zona h3 { position: static; transform: none; justify-content: flex-start; text-align: left; }
+    .circulo .zona h3 .of { padding-left: 20px; }
+    .z-alegria h3 svg, .z-dolor h3 svg { display: block; }
+    .z-trabajo { background: var(--t-zona); }
+    .z-dolor { background: var(--d-zona); }
+    .z-alegria { background: var(--a-zona); }
+    .z-alegria ul, .z-dolor ul { width: 100%; }
+    .z-alegria, .z-dolor { align-items: stretch; }
+  }
+  @media screen and (max-width: 760px) {
+    .recorrido, .hu-bandas.dos, .hu-bandas.cinco { grid-template-columns: 1fr; }
+    .ben-grid { grid-template-columns: 1fr; }
+    .ben li { padding-right: 12px; }
+    .ben li > .fit { position: static; display: inline-block; margin-top: 4px; }
+    .linea, .hu-bandas { grid-template-columns: 1fr; }
+    .linea { gap: 20px; }
+    .hu { font-size: 13px; }
+    body { font-size: 13px; }
+    main { padding: 14px 10px 44px; gap: 16px; }
+    .hoja { padding: 18px 14px 20px; border-radius: 14px; }
+    .hoja-tit { font-size: 17px; }
+    .cabecera { padding-bottom: 14px; margin-bottom: 16px; }
+    .tag-innoa { margin-left: 0; }
+    .cuadrado { grid-template-columns: 1fr; grid-template-areas: "prod" "alivia" "crea"; }
+    .cuadrado .prod { border-right: 0; border-bottom: 1px solid var(--piedra); }
+    .cuadrado .crea { border-bottom: 0; }
+    .cuadrado .alivia { border-bottom: 1px solid var(--piedra); }
+    .bmc { grid-template-columns: 1fr; grid-template-areas: "seg" "val" "can" "rel" "act" "rec" "soc" "cos" "ing"; }
+    ul.post li { font-size: 11.5px; }
+    .vpc ul.post li { font-size: 12.5px; }
+    .tabla-scroll { overflow-x: visible; }
+    table, thead, tbody, tr, td { display: block; }
+    table { border: 0; background: transparent; }
+    thead { display: none; }
+    tbody tr {
+      background: var(--ficha); border: 1px solid var(--linea);
+      border-radius: 12px; margin-bottom: 10px; padding: 10px 13px;
+    }
+    td { border: 0; padding: 3px 0; }
+    td:not(.h)::before {
+      content: attr(data-th);
+      display: block; margin-bottom: 1px;
+      font: 600 10px var(--cond); letter-spacing: .8px; text-transform: uppercase;
+      color: var(--piedra);
+    }
+    td.h { padding-bottom: 6px; }
+  }
+
+  /* ---------- Impresión: A4 apaisada, 1 hoja por sección ---------- */
+  @page { size: A4 landscape; margin: 10mm; }
+  @media print {
+    :root {
+      --papel: #ffffff; --ficha: #ffffff; --tinta: #29241c; --piedra: #6f675b;
+      --linea: #e7e2d6; --senal: #f5b301; --cobre: #a8662f;
+      --m: #a8662f; --m-fondo: #f2d2a3; --m-borde: #dda96f;
+      --p: #2f6f68; --p-fondo: #a9dcd0; --p-borde: #6cb8ab;
+      --n-fondo: #efece3; --n-borde: #ddd6c7; --n-borde-izq: #a39a88;
+      --senal-fondo: #fdf3d3; --grano: #eae5d9;
+      --d: #bd6147; --d-fondo: #f3d9d1; --d-borde: #e0ac9f;
+      --d-zona: #f8ebe6; --d-deep: #9c4534; --d-cod: #a84f38;
+      --a: #4e8f66; --a-fondo: #d9edde; --a-borde: #a6cfb4;
+      --a-zona: #ecf5ee; --a-deep: #35704c; --a-cod: #3e7d57;
+      --t-zona: #f3f0e8; --cod-tx: #ffffff;
+    }
+    body { background: #fff; font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    main { display: block; max-width: none; padding: 0; }
+    .hoja { border: 0; border-radius: 0; box-shadow: none; padding: 0; margin: 0; overflow: visible; }
+    .hoja::before { display: none; }
+    section.hoja + section.hoja { break-before: page; }
+    .rol { font-size: 10.5px; padding: 9px 11px; }
+    .rol b { font-size: 10.5px; }
+    .recorrido li { font-size: 10px; padding: 18px 8px 8px; }
+    .recorrido li b { font-size: 11px; }
+    .rec-tit { font-size: 10.5px; }
+    .ben li { font-size: 10px; padding: 5px 9px; padding-right: 80px; }
+    .ben li b { font-size: 10.5px; }
+    .ben li > .fit { font-size: 8px; top: 6px; }
+    .ben-col h3 { font-size: 11px; margin-bottom: 7px; }
+    table.ab { font-size: 9.5px; }
+    .ab-tit { margin-top: 12px !important; }
+    .hu { font-size: 11.5px; padding: 9px 14px; margin-bottom: 14px; }
+    .linea { gap: 14px; }
+    .linea li { font-size: 11px; padding: 20px 12px 12px; }
+    .linea h3 { font-size: 13px; }
+    .linea .cuando { font-size: 9.5px; }
+    .linea .quien { font-size: 10px; }
+    .linea .chips .fit { font-size: 8.5px; }
+    .banda { font-size: 10px; padding: 7px 10px; }
+    .banda b { font-size: 9px; }
+    .cabecera { gap: 6px 18px; padding-bottom: 8px; margin-bottom: 10px; }
+    h1 { font-size: 19px; }
+    .sub { font-size: 9.5px; margin-top: 3px; }
+    .tag-innoa { font-size: 9px; padding: 2px 10px; }
+    .leyenda { gap: 5px; margin-top: 5px; }
+    .leyenda li { font-size: 8.5px; padding: 1.5px 8px; gap: 5px; }
+    .leyenda li.grupo { font-size: 8px; padding: 1.5px 0; }
+    .leyenda .lg { width: 8px; height: 8px; }
+    .hoja-tit { font-size: 14px; margin-bottom: 8px; }
+    .hoja-tit .seg { width: 9px; height: 9px; }
+    .hoja-tit .pg { font-size: 8px; padding: 1px 8px; }
+    .vpc-titulos { margin-bottom: 4px; }
+    .vpc-titulos span { font-size: 9px; }
+    .paso { width: 13px; height: 13px; font-size: 8px; }
+    .como-leer { font-size: 9px; padding: 4px 10px; margin-bottom: 6px; gap: 4px 14px; }
+    .como-leer .t { font-size: 8.5px; }
+    .como-leer .fit { font-size: 7px; }
+    .nota .paso { width: 11px; height: 11px; font-size: 7px; margin: 0 3px 0 2px; }
+    .encaje b { width: 26px; height: 26px; border-width: 1px; }
+    .encaje b svg { width: 12px; height: 12px; }
+    .encaje small { font-size: 7px; }
+    .cuadrado > div { padding: 8px 10px; }
+    .circulo { width: auto; height: 115mm; margin: 0 auto; }
+    .zona h3 { font-size: 10px; margin-bottom: 5px; }
+    .zona h3 svg { width: 11px; height: 11px; }
+    ul.post { gap: 4px; }
+    ul.post li { font-size: 8.8px; padding: 2px 5px 2px 6px; transform: none; box-shadow: none; border-left-width: 2.5px; }
+    .vpc ul.post li { font-size: 9.6px; padding: 3px 6px 3px 7px; gap: 1px 4px; }
+    .vpc ul.post li .tx { flex-basis: 12ch; }
+    .cod, .fit { font-size: 7.3px; padding: 0 5px; }
+    .hueco-tag { font-size: 6.8px; padding: 0 5px; }
+    .tag, .road { font-size: 7px; padding: 0 4px; }
+    .sup { font-size: 7.5px; }
+    .declaracion { font-size: 10.5px; padding: 7px 12px; margin-top: 9px; gap: 8px; border-radius: 6px; }
+    .declaracion svg { width: 14px; height: 14px; }
+    .nota { font-size: 8.5px; margin-top: 6px; }
+    .nota svg { width: 11px; height: 11px; }
+    .nota .fit { font-size: 7px; }
+    .bmc > div { padding: 6px 8px; }
+    .bmc h3 { font-size: 9px; margin-bottom: 5px; }
+    .bmc h3 .num { width: 14px; height: 14px; font-size: 9px; border-radius: 4px; }
+    .bmc h3 svg { width: 11px; height: 11px; }
+    table { font-size: 10px; }
+    th { font-size: 8.5px; padding: 5px 8px; }
+    td { padding: 6px 8px; }
+    td.h { font-size: 10.5px; }
+    .tipo { font-size: 8.5px; padding: 1px 7px; }
+    .pie { font-size: 8.5px; margin-top: 10px; padding-top: 6px; }
+    section.hoja { display: flex; flex-direction: column; }
+    section.hoja.bmc-h .bmc > div { padding: 8px 10px; }
+    section.hoja.bmc-h .bmc h3 { font-size: 10px; }
+    section.hoja .circulo .zona h3 { font-size: 9px; margin-bottom: 4px; }
+    section.hoja .circulo ul.post { gap: 3px; }
+    section.hoja .circulo ul.post li { font-size: 8.6px; line-height: 1.3; padding: 3px 7px 3px 8px; }
+    section.hoja .circulo .cod, section.hoja .circulo .fit, section.hoja .circulo .tag { font-size: 6.8px; padding: 0 4px; }
+    section.hoja .circulo .hueco-tag { font-size: 6.5px; }
+  }
+
+  /* ---- Círculo del perfil del cliente: todo escala con el círculo ---- */
+  @media print, screen and (min-width: 961px) {
+    .vpc .circulo { container-type: inline-size; }
+    html .vpc .circulo .zona { --escala: 1; }
+    html .vpc .circulo .z-trabajo { left: 63.5%; right: 8%; top: 28%; bottom: 28%; }
+    html .vpc .circulo .z-alegria { left: 11%; right: 47%; top: 11%; bottom: 51.5%; }
+    html .vpc .circulo .z-dolor   { left: 11%; right: 47%; top: 52.5%; bottom: 10%; }
+    html .vpc .circulo .z-alegria ul, html .vpc .circulo .z-dolor ul { width: 100%; }
+    html .vpc .circulo .zona h3 {
+      position: static; transform: none; flex: none;
+      align-self: center; width: fit-content; max-width: 100%;
+      justify-content: center; text-align: center;
+      font-size: 2.3cqw; margin: 0 0 1cqw; letter-spacing: .12cqw; gap: .8cqw;
+    }
+    html .vpc .circulo .z-dolor { flex-direction: column-reverse; }
+    html .vpc .circulo .z-dolor h3 { margin: 1cqw 0 0; }
+    html .vpc .circulo .zona h3 svg { width: 2.6cqw; height: 2.6cqw; }
+    html .vpc .circulo .zona h3 { flex-wrap: nowrap; white-space: nowrap; }
+    html .vpc .circulo .zona h3 .of { flex-basis: auto; font-size: 1.9cqw; letter-spacing: 0; }
+    html .vpc .circulo .zona h3 .of::before { content: "· "; }
+    html .vpc .circulo .z-trabajo h3 { flex-wrap: wrap; white-space: normal; }
+    html .vpc .circulo .z-trabajo h3 .of { flex-basis: 100%; }
+    html .vpc .circulo .z-trabajo h3 .of::before { content: none; }
+    html .vpc .circulo ul.post { gap: calc(.9cqw * var(--escala)); }
+    html .vpc .circulo ul.post li {
+      font-size: calc(2.25cqw * var(--escala)); line-height: 1.3;
+      padding: calc(.6cqw * var(--escala)) calc(1.3cqw * var(--escala));
+    }
+    html .vpc .circulo .cod, html .vpc .circulo .fit, html .vpc .circulo .tag {
+      font-size: calc(1.6cqw * var(--escala)); padding: 0 calc(.9cqw * var(--escala));
+    }
+    html .vpc .circulo .cod { margin-right: calc(.9cqw * var(--escala)); }
+    html .vpc .circulo .fit, html .vpc .circulo .tag, html .vpc .circulo .hueco-tag { margin-left: calc(.6cqw * var(--escala)); }
+    html .vpc .circulo .hueco-tag { font-size: calc(1.5cqw * var(--escala)); }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- ==================== HOJA 1: CÓMO FUNCIONA ==================== -->
+  <section class="hoja como-h">
+    <header class="cabecera">
+      <div>
+        <h1><em>nomai</em> <span class="rest">· Modelo de negocio</span></h1>
+        <p class="sub">Agente de IA y pagos locales en garantía (wFIAT / Celo / x402) para turismo en LATAM · Método Osterwalder · <time>2026-11-03</time></p>
+      </div>
+      <div class="tag-innoa">Agents on Open Rails · Jujuy / Salta → LATAM</div>
+      <ul class="leyenda">
+        <li class="grupo">Segmentos</li>
+        <li><i class="lg" style="background:var(--m-fondo);border:1.5px solid var(--m)"></i>[V] Viajero (Traveler · paga 7% + 1%)</li>
+        <li><i class="lg" style="background:var(--p-fondo);border:1.5px solid var(--p)"></i>[D] Dueño / Hotelero (Owner · 0% comisión)</li>
+        <li class="grupo">Zonas VPC (hojas 4–5)</li>
+        <li><i class="lg" style="background:var(--d-fondo);border:1.5px solid var(--d)"></i>Lo que complica ↔ cómo lo resolvemos</li>
+        <li><i class="lg" style="background:var(--a-fondo);border:1.5px solid var(--a)"></i>Lo que quiere lograr ↔ cómo lo ayudamos</li>
+        <li><i class="lg" style="background:var(--n-fondo);border:1.5px solid var(--n-borde-izq)"></i>Lo que hace ↔ lo que ofrecemos</li>
+        <li><span class="road" style="margin-left:0">roadmap</span><span class="leyenda-txt">planificado, no existe hoy</span></li>
+        <li><span class="sup">(supuesto)</span><span class="leyenda-txt">sin evidencia de campo todavía</span></li>
+      </ul>
+    </header>
+
+    <h2 class="hoja-tit">Cómo funciona, en lenguaje natural<span class="pg">1 / 9</span></h2>
+    <div class="hu">
+      <span><b>En una frase:</b> Nomai conecta a viajeros de Latinoamérica con dueños de alojamientos mediante el agente de IA <b>Nomito</b>: el viajero busca gratis, paga desde su moneda local accediendo al precio directo del dueño (sin el 15,5%–18% de Airbnb/Booking) y deja el 100% del alquiler protegido en una garantía digital (<i>Escrow</i>) que libera el pago al dueño en 2 tramos con 0% de comisión.</span>
+    </div>
+
+    <div class="roles">
+      <div class="rol m">
+        <b><i class="seg m"></i>[V] Viajero (Traveler · 2 fases)</b>
+        <b>Fase 1 (Validación local):</b> turista argentino/NOA (&gt;80% demanda, paga en ARS con 7% Service fee). <b>Fase 2 (Hackatón/Expansión):</b> turista Brasil (+22% YoY) y LATAM (+1% FX fee).
+      </div>
+      <div class="rol p">
+        <b><i class="seg p"></i>[D] Dueño / Hotelero (Owner)</b>
+        Cabañas y posadas en Jujuy/Salta (ocupación 44%) y LATAM. Ahorra el 15,5% de Airbnb y 15–18% de Booking, comparte su escaparate <code>/owners/[slug]</code> por WhatsApp y recibe el 100% en pesos.
+      </div>
+      <div class="rol">
+        <b>Nomito + Rieles invisibles</b>
+        <b>Ripio</b> emite wFIAT 1:1 en <b>Celo</b> (jul/2026) y cubre compliance PSAV; <b>x402</b> (Linux Foundation) patrocina el gas y <b>Escrow.sol</b> custodia el alquiler sin riesgo custodial.
+      </div>
+    </div>
+
+    <p class="rec-tit">El recorrido de punta a punta</p>
+    <ol class="recorrido">
+      <li><b>1. Alta y prueba</b>El dueño sube su cabaña en <code>/owners/join</code> (10% más barata que en OTAs) y verifica su Ripio con centavos de prueba.</li>
+      <li><b>2. Consulta o link</b>El viajero llega por el link <code>/owners/[slug]</code> enviado por WhatsApp o buscando con Nomito / MCP.</li>
+      <li><b>3. Cotización clara</b>Ve el boleto con tarifa directa, cambio, 1% FX fee, 7% Service fee y regla única de cancelación.</li>
+      <li><b>4. Carga y pago</b>Carga reales/pesos por rampa Ripio a su Agent wallet invisible; el alquiler entra a <code>Escrow.sol</code> sin pagar gas.</li>
+      <li><b>5. Hilo y tramos</b>Se abre el chat privado 1 a 1; el Escrow libera 50% al dueño 5 días antes del ingreso y 50% a las 24 h pos check-in.</li>
+      <li><b>6. Reseñas reales</b>Tras el check-out (ventana de 14 días), viajero y dueño se califican; el puntaje decae en 36 meses.</li>
+    </ol>
+
+    <div class="hu-bandas dos">
+      <p class="banda no"><b>Qué NO hace el producto</b>No cobra comisión ni abono al dueño (0% siempre), no acepta reservas sin pago del 100% por adelantado, no permite a Nomai quedarse fondos del Escrow y hoy no permite al dueño bloquear noches sueltas sin reserva.</p>
+      <p class="banda ok"><b>Qué es real hoy vs. demostración</b><b>Real hoy (Fase 1 en pesos 100% lista):</b> flujo completo <code>wARS → Escrow.sol → wARS</code>, <code>keeper.ts</code>, <code>payout.ts</code>, reseñas y chat. <b>En desarrollo (Fase 2):</b> swap <code>wBRL→wARS</code> <span class="road">roadmap</span> y bloqueo de fechas <span class="road">roadmap</span>.</p>
+    </div>
+  </section>
+
+  <!-- ==================== HOJA 2: CASO DE USO ==================== -->
+  <section class="hoja hu-h">
+    <h2 class="hoja-tit"><i class="seg m"></i>Caso de uso principal · HU1 Viajero brasileño reservando en Cafayate<span class="pg">2 / 9</span></h2>
+    <div class="hu">
+      <span><b>Como</b> viajero regional de Latinoamérica (ej. Lucas, desde Florianópolis), <b>quiero</b> pagar mi reserva en Cafayate desde reales (BRL) a tarifa directa de dueño con el dinero resguardado en un contrato de garantía, <b>para</b> evitar el sobreprecio del 15,5%–18% de Airbnb/Booking y asegurarme el reembolso automático 100%/50% que kamiPay o una transferencia no me dan.</span>
+    </div>
+
+    <ol class="linea">
+      <li>
+        <span class="cuando">Martes · 20:15</span>
+        <h3>Tarifa directa vs. OTA</h3>
+        <span class="quien">Lucas (Viajero, Brasil) ↔ Valentina (Dueña, Cafayate)</span>
+        <p>En Booking la cabaña cuesta $ 335.000 ARS (inflada 18%). Por Instagram Valentina le pasa su escaparate <code>/owners/hospedajes-andinos</code> a tarifa directa de $ 285.000 ARS y Lucas consulta a Nomito gratis.</p>
+        <div class="chips"><span class="fit d">→ AL2</span><span class="fit d">→ AL3</span><span class="fit a">→ CR3</span><span class="fit a">→ CR7</span></div>
+      </li>
+      <li>
+        <span class="cuando">Martes · 20:22</span>
+        <h3>Garantía Escrow y carga PIX</h3>
+        <span class="quien">Lucas en /app + Rampa Ripio</span>
+        <p>A diferencia de un link sin retorno, ve la garantía Escrow 100%/50% y el desglose: $ 285.000 ARS, cambio 1 BRL = 195 ARS, FX fee (R$ 14,60) y Service fee (7%). Carga reales por PIX sin ver cripto.</p>
+        <div class="chips"><span class="fit d">→ AL1</span><span class="fit d">→ AL4</span><span class="fit a">→ CR2</span><span class="road">roadmap swap</span></div>
+      </li>
+      <li>
+        <span class="cuando">Martes · 20:28</span>
+        <h3>Pago a Escrow y chat 1 a 1</h3>
+        <span class="quien">Agent wallet → Escrow.sol (Celo x402)</span>
+        <p>Confirma con su documento: el 100% del alquiler queda en <code>Escrow.sol</code>, las noches se descuentan del inventario y se abre el hilo privado de mensajes con visto en vivo.</p>
+        <div class="chips"><span class="fit d">→ AL1</span><span class="fit d">→ AL9</span><span class="fit a">→ CR4</span></div>
+      </li>
+      <li>
+        <span class="cuando">Estadía y posventa</span>
+        <h3>Liberación 50/50 y reseña</h3>
+        <span class="quien">Escrow keeper + Reseñas verificadas</span>
+        <p>5 días antes del ingreso Valentina recibe el primer 50%; 24 h después del check-in sin reclamos recibe el otro 50% ($ 285.000 ARS limpios). Al salir, ambos publican su reseña verificada.</p>
+        <div class="chips"><span class="fit d">→ AL5</span><span class="fit a">→ CR1</span><span class="fit a">→ CR5</span><span class="fit a">→ CR8</span></div>
+      </li>
+    </ol>
+
+    <div class="hu-bandas">
+      <p class="banda ok"><b>Qué funciona hoy en código</b>Búsqueda y cotización con 7% Service fee, Agent wallet determinística, cobro x402 hacia <code>Escrow.sol</code>, cancelación 100%/50%, keeper de 2 tramos, verificación <code>payout.ts</code>, chat y reseñas.</p>
+      <p class="banda no"><b>Qué no hace el producto</b>No vende vuelos ni autos, no permite reservar sin pagar el 100% por adelantado y no reembolsa el 7% de Service fee cuando el viajero cancela.</p>
+      <p class="banda"><b>Qué es roadmap (valida H3, H4 y H5)</b>Conectar el swap automático <code>wBRL → wARS</code> (Textile FX) dentro de <code>book-payment.ts</code> <span class="road">roadmap</span>, rampa Ripio embebida <span class="road">roadmap</span> y bloqueo manual de fechas del dueño <span class="road">roadmap</span>.</p>
+    </div>
+  </section>
+
+  <!-- ==================== HOJA 3: BENEFICIOS ==================== -->
+  <section class="hoja ben-h">
+    <h2 class="hoja-tit">Beneficios por segmento y comparativa Antes / Después (datos 2026)<span class="pg">3 / 9</span></h2>
+    <div class="ben-grid">
+      <div class="ben-col">
+        <h3><i class="seg m"></i>Para [V] Viajero (Traveler) <span class="ben-nota">segmento que paga</span></h3>
+        <ul class="ben">
+          <li><b>Reembolso garantizado por contrato Escrow</b>100% de devolución automática hasta 5 días antes del check-in, 50% después y 24 h para reclamar (lo que kamiPay y el CBU no tienen).<span class="fit d">→ D1 · A1</span></li>
+          <li><b>Tarifa directa de dueño pagada en moneda local</b>Evita el 15,5%–18% de sobreprecio de Airbnb/Booking y el ~8% de tarjeta internacional brasileña (3,5% IOF + spread).<span class="fit d">→ D2 · A2</span></li>
+          <li><b>Ruta multi-destino resuelta en un chat gratis</b>Nomito compara disponibilidad real noche por noche en varios pueblos sin cobrar por investigar.<span class="fit d">→ D3 · A3</span></li>
+          <li><b>Cero complejidad cripto ni cobro de gas</b>Ve saldos en pesos o reales; la firma x402 y el gas en Celo corren patrocinados detrás de escena.<span class="fit d">→ D4 · AL4</span></li>
+        </ul>
+      </div>
+      <div class="ben-col">
+        <h3><i class="seg p"></i>Para [D] Dueño (Owner) <span class="ben-nota">0% comisión siempre</span></h3>
+        <ul class="ben">
+          <li class="p"><b>100% del precio publicado en su bolsillo</b>Ahorra el 15,5% de comisión única de Airbnb y el 15%–18% de Booking, con $0 de abono fijo en temporada baja (ocupación Salta 44%).<span class="fit d">→ D6 · D8</span></li>
+          <li class="p"><b>Link por WhatsApp con garantía que cierra ventas</b>Comparte <code>/owners/[slug]</code> a turistas brasileños (+22% YoY, ticket USD 421): el Escrow vence el miedo a pagar 100% adelantado.<span class="fit d">→ D7 · A7</span></li>
+          <li class="p"><b>Protección total contra no-shows</b>Toda reserva entra 100% paga al Escrow y libera el primer 50% cinco días antes aunque cancelen tarde.<span class="fit d">→ D9 · A8</span></li>
+          <li class="p"><b>Cuenta Ripio probada con centavos y PSAV</b>Verifica empíricamente su cuenta de Ripio antes de operar y consulta el puntaje previo del huésped.<span class="fit d">→ D10 · A9</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="rec-tit ab-tit">Situación actual en 2026 (sin nomai) vs. Con nomai</h3>
+    <div class="tabla-scroll">
+      <table class="ab">
+        <thead>
+          <tr><th>Situación</th><th>Antes (Booking/Airbnb o kamiPay/WhatsApp)</th><th>Después (con nomai)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-th="Situación"><b>Viajero argentino reserva en Jujuy/Salta (Fase 1 local)</b></td>
+            <td data-th="Antes">Transfiere 50% por CBU en WhatsApp sin garantía (riesgo de estafa) o paga Airbnb en USD (+30% ARCA) / Booking (+21% IVA + 18% comisión).</td>
+            <td data-th="Con nomai">Paga 100% en pesos (ARS) a tarifa directa (+7% Service fee, 0% FX) protegido en <code>Escrow.sol</code> con reembolso 100%/50%.</td>
+          </tr>
+          <tr>
+            <td data-th="Situación"><b>Turista de Brasil/LATAM reserva en el Norte (Fase 2)</b></td>
+            <td data-th="Antes">En kamiPay (solo PIX) gira USD 421 sin garantía si cancela; en Airbnb/Booking paga tarifa inflada 15–18% + ~8% de tarjeta.</td>
+            <td data-th="Con nomai">Paga en su moneda (BRL, CLP, USDC) a tarifa directa (10–12% menor) con garantía <code>Escrow.sol</code> y reembolso automático.</td>
+          </tr>
+          <tr>
+            <td data-th="Situación"><b>Dueño vende una estadía de $ 285.000 ARS</b></td>
+            <td data-th="Antes">Airbnb o Booking le descuentan entre $ 42.750 y $ 51.300 ARS (15%–18% de comisión).</td>
+            <td data-th="Con nomai">Recibe $ 285.000 ARS íntegros (0% comisión) en 2 tramos automáticos en su cuenta de Ripio.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="hu-bandas">
+      <p class="banda ok"><b>Economía unitaria verificada</b>Margen bruto del <b>85%–95% por reserva</b> (8% de ingreso vs. ~USD 2 de costo variable sobre rieles wFIAT Celo + x402).</p>
+      <p class="banda no"><b>Reto de escala</b>El piloto de 15 cabañas genera ~22 reservas/mes; el punto de equilibrio exige <b>120–400 reservas/mes (100–600 propiedades)</b>.</p>
+      <p class="banda"><b>Documentos i18n listos</b>Textos con IDs estables en <code>beneficios.es.md</code>, <code>beneficios.pt-BR.md</code> y <code>beneficios.en.md</code>.</p>
+    </div>
+  </section>
+
+  <!-- ==================== HOJA 4: VPC SEGMENTO [V] VIAJERO ==================== -->
+  <section class="hoja vpc-m">
+    <h2 class="hoja-tit"><i class="seg m"></i>Propuesta de valor · [V] Viajero (Traveler)<span class="pg">4 / 9</span></h2>
+    <ol class="como-leer" aria-label="Cómo leer esta hoja">
+      <li class="t">Cómo leer esta hoja</li>
+      <li><b class="paso">1</b>Empezá por el círculo: el viajero regional de LATAM, sin nombrar el producto.</li>
+      <li><b class="paso">2</b>Buscá en el cuadrado la respuesta: el chip <span class="fit d">→ D1</span> dice a qué responde.</li>
+      <li><b class="paso">3</b>El diferencial real frente a kamiPay y CBU es el Escrow (`AL1`), y frente a OTAs la tarifa directa (`AL2`).</li>
+    </ol>
+    <div class="vpc-titulos" aria-hidden="true"><span><b class="paso">2</b>Mapa de valor · lo que hace nomai</span><span></span><span><b class="paso">1</b>Empezá acá · Perfil del cliente</span></div>
+    <div class="vpc">
+      <div class="cuadrado" role="group" aria-label="Mapa de valor Viajero">
+        <div class="prod zona">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.5 12 3 3 8.5v7L12 21l9-5.5z"/><path d="m3.6 8.8 8.4 4.6 8.4-4.6M12 13.4V21"/></svg>Lo que ofrecemos<span class="of">productos y servicios</span></h3>
+          <ul class="post">
+            <li>Contrato Escrow en Celo (50% -5d / 50% +24h) y Claims</li>
+            <li>Agente Nomito: búsqueda y reserva conversacional gratis</li>
+            <li>Agent wallet en moneda local con gas patrocinado (x402)</li>
+            <li>Corredor wFIAT Ripio + swap en Textile FX <span class="road">roadmap</span></li>
+          </ul>
+        </div>
+        <div class="crea zona">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>Cómo lo ayudamos a lograrlo<span class="of">creadores de alegrías</span></h3>
+          <ul class="post">
+            <li class="a"><span class="cod">CR1</span><span class="tx">Reembolso automático 100%/50% y reclamo 24 h</span><span class="fit a">→ A1</span></li>
+            <li class="a"><span class="cod">CR2</span><span class="tx">Ticket en su moneda con tarifa directa de dueño</span><span class="fit a">→ A2</span></li>
+            <li class="a"><span class="cod">CR3</span><span class="tx">Preselección en chat y conexión vía MCP</span><span class="fit a">→ A3</span></li>
+            <li class="a"><span class="cod">CR4</span><span class="tx">Hilo privado por reserva con visto en vivo</span><span class="fit a">→ A4</span></li>
+          </ul>
+        </div>
+        <div class="alivia zona">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 2.8v5.7c0 4.6-3.2 7.4-7.5 8.7-4.3-1.3-7.5-4.1-7.5-8.7V5.8z"/><path d="M12 8.5v5M9.5 11h5"/></svg>Cómo se lo resolvemos<span class="of">aliviadores de frustraciones</span></h3>
+          <ul class="post">
+            <li class="d"><span class="cod">AL1</span><span class="tx">Custodia en Escrow liberada en 2 tramos</span><span class="fit d">→ D1</span></li>
+            <li class="d"><span class="cod">AL2</span><span class="tx">Precio directo 0% OTA + pago local (7% + 1%)</span><span class="fit d">→ D2</span></li>
+            <li class="d"><span class="cod">AL3</span><span class="tx">Búsqueda multi-destino gratis en segundos</span><span class="fit d">→ D3</span></li>
+            <li class="d"><span class="cod">AL4</span><span class="tx">Saldos en pesos/reales sin wallets ni gas</span><span class="fit d">→ D4</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="encaje" aria-hidden="true">
+        <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5h10l-2.8-2.8M17.5 15.5h-10l2.8 2.8"/></svg></b>
+        <small>encaje</small>
+      </div>
+      <div class="circulo" role="group" aria-label="Perfil del Viajero">
+        <svg class="sectores" viewBox="0 0 100 100" aria-hidden="true">
+          <path class="sec-t" d="M50 50 L73.2 6.3 A49.5 49.5 0 0 1 73.2 93.7 Z"/>
+          <path class="sec-d" d="M50 50 L73.2 93.7 A49.5 49.5 0 0 1 0.5 50 Z"/>
+          <path class="sec-a" d="M50 50 L0.5 50 A49.5 49.5 0 0 1 73.2 6.3 Z"/>
+          <line x1="50" y1="50" x2="73.2" y2="6.3"/><line x1="50" y1="50" x2="73.2" y2="93.7"/><line x1="50" y1="50" x2="0.5" y2="50"/>
+        </svg>
+        <div class="zona z-trabajo">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-8 8L6.9 20.4a2.1 2.1 0 0 1-3-3l7-6.9a6 6 0 0 1 8-8z"/></svg>Lo que tiene que hacer<span class="of">trabajos del cliente</span></h3>
+          <ul class="post">
+            <li>Armar ruta por varios pueblos y reservar</li>
+            <li>Pagar en otro país desde su moneda local</li>
+            <li>Coordinar llegada segura con el anfitrión</li>
+            <li>Viajar tranquilo con reserva garantizada</li>
+          </ul>
+        </div>
+        <div class="zona z-dolor">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H13z"/></svg>Lo que le complica<span class="of">frustraciones</span></h3>
+          <ul class="post">
+            <li class="d"><span class="cod">D1</span><span class="tx">Pago WhatsApp/kamiPay no tiene reembolso</span></li>
+            <li class="d"><span class="cod">D2</span><span class="tx">OTAs inflan 15–18% + 8% tarjeta (IOF 3,5%)</span></li>
+            <li class="d"><span class="cod">D3</span><span class="tx">Horas comparando 15 pestañas de ruta</span></li>
+            <li class="d"><span class="cod">D4</span><span class="tx">Rechazo a usar wallets cripto y tokens</span></li>
+          </ul>
+        </div>
+        <div class="zona z-alegria">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Lo que quiere lograr<span class="of">alegrías</span></h3>
+          <ul class="post">
+            <li class="a"><span class="cod">A1</span><span class="tx">Reembolso automático si cancela</span><span class="tag">requerida</span></li>
+            <li class="a"><span class="cod">A2</span><span class="tx">Pagar en su moneda a precio dueño</span><span class="tag">requerida</span></li>
+            <li class="a"><span class="cod">A3</span><span class="tx">Resolver ruta y pago en un chat</span><span class="tag">esperada</span></li>
+            <li class="a"><span class="cod">A4</span><span class="tx">Coordinar sin dar su WhatsApp</span><span class="tag">deseada</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p class="declaracion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg><span><b>nomai</b> ayuda al <b>viajero regional de LATAM</b> que quiere <b>reservar alojamientos en el Norte Argentino</b> eliminando <b>el riesgo de girar pagos sin reembolso por WhatsApp/kamiPay y el sobreprecio del 15,5%–18% de las OTAs (D1, D2)</b> y logrando <b>pagar en su moneda con garantía Escrow 100%/50% (A1, A2)</b>, a diferencia de <b>kamiPay (sin escrow) y Booking/Airbnb (precios inflados)</b>.</span></p>
+    <p class="nota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5" stroke-dasharray="3.5 3"/></svg><span>Nota 2026: Con IOF en 3,5% (~8% costo tarjeta brasileña), el 8% de Nomai empata en cambio; el ahorro proviene del precio directo del dueño y el diferencial es el Escrow. Nivel de encaje: <b>1 · Problema–solución</b>.</span></p>
+  </section>
+
+  <!-- ==================== HOJA 5: VPC SEGMENTO [D] DUEÑO ==================== -->
+  <section class="hoja vpc-p">
+    <h2 class="hoja-tit"><i class="seg p"></i>Propuesta de valor · [D] Dueño / Hotelero (Owner · 0% comisión)<span class="pg">5 / 9</span></h2>
+    <ol class="como-leer" aria-label="Cómo leer esta hoja">
+      <li class="t">Cómo leer esta hoja</li>
+      <li><b class="paso">1</b>Empezá por el círculo: el dueño de cabañas o posada en Jujuy/Salta (ocupación 44%).</li>
+      <li><b class="paso">2</b>Buscá en el cuadrado la respuesta: el chip <span class="fit d">→ D6</span> dice a qué responde.</li>
+      <li><b class="paso">3</b>Hueco detectado: falta bloqueo manual de fechas ocupadas por otros canales.</li>
+    </ol>
+    <div class="vpc-titulos" aria-hidden="true"><span><b class="paso">2</b>Mapa de valor · lo que hace nomai</span><span></span><span><b class="paso">1</b>Empezá acá · Perfil del cliente</span></div>
+    <div class="vpc">
+      <div class="cuadrado" role="group" aria-label="Mapa de valor Dueño">
+        <div class="prod zona">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.5 12 3 3 8.5v7L12 21l9-5.5z"/><path d="m3.6 8.8 8.4 4.6 8.4-4.6M12 13.4V21"/></svg>Lo que ofrecemos<span class="of">productos y servicios</span></h3>
+          <ul class="post">
+            <li>Escaparate /owners/[slug] con garantía para WhatsApp</li>
+            <li>Panel de alojamientos, fotos, mapa y mensajería</li>
+            <li>Verificación de cobro Ripio con micro-depósito</li>
+            <li>Cobro desde Escrow en 2 tramos (50% y 50%)</li>
+          </ul>
+        </div>
+        <div class="crea zona">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>Cómo lo ayudamos a lograrlo<span class="of">creadores de alegrías</span></h3>
+          <ul class="post">
+            <li class="a"><span class="cod">CR6</span><span class="tx">Cobro 1:1 en wARS y retiro gratis al banco</span><span class="fit a">→ A6</span></li>
+            <li class="a"><span class="cod">CR7</span><span class="tx">Link con garantía para cerrar extranjeros</span><span class="fit a">→ A7</span></li>
+            <li class="a"><span class="cod">CR8</span><span class="tx">Tablero de saldos en garantía y liberaciones</span><span class="fit a">→ A8</span></li>
+            <li class="a"><span class="cod">CR10</span><span class="tx">Prueba de centavos antes de operar reservas</span><span class="fit a">→ A10</span></li>
+          </ul>
+        </div>
+        <div class="alivia zona">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 2.8v5.7c0 4.6-3.2 7.4-7.5 8.7-4.3-1.3-7.5-4.1-7.5-8.7V5.8z"/><path d="M12 8.5v5M9.5 11h5"/></svg>Cómo se lo resolvemos<span class="of">aliviadores de frustraciones</span></h3>
+          <ul class="post">
+            <li class="d"><span class="cod">AL6</span><span class="tx">0% comisión al dueño (ahorra 15,5%–18% OTA)</span><span class="fit d">→ D6</span></li>
+            <li class="d"><span class="cod">AL7</span><span class="tx">Cobro internacional con Escrow desde su link</span><span class="fit d">→ D7</span></li>
+            <li class="d"><span class="cod">AL8</span><span class="tx">Sin abono fijo mensual ($0 en temporada baja)</span><span class="fit d">→ D8</span></li>
+            <li class="d"><span class="cod">AL9</span><span class="tx">Pago 100% adelantado y 50% ante cancelación</span><span class="fit d">→ D9</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="encaje" aria-hidden="true">
+        <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5h10l-2.8-2.8M17.5 15.5h-10l2.8 2.8"/></svg></b>
+        <small>encaje</small>
+      </div>
+      <div class="circulo" role="group" aria-label="Perfil del Dueño">
+        <svg class="sectores" viewBox="0 0 100 100" aria-hidden="true">
+          <path class="sec-t" d="M50 50 L73.2 6.3 A49.5 49.5 0 0 1 73.2 93.7 Z"/>
+          <path class="sec-d" d="M50 50 L73.2 93.7 A49.5 49.5 0 0 1 0.5 50 Z"/>
+          <path class="sec-a" d="M50 50 L0.5 50 A49.5 49.5 0 0 1 73.2 6.3 Z"/>
+          <line x1="50" y1="50" x2="73.2" y2="6.3"/><line x1="50" y1="50" x2="73.2" y2="93.7"/><line x1="50" y1="50" x2="0.5" y2="50"/>
+        </svg>
+        <div class="zona z-trabajo">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-8 8L6.9 20.4a2.1 2.1 0 0 1-3-3l7-6.9a6 6 0 0 1 8-8z"/></svg>Lo que tiene que hacer<span class="of">trabajos del cliente</span></h3>
+          <ul class="post">
+            <li>Llenar sus cabañas (44% ocupación en Salta)</li>
+            <li>Cobrar reservas a turistas de Brasil (+22%)</li>
+            <li>Gestionar precios, fotos y consultas diarias</li>
+            <li>Asegurar el cobro frente a cancelaciones</li>
+          </ul>
+        </div>
+        <div class="zona z-dolor">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H13z"/></svg>Lo que le complica<span class="of">frustraciones</span></h3>
+          <ul class="post">
+            <li class="d"><span class="cod">D6</span><span class="tx">Airbnb cobra 15,5% y Booking 15% a 18%</span></li>
+            <li class="d"><span class="cod">D7</span><span class="tx">Extranjero teme girar 100% sin garantía</span></li>
+            <li class="d"><span class="cod">D8</span><span class="tx">Abonos fijos pesan en temporada baja</span></li>
+            <li class="d"><span class="cod">D9</span><span class="tx">Reservas sin seña sufren no-show</span></li>
+          </ul>
+        </div>
+        <div class="zona z-alegria">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Lo que quiere lograr<span class="of">alegrías</span></h3>
+          <ul class="post">
+            <li class="a"><span class="cod">A6</span><span class="tx">Cobrar el 100% del precio listado</span><span class="tag">requerida</span></li>
+            <li class="a"><span class="cod">A7</span><span class="tx">Cerrar extranjeros por WhatsApp</span><span class="tag">requerida</span></li>
+            <li class="a"><span class="cod">A8</span><span class="tx">Retener 50% si cancelan sobre fecha</span><span class="tag">esperada</span></li>
+            <li class="a"><span class="cod">A10</span><span class="tx">Alta guiada sin tocar llaves cripto</span><span class="tag">esperada</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p class="declaracion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg><span><b>nomai</b> ayuda al <b>dueño de cabañas y posadas en Jujuy, Salta y LATAM</b> que quiere <b>vender directo a turistas extranjeros y nacionales</b> eliminando <b>el 15,5%–18% de comisión de Airbnb/Booking y la desconfianza a girar por WhatsApp (D6, D7)</b> y logrando <b>recibir el 100% de su tarifa en pesos con pago adelantado en garantía (A6, A8)</b>.</span></p>
+    <p class="nota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5" stroke-dasharray="3.5 3"/></svg><span>Hueco: hoy el dueño no puede bloquear noches sueltas vendidas por WhatsApp/Booking (<code>Owners can't block nights</code>). Nivel de encaje: <b>1 · Problema–solución (en prototipo)</b>. <b>Lista completa en docs/negocio/propuesta-de-valor.md</b>.</span></p>
+  </section>
+
+  <!-- ==================== HOJA 6: BUSINESS MODEL CANVAS ==================== -->
+  <section class="hoja bmc-h">
+    <h2 class="hoja-tit">Business Model Canvas · Plataforma bilateral (Viajero ↔ Dueño)<span class="pg">6 / 9</span></h2>
+    <div class="bmc">
+      <div class="soc">
+        <h3><span class="num">8</span>Socios clave<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7-7.1l-1.2 1.1"/><path d="M14 10a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7 7.1l1.2-1.1"/></svg></h3>
+        <ul class="post">
+          <li>Ripio: wFIAT en Celo (jul/26), rampa 0% y compliance PSAV</li>
+          <li>Celo + x402 (Linux Foundation): bloques 1s y gas $0</li>
+          <li>Textile FX: liquidez RFQ para swap wBRL ↔ wARS</li>
+          <li>OpenCode Go (DeepSeek), Eve y Supabase</li>
+          <li class="p">Primeras 15 posadas en Jujuy/Salta (piloto) <span class="sup">(sup.)</span></li>
+        </ul>
+      </div>
+      <div class="act">
+        <h3><span class="num">7</span>Actividades clave<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7"/></svg></h3>
+        <ul class="post">
+          <li class="p">Ejecutar entrevistas H1 (15 cabañas) y escalar a 100–600</li>
+          <li class="m">Conectar swap wBRL→wARS en book-payment.ts <span class="road">roadmap</span></li>
+          <li class="p">Sumar bloqueo manual de fechas ocupadas <span class="road">roadmap</span></li>
+          <li>Operar Escrow keeper (50%/50%) y techos anti-abuso</li>
+          <li class="m">Arbitrar reclamos (Claims) en las 24 h del check-in</li>
+        </ul>
+      </div>
+      <div class="rec">
+        <h3><span class="num">6</span>Recursos clave<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v13c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-13"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></svg></h3>
+        <ul class="post">
+          <li>App web, API x402, MCP server y agente Nomito</li>
+          <li>Contrato no-custodial Escrow.sol, keeper.ts y payout.ts</li>
+          <li>Equipo en Jujuy con acceso directo al terreno</li>
+          <li>Fondo operativo (wFIAT micro-depósitos + gas Celo)</li>
+          <li>Reputación recency-weighted (36 meses, ADR-0008)</li>
+        </ul>
+      </div>
+      <div class="val">
+        <h3><span class="num">2</span>Propuesta de valor<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h11l4 5.7L12 21 2.5 9.2z"/><path d="M2.5 9.2h19M9.6 3.5 8 9.2l4 11.8M14.4 3.5 16 9.2l-4 11.8"/></svg></h3>
+        <ul class="post">
+          <li class="m">[V] Garantía Escrow 100%/50% (lo que kamiPay no tiene)</li>
+          <li class="m">[V] Tarifa directa de dueño pagada en moneda local</li>
+          <li class="p">[D] 0% comisión siempre (ahorra 15,5% Airbnb / 18% Booking)</li>
+          <li class="p">[D] Link /owners/[slug] para cerrar extranjeros en WhatsApp</li>
+        </ul>
+      </div>
+      <div class="rel">
+        <h3><span class="num">4</span>Relación con clientes<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3S4 15.2 4 9.8C4 7 6.1 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.9 5 20 7 20 9.8c0 5.4-8 10.5-8 10.5z"/></svg></h3>
+        <ul class="post">
+          <li class="p">[D] Alta acompañada en persona para verificar Ripio</li>
+          <li class="p">[D] Autoservicio en panel de cabañas y bandeja de chat</li>
+          <li class="m">[V] Automatizada 24/7 con Nomito + arbitraje humano</li>
+          <li>Reseñas verificadas cruzadas de estadías cumplidas</li>
+        </ul>
+      </div>
+      <div class="can">
+        <h3><span class="num">3</span>Canales<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.8"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg></h3>
+        <ul class="post">
+          <li class="p">[D] Visita presencial en Jujuy/Salta + escalado remoto</li>
+          <li class="m">[V] Link /owners/[slug] enviado por el dueño en WhatsApp</li>
+          <li class="m">[V] Buscador /lodgings, chat /app y servidor MCP</li>
+          <li>Hilo de mensajes por reserva (Thread) y notificaciones</li>
+        </ul>
+      </div>
+      <div class="seg-b">
+        <h3><span class="num">1</span>Segmentos<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8" r="3.5"/><path d="M3.5 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16.2 4.9a3.5 3.5 0 0 1 0 6.3M18.3 14.7c1.7.9 2.7 2.7 2.7 5.3"/></svg></h3>
+        <ul class="post">
+          <li>Plataforma multilateral (Viajeros ↔ Dueños)</li>
+          <li class="m">[V] Fase 1: Turista argentino/NOA en ARS (&gt;80% demanda)</li>
+          <li class="m">[V] Fase 2: Turista Brasil (+22% YoY) y LATAM (BRL/CLP/USDC)</li>
+          <li class="p">[D] Cabañas en Jujuy/Salta (15 piloto → 100–600 escala)</li>
+          <li class="p">[D] Usa encargado/dueño · decide titular Ripio ($0)</li>
+        </ul>
+      </div>
+      <div class="cos">
+        <h3><span class="num">9</span>Estructura de costos<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h14V21l-2.3-1.5L14.4 21l-2.4-1.5L9.6 21l-2.3-1.5L5 21z"/><path d="M9 8h6M9 12h6"/></svg></h3>
+        <ul class="post">
+          <li>Costo variable ~USD 0,50–2 / reserva (margen bruto 85–95%)</li>
+          <li>Gas pago x402: $0 (patrocinado) · Gas keeper: &lt; USD 0,01</li>
+          <li>Swap Textile FX (~0,01%) + inferencia LLM (tope diario)</li>
+          <li>Costos fijos exigen 120–400 reservas/mes para break-even</li>
+        </ul>
+      </div>
+      <div class="ing">
+        <h3><span class="num">5</span>Fuentes de ingreso<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/></svg></h3>
+        <ul class="post">
+          <li class="m">[V] Service fee: 7% fijo por reserva (no reembolsable)</li>
+          <li class="m">[V] FX fee: ~1% en conversión de moneda (total ~8%)</li>
+          <li class="p">[D] Dueño paga $0 · Piloto 15 cabañas ≈ 22 reservas/mes</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== HOJA 7: COMPETENCIA Y 5 FUERZAS ==================== -->
+  <section class="hoja comp-h">
+    <h2 class="hoja-tit">Competencia directa e indirecta (incluida kamiPay) y 5 fuerzas de Porter<span class="pg">7 / 9</span></h2>
+    <div class="tabla-scroll">
+      <table>
+        <thead>
+          <tr><th>Tipo</th><th>Alternativa actual</th><th>Qué cubre hoy</th><th>Qué no cubre (oportunidad para nomai)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="h">Directa (#1 riesgo)</td>
+            <td data-th="Alternativa"><b>kamiPay</b> (+25M tx, ticket hotelero USD 421)</td>
+            <td data-th="Qué cubre">Turistas brasileños pagan en reales con <b>PIX</b> a hoteles argentinos (por link de WhatsApp o PMS) con 0% de abono fijo para el hotel.</td>
+            <td data-th="Qué no cubre"><b>No tiene contrato de Escrow ni reembolso automático:</b> el pago va directo al hotel sin garantía 100%/50% (`D1`), y no trae clientes nuevos (sin agente IA ni MCP).</td>
+          </tr>
+          <tr>
+            <td class="h">Directa</td>
+            <td data-th="Alternativa"><b>Airbnb (15,5%) y Booking.com (15%–18%)</b></td>
+            <td data-th="Qué cubre">Catálogo masivo, confianza de marca, calendario iCal y retención del pago.</td>
+            <td data-th="Qué no cubre">Retienen <b>15% a 18% al dueño</b> (`D6`), inflando el precio base, más el <b>~8% de tarjeta internacional brasileña</b> (3,5% IOF + spread, `D2`).</td>
+          </tr>
+          <tr>
+            <td class="h">Directa</td>
+            <td data-th="Alternativa"><b>OTAs cripto (Travala, Sleap.io)</b></td>
+            <td data-th="Qué cubre">Pago de hoteles con USDT/USDC/BTC.</td>
+            <td data-th="Qué no cubre">Exigen saber usar wallets cripto (`D4`) y revenden inventario mayorista en vez de posadas locales en `wARS`/`wBRL` con 0% al dueño.</td>
+          </tr>
+          <tr>
+            <td class="h">Indirecta</td>
+            <td data-th="Alternativa"><b>WhatsApp + CBU / efectivo al llegar</b></td>
+            <td data-th="Qué cubre">0% comisión para el dueño y trato directo.</td>
+            <td data-th="Qué no cubre">Un brasileño con PIX <b>no puede transferir a un CBU argentino</b> (`D7`), el viajero no tiene garantía (`D1`) y el dueño sufre *no-shows* (`D9`).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="declaracion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6 6.5 1-4.7 4.6 1.1 6.4L12 17l-5.9 3 1.1-6.4L2.5 9 9 8z"/></svg><span><b>El diferencial real en 2026:</b> Con el IOF brasileño en 3,5% (~8% en tarjeta), la tarifa del 8% de Nomai empata en cambio. El diferencial verdadero frente a <b>kamiPay</b> es la <b>Garantía Escrow (reembolso automático 100%/50% y reclamos 24 h)</b>, y frente a <b>Airbnb/Booking</b> es acceder a la <b>tarifa directa del dueño (sin el 15,5%–18% de comisión OTA)</b> más demanda vía <b>Nomito / MCP</b>.</span></p>
+
+    <div class="hu-bandas cinco">
+      <p class="banda no"><b>Nuevos entrantes · ALTA 🔴</b>Stack abierto (x402, Celo, Solidity); kamiPay podría agregar retención si no hay red propia.</p>
+      <p class="banda no"><b>Proveedores · ALTA 🔴</b>Dependencia estructural de Ripio (emisor wFIAT, rampa 0% y compliance PSAV) y Textile FX.</p>
+      <p class="banda no"><b>Clientes · ALTA 🔴</b>Riesgo de puenteo (*leakage*) en clientes repetidos si no valoran el Escrow.</p>
+      <p class="banda no"><b>Sustitutos · ALTA 🔴</b>kamiPay para PIX directo sin garantía; tarjeta brasileña (~8%) empata si el dueño no baja precio.</p>
+      <p class="banda"><b>Rivalidad · MEDIA-ALTA 🟡</b>Alta en OTAs y pagos PIX, pero nadie une hoy 0% al dueño + PIX/wFIAT + Escrow + IA/MCP.</p>
+    </div>
+    <p class="nota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5" stroke-dasharray="3.5 3"/></svg><span><b>Barrera principal a construir:</b> Red de 100–600 alojamientos con historial de reseñas verificadas en cadena (`ADR-0008`, imposibles de falsificar sin estadía real liquidada en Escrow) + distribución agéntica vía MCP.</span></p>
+  </section>
+
+  <!-- ==================== HOJA 8: HIPÓTESIS ==================== -->
+  <section class="hoja hip-h">
+    <h2 class="hoja-tit">Hipótesis más riesgosas y experimentos de validación<span class="pg">8 / 9</span></h2>
+    <div class="tabla-scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Hipótesis riesgosa (si es falsa, se cae el modelo)</th><th>Tipo</th><th>Experimento barato (esta temporada)</th><th>Métrica y criterio de éxito</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="h">H1</td>
+            <td data-th="Hipótesis"><b>Adopción y tarifa directa del Dueño (`[D]`):</b> Las cabañas de Jujuy/Salta (44% ocupación, 15,5–18% OTA) aceptan abrir Ripio, publicar en <code>/owners/[slug]</code> un precio <b>10%–12% menor que en Booking/Airbnb</b> y enviar el link por WhatsApp.</td>
+            <td data-th="Tipo"><span class="tipo d">Deseabilidad</span></td>
+            <td data-th="Experimento">Visitar en persona a 15 dueños en Purmamarca, Tilcara y Cafayate con el guion <i>Mom Test</i> de <code>hipotesis.md</code> y hacer la prueba de centavos (`payout.ts`).</td>
+            <td data-th="Criterio"><b>≥ 5 de 15</b> verifican su cuenta de Ripio en la visita y <b>≥ 4 de 5</b> publican tarifa directa con descuento frente a OTAs.</td>
+          </tr>
+          <tr>
+            <td class="h">H2</td>
+            <td data-th="Hipótesis"><b>Conversión del link y valoración del Escrow en Fase 1 (`[V]` en `ARS / wARS`):</b> El viajero argentino/regional que recibe el link del dueño acepta pagar 100% adelantado en pesos + <b>7% Service fee</b> por la garantía Escrow (anti-estafa CBU) y por ahorrar frente a Airbnb en USD (+30% ARCA).</td>
+            <td data-th="Tipo"><span class="tipo v">Viabilidad</span></td>
+            <td data-th="Experimento">Piloto local en Jujuy/Salta midiendo las primeras 50 consultas de viajeros argentinos que reciben el link <code>/owners/[slug]</code> (flujo `wARS` ya activo hoy).</td>
+            <td data-th="Criterio"><b>≥ 20%</b> de consultas con fecha libre pagan (si el 7% frena el link propio del dueño, bajar link directo a 2,5–3,5%).</td>
+          </tr>
+          <tr>
+            <td class="h">H3</td>
+            <td data-th="Hipótesis"><b>Fricción de la rampa de Ripio en el Viajero local:</b> Un viajero de Jujuy/Salta sin experiencia cripto logra fondear su Agent wallet en pesos (`ARS → wARS`) sin abandonar.</td>
+            <td data-th="Tipo"><span class="tipo d">Deseabilidad</span></td>
+            <td data-th="Experimento">Test de pasillo en Jujuy/Salta con 5 viajeros locales cargando el equivalente a USD 10 en pesos por la rampa de Ripio sin ayuda del equipo.</td>
+            <td data-th="Criterio"><b>≥ 4 de 5</b> completan la carga y reserva en menos de 15 minutos sin asistencia.</td>
+          </tr>
+          <tr>
+            <td class="h">H4</td>
+            <td data-th="Hipótesis"><b>Swap automático `wBRL → wARS` en mainnet:</b> Conectar Textile FX dentro de <code>book-payment.ts</code> sobre los `wFIAT` de Ripio en Celo manteniendo 0% de rampa y compliance PSAV.</td>
+            <td data-th="Tipo"><span class="tipo f">Factibilidad</span></td>
+            <td data-th="Experimento">Integrar RFQ de Textile FX en el cobro x402 y ejecutar 1 reserva real en Celo mainnet convirtiendo `wBRL → wARS`.</td>
+            <td data-th="Criterio"><b>1 transacción real</b> `wBRL → wARS` liquidada en `Escrow.sol` en Celo mainnet en ≤ 30 días.</td>
+          </tr>
+          <tr>
+            <td class="h">H5</td>
+            <td data-th="Hipótesis"><b>Escala de 15 a 100–600 propiedades sin sobreventas:</b> El bloqueo de fechas evita *overbooking* y la captación remota permite llegar a las <b>120–400 reservas/mes</b> del punto de equilibrio.</td>
+            <td data-th="Tipo"><span class="tipo v">Viabilidad</span></td>
+            <td data-th="Experimento">Agregar bloqueo manual de noches y contactar de forma remota a 30 posadas de Salta, Bariloche e Iguazú para medir alta sin visita física.</td>
+            <td data-th="Criterio"><b>0%</b> sobreventas en el piloto y <b>≥ 10%</b> de conversión de dueños por contacto remoto.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ==================== HOJA 9: DIAGNÓSTICO ==================== -->
+  <section class="hoja diag-h">
+    <h2 class="hoja-tit">Diagnóstico honesto del planteo de negocio (actualizado 2026)<span class="pg">9 / 9</span></h2>
+    <div class="hu">
+      <span><b>Veredicto: 🟡 Planteado a medias (rentable en la unidad en ARS al 7% y cross-border al 8%, y listo para validar en Jujuy/Salta con viajeros argentinos sin depender de Brasil).</b> El flujo en pesos (<code>wARS → Escrow.sol → wARS</code>) <b>ya funciona hoy al 100% en código</b> y resuelve las estafas por CBU y el dólar tarjeta de Airbnb (+30% ARCA); luego Fase 2 suma Brasil/LATAM y escala de 15 cabañas (~22 reservas/mes) a las <b>100–600 propiedades (120–400 reservas/mes)</b> del break-even.</span>
+    </div>
+
+    <div class="tabla-scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Pregunta del semáforo</th><th>Estado</th><th>Por qué y de dónde sale</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="h">1</td><td data-th="Pregunta">¿El problema existe y duele?</td><td data-th="Estado"><b>🟢 Verde</b></td><td data-th="Por qué">Airbnb subió a 15,5% único, Booking cobra 15–18% y Salta tiene 44% de ocupación (`D6`); en WhatsApp/kamiPay el viajero gira sin garantía de reembolso (`D1`).</td></tr>
+          <tr><td class="h">2</td><td data-th="Pregunta">¿Se sabe quién es el cliente?</td><td data-th="Estado"><b>🟡 Amarillo</b></td><td data-th="Por qué">Perfil claro (posadas Norte + brasileños +22% YoY con ticket USD 421), pero aún sin los primeros 15 dueños entrevistados ni comprometidos (`entrevista.md` P1).</td></tr>
+          <tr><td class="h">3</td><td data-th="Pregunta">¿Alguien paga?</td><td data-th="Estado"><b>🟡 Amarillo</b></td><td data-th="Por qué">Paga el `[V]` Viajero (8% total), que empata con el ~8% de una tarjeta brasileña (IOF 3,5% + spread): solo ahorra si el dueño publica tarifa directa menor a OTAs.</td></tr>
+          <tr><td class="h">4</td><td data-th="Pregunta">¿Es mejor que lo que usa hoy?</td><td data-th="Estado"><b>🟡 Amarillo</b></td><td data-th="Por qué">Mejor que Booking/Airbnb por precio directo (0% al dueño) y mejor que kamiPay/CBU por el contrato de <b>Escrow</b> 100%/50%, pero falta probar la conversión real (`H2`).</td></tr>
+          <tr><td class="h">5</td><td data-th="Pregunta">¿Es difícil de copiar?</td><td data-th="Estado"><b>🔴 Rojo</b></td><td data-th="Por qué">5 fuerzas altas y kamiPay ya opera PIX hotelero en Argentina; la defensa exige acumular rápido reseñas verificadas en cadena (`ADR-0008`) y red de dueños.</td></tr>
+          <tr><td class="h">6</td><td data-th="Pregunta">¿Se puede llegar al cliente?</td><td data-th="Estado"><b>🟢 Verde</b></td><td data-th="Por qué">Cercanía local del equipo en Jujuy/Salta para el piloto y link `/owners/[slug]` del dueño con CAC $0 para atraer a los primeros viajeros.</td></tr>
+          <tr><td class="h">7</td><td data-th="Pregunta">¿Los números cierran?</td><td data-th="Estado"><b>🟡 Amarillo</b></td><td data-th="Por qué">Cierran en la unidad (85–95% margen), pero 15 cabañas dan ~22 reservas/mes (~USD 500) y el punto de equilibrio exige <b>120–400 reservas/mes (100–600 propiedades)</b>.</td></tr>
+          <tr><td class="h">8</td><td data-th="Pregunta">¿El equipo puede hacerlo?</td><td data-th="Estado"><b>🟢 Verde</b></td><td data-th="Por qué">Stack maduro: Ripio desplegó `wFIAT` en Celo (jul/2026), `x402` está en Linux Foundation y el régimen PSAV queda cubierto por Ripio + `Escrow.sol` no-custodial.</td></tr>
+          <tr><td class="h">9</td><td data-th="Pregunta">¿El producto hace lo que dice el canvas?</td><td data-th="Estado"><b>🟡 Amarillo</b></td><td data-th="Por qué">Escrow, keeper, payout, reseñas y chat funcionan, pero faltan el swap automático `wBRL→wARS` en `book-payment.ts` y el bloqueo manual de fechas del dueño.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="hu-bandas">
+      <p class="banda no"><b>Alerta 1 · Entrevistas H1 + bloqueo de fechas</b><b>Esta semana:</b> entrevistar en persona a 15 dueños en Jujuy/Salta (`hipotesis.md` §2, relevando uso de kamiPay) y sumar el botón para bloquear noches ocupadas en `/app/lodgings`.</p>
+      <p class="banda no"><b>Alerta 2 · Reposicionar a Escrow + Tarifa Directa</b><b>Esta semana:</b> acordar con los dueños publicar un 10–12% menos que en Booking/Airbnb y destacar la <b>Garantía Escrow</b> (o cobrar 2,5–3,5% en link propio del dueño y 7% en demanda de Nomito).</p>
+      <p class="banda"><b>Alerta 3 · Conectar swap wBRL→wARS y ruta a 100+ posadas</b><b>Esta semana:</b> integrar Textile FX en `book-payment.ts` y preparar expansión a Bariloche, Iguazú y Mendoza para alcanzar 120–400 reservas/mes.</p>
+    </div>
+
+    <footer class="pie">
+      <span><b>nomai</b> · Documento completo en <code>docs/negocio/</code> (`entrevista.md`, `como-funciona.md`, `historias-de-usuario.md`, `propuesta-de-valor.md`, `business-model-canvas.md`, `beneficios.*.md`, `hipotesis.md`, `diagnostico.md`)</span>
+      <span>Business Model Canvas y Value Proposition Canvas: Strategyzer, CC BY-SA 3.0</span>
+    </footer>
+  </section>
+
+</main>
+<style>
+  @media screen { [data-falla] { outline: 2px solid #d00 !important; outline-offset: 1px; } }
+</style>
+<script>
+/* Ajuste automático y chequeo de diseño (skill plan-negocio). */
+(function () {
+  function rect(el) { return el.getBoundingClientRect(); }
+  function cruza(r, a, b) {
+    var x0 = r.left + 1, x1 = r.right - 1, y0 = r.top + 1, y1 = r.bottom - 1, t0 = 0, t1 = 1;
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var p = [-dx, dx, -dy, dy], q = [a[0] - x0, x1 - a[0], a[1] - y0, y1 - a[1]];
+    for (var i = 0; i < 4; i++) {
+      if (p[i] === 0) { if (q[i] < 0) return false; continue; }
+      var t = q[i] / p[i];
+      if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+      else { if (t < t0) return false; if (t < t1) t1 = t; }
+    }
+    return true;
+  }
+  function geometria(c) {
+    var svg = c.querySelector(".sectores");
+    if (!svg || getComputedStyle(svg).display === "none") return null;
+    var rc = rect(c), esc = rc.width / 100;
+    return {
+      cx: rc.left + rc.width / 2, cy: rc.top + rc.height / 2, R: rc.width / 2,
+      lineas: Array.prototype.map.call(svg.querySelectorAll("line"), function (l) {
+        return [[rc.left + l.x1.baseVal.value * esc, rc.top + l.y1.baseVal.value * esc],
+                [rc.left + l.x2.baseVal.value * esc, rc.top + l.y2.baseVal.value * esc]];
+      })
+    };
+  }
+  function fallaEn(el, g) {
+    var r = rect(el);
+    var esquinas = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+    if (esquinas.some(function (p) { return Math.hypot(p[0] - g.cx, p[1] - g.cy) > g.R - 1; })) return "se sale del círculo";
+    if (g.lineas.some(function (s) { return cruza(r, s[0], s[1]); })) return "cruza una línea del círculo";
+    return null;
+  }
+  function desborda(z) {
+    if (z.closest(".circulo")) {
+      var rz = rect(z);
+      return Array.prototype.some.call(z.children, function (h) {
+        var r = rect(h);
+        return r.top < rz.top - 2 || r.bottom > rz.bottom + 2 || r.left < rz.left - 2 || r.right > rz.right + 2;
+      });
+    }
+    return z.scrollHeight > z.clientHeight + 2 || z.scrollWidth > z.clientWidth + 2;
+  }
+  function zonaRota(z, g) {
+    if (desborda(z)) return true;
+    return Array.prototype.some.call(z.querySelectorAll("li, h3"), function (el) { return fallaEn(el, g); });
+  }
+  function ajustar() {
+    document.querySelectorAll(".vpc .circulo").forEach(function (c) {
+      var g = geometria(c);
+      c.querySelectorAll(".zona").forEach(function (z) {
+        z.style.removeProperty("--escala");
+        if (!g) return;
+        var escala = 1;
+        while (zonaRota(z, g) && escala > 0.62) {
+          escala = Math.round((escala - 0.04) * 100) / 100;
+          z.style.setProperty("--escala", escala);
+        }
+      });
+    });
+  }
+  function revisar() {
+    var problemas = [];
+    function marcar(el, motivo) {
+      el.setAttribute("data-falla", motivo);
+      problemas.push(motivo + ": " + (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 50));
+    }
+    document.querySelectorAll(".vpc .circulo").forEach(function (c) {
+      var g = geometria(c);
+      if (!g) return;
+      c.querySelectorAll(".zona li, .zona h3").forEach(function (el) {
+        var f = fallaEn(el, g);
+        if (f) marcar(el, f);
+      });
+    });
+    document.querySelectorAll(".zona, .bmc > div").forEach(function (z) {
+      if (desborda(z)) marcar(z, "el contenido no entra en la zona");
+    });
+    document.querySelectorAll(".vpc .circulo .zona").forEach(function (z) {
+      var e = parseFloat(z.style.getPropertyValue("--escala") || "1");
+      if (e < 0.74) marcar(z, "textos demasiado largos (letra al " + Math.round(e * 100) + " %): acortalos");
+    });
+    document.querySelectorAll(".fit:not(.nota .fit):not(.como-leer .fit)").forEach(function (f) {
+      if (!/[A-ZÑ]{1,4}[0-9]+/.test(f.textContent)) marcar(f, "chip de encaje vacío o sin código");
+    });
+    document.querySelectorAll("li, p, h1, h2, h3, td, span, time, div").forEach(function (el) {
+      if (el.children.length === 0 && /\{\{[^}]*\}\}/.test(el.textContent)) marcar(el, "campo sin completar");
+    });
+    document.documentElement.dataset.chequeo = problemas.length ? problemas.join(" | ") : "ok";
+    if (problemas.length && window.console) console.warn("Chequeo de diseño:", problemas);
+  }
+  function correr() {
+    document.querySelectorAll("[data-falla]").forEach(function (el) { el.removeAttribute("data-falla"); });
+    ajustar();
+    revisar();
+  }
+  correr();
+  window.addEventListener("load", correr);
+  window.addEventListener("beforeprint", correr);
+  if (window.matchMedia) window.matchMedia("print").addEventListener("change", correr);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(correr);
+  var espera;
+  window.addEventListener("resize", function () { clearTimeout(espera); espera = setTimeout(correr, 150); });
+})();
+</script>
+</body>
+</html>
