@@ -170,3 +170,38 @@ _Avoid_: average, plain rating
 The Owner's public answer shown under a `to_lodging` Review they received —
 one per Review, and posting an empty body clears it.
 Product Spanish: *respuesta del dueño*.
+
+### Messaging
+
+**Message**:
+One text posted in a Booking's Thread by the Traveler, the Owner or the
+platform (`sender_role`). Once sent it can't be edited or deleted.
+Product Spanish: *mensaje*.
+_Avoid_: chat (the Agent's surface, not this one), DM
+
+**Thread**:
+The private 1:1 conversation between a Booking's Traveler and its Owner —
+the Booking *is* the Thread: there is no threads table, the `booking_id`
+is its whole identity, and it opens with a system message the moment the
+Booking is created. Both parties may read and write it in any Booking
+status; nobody else can see it. It exists so they can coordinate the stay
+without exchanging personal contact details. Not to be confused with the
+Traveler's saved conversations with the Agent (`chat_threads` — the code
+calls those threads too, and the copy calls them *conversaciones*).
+Product Spanish: *hilo* — the UI surfaces it as *Mensajes*.
+_Avoid_: conversation, chat room
+
+**system message**:
+A Message written by the platform, not a person (`sender_role` `system`,
+`sender_id` null) — the opener the booking-insert trigger writes ("Reserva
+recibida — ya podés coordinar los detalles con tu anfitrión."), rendered
+centered and muted so it reads as context, not as chat.
+Product Spanish: *mensaje del sistema*.
+
+**read receipt**:
+The `read_at` stamp on a Message telling the sender their counterpart saw
+it — one timestamp per Message is enough because a Thread has exactly one
+reader on the other side. Stamped wholesale when the counterpart opens the
+Thread, and shown as *visto* under the sender's last own Message.
+Product Spanish: *visto*.
+_Avoid_: seen flag, double-check

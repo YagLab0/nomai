@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from '@heroui/react';
+import { ChatModal } from '@/components/chat/chat-modal';
 import { CheckBadgeIcon } from '@/components/icons';
 import { ReviewModal, TRAVELER_CATEGORIES, type ReviewPayload } from '@/components/reviews/review-modal';
 import { Stars } from '@/components/reviews/stars';
@@ -71,16 +72,20 @@ function TravelerScore({ travelerId }: { travelerId: string }) {
 export function ReservaCard({
   booking,
   alreadyReviewed = false,
+  unreadMessages = 0,
 }: {
   booking: BookingData;
   /** True once the Owner's to_traveler Review for this Booking exists (ADR-0008). */
   alreadyReviewed?: boolean;
+  /** Unread chat messages from the Traveler, from GET /owners/inbox (ADR-0009). */
+  unreadMessages?: number;
 }) {
   const status = STATUS_MAP[booking.status] || STATUS_MAP.confirmed;
   const isCanceled = booking.status === 'cancelled' || booking.status === 'cancelada';
   const isCompleted = booking.status === 'completed' || booking.status === 'completada';
   const [reviewing, setReviewing] = useState(false);
   const [reviewed, setReviewed] = useState(alreadyReviewed);
+  const [chatOpen, setChatOpen] = useState(false);
 
   async function submitReview(payload: ReviewPayload) {
     const res = await fetch(`/api/owners/bookings/${encodeURIComponent(booking.id)}/review`, {
@@ -165,7 +170,7 @@ export function ReservaCard({
         >
           {formatMoney(booking.total_minor, booking.currency)}
         </span>
-        {isCompleted && !reviewed ? (
+        {isCompleted && !reviewed && (
           <button
             type="button"
             onClick={() => setReviewing(true)}
@@ -173,17 +178,23 @@ export function ReservaCard({
           >
             Calificar al viajero
           </button>
-        ) : isCompleted && reviewed ? (
-          <span className="text-xs text-ink-muted">Viajero reseñado</span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => toast('Pronto vas a poder escribirle al viajero')}
-            className="text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
-          >
-            Contactar al viajero
-          </button>
         )}
+        {isCompleted && reviewed && (
+          <span className="text-xs text-ink-muted">Viajero reseñado</span>
+        )}
+        {/* The Booking's private chat with the Traveler — on every status. */}
+        <button
+          type="button"
+          onClick={() => setChatOpen(true)}
+          className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-terra-deep focus-visible:outline-2 focus-visible:outline-terra"
+        >
+          <span className="underline underline-offset-4">Mensajes</span>
+          {unreadMessages > 0 && (
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-terra px-1 text-[10px] font-semibold leading-none text-white">
+              {unreadMessages}
+            </span>
+          )}
+        </button>
       </div>
       <ReviewModal
         isOpen={reviewing}
@@ -194,6 +205,15 @@ export function ReservaCard({
         bodyPlaceholder="Contale a otros anfitriones cómo cuidó tu espacio…"
         submitLabel="Publicar reseña del viajero"
         onSubmit={submitReview}
+      />
+      <ChatModal
+        isOpen={chatOpen}
+        onOpenChange={setChatOpen}
+        title={`Chat con ${guestName}`}
+        subtitle={`${lodgingTitle} · ${formatStayRange(booking.checkin, booking.checkout)}`}
+        endpoint={`/api/owners/bookings/${encodeURIComponent(booking.id)}/messages`}
+        bookingId={booking.id}
+        emptyHint={`Todavía no hay mensajes — escribile a ${guestName}.`}
       />
     </article>
   );

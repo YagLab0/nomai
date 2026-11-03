@@ -33,11 +33,10 @@ businesses ──1:N── properties ──1:N── listings ──1:N── a
     │                                     │          ├─ listing_photos
     │                                     │          ├─ listing_units
     │                                     │          └─ rate_rules
-auth.users ──1:1── travelers              └─1:N── bookings ──1:N── payments
-    │               │ 1:N                        │          │   (x402 receipt)
-    │               ▼                            │          └─1:N── reviews
-    └──1:1── agent_wallets            agent_usage (metering)  (≤1 per direction,
-                                                              ADR-0008)
+auth.users ──1:1── travelers              └─1:N── bookings ──1:N── payments (x402 receipt)
+    │               │ 1:N                        │          ├─1:N── reviews (≤1 per direction, ADR-0008)
+    │               ▼                            │          └─1:N── booking_messages (party-only, ADR-0009)
+    └──1:1── agent_wallets            agent_usage (metering)
 
 currencies ── referenced by listings.currency + bookings.currency
 platform_settings — key/value config (service_fee_pct), service_role only
@@ -198,6 +197,55 @@ the rated Traveler, the author, and Owners who hosted them
 through the locked-down RPCs (EXECUTE revoked from public/anon/
 authenticated, granted to `service_role`, same as the escrow RPCs).
 
+### `booking_messages`
+
+The private Traveler↔Owner Thread anchored to a Booking (issue #73,
+ADR-0009; migration `…_booking_messages.sql`). There is no threads table —
+the `booking_id` *is* the thread: one implicit 1:1 Thread per Booking,
+`on delete cascade` with it. The `booking_messages_on_booking` AFTER
+INSERT trigger on `bookings` opens every thread with one `system` row
+("Reserva recibida — ya podés coordinar los detalles con tu anfitrión."),
+so a thread never starts empty.
+
+Columns: `booking_id` (text → `bookings`), `sender_id` (→ `auth.users`,
+nullable — null on `system` rows), `sender_role` (`text` check in
+`traveler`/`owner`/`system`, derived inside `send_message` from which side
+of the Booking the caller is — never taken from the request), `body`,
+`read_at` (the single read receipt — null until the counterpart reads; the
+UI renders it as "Visto"), `created_at`. Indexed on
+`(booking_id, created_at)`.
+
+Functions (all `security definer`; the write RPCs are EXECUTE-locked to
+`service_role`):
+
+- `is_booking_party(p_user_id uuid, p_booking_id text)` → boolean —
+  `stable` RLS helper like `is_owner_of_traveler`: is the user the
+  Booking's Traveler (`bookings.traveler_id`) or the Owner of the
+  Lodging's business (the listings→properties→businesses `user_id`
+  chain)?
+- `send_message(p_user_id uuid, p_booking_id text, p_body text)` →
+  `{message: {…}}` / `{error: {code, message}}` — the only way a Message
+  lands. Re-checks in one transaction: non-empty trimmed body
+  (`empty_body`), Booking exists (`not_found`), caller is a party
+  (`forbidden`); derives `sender_role` and inserts. Allowed in any
+  Booking status.
+- `mark_thread_read(p_user_id uuid, p_booking_id text)` → `{marked: n}` —
+  stamps `read_at = now()` on every row in the thread not sent by the
+  caller with `read_at is null`. Every thread GET runs it after listing,
+  so opening the thread is the act of reading.
+
+RLS: `booking_messages_party_read` exposes rows for `select` only to a
+party (`is_booking_party(auth.uid(), booking_id)`). No insert/update/
+delete policies — writes go through the locked-down RPCs (EXECUTE revoked
+from public/anon/authenticated, granted to `service_role`, same as the
+review RPCs).
+
+Realtime: the table is in the `supabase_realtime` publication
+(`…_booking_messages_realtime.sql`), so clients can subscribe to
+`postgres_changes` INSERTs scoped by `booking_id`; delivery runs under
+the subscriber's JWT and the party-read policy scopes each event
+(ADR-0009).
+
 ## Platform
 
 ### `travelers`
@@ -248,12 +296,14 @@ RLS `for all using (false)` — service_role only.
 | `travelers`, `agent_wallets`, `agent_usage` | Own rows | Own profile only (`travelers`); rest api-only |
 | `bookings`, `payments` | Traveler's own; owner of the listing | api only |
 | `reviews` | `to_lodging` public; `to_traveler` only the rated Traveler, the author, and Owners who hosted them | api only (the `submit_review`/`reply_to_review` RPCs) |
+| `booking_messages` | The Booking's two parties (`is_booking_party`) | api only (the `send_message`/`mark_thread_read` RPCs) |
 | `platform_settings` | — (no policies grant access) | api only |
 
 Two `security definer` helpers — `owns_business(text)` and
 `owns_listing(text)` — encapsulate the owner chain and keep policies
 readable (plus `is_owner_of_traveler(uuid)` for the `to_traveler` review
-policy, ADR-0008). Everything the platform writes (recording usage, settling
+policy, ADR-0008, and `is_booking_party(uuid, text)` for the message
+policy, ADR-0009). Everything the platform writes (recording usage, settling
 Bookings, flipping nights to `booked`) goes through `apps/api` with the
 secret key, which bypasses RLS — that's why most tables carry no
 insert/update policies.
@@ -262,7 +312,8 @@ The same lockdown applies to the `security definer` RPCs: EXECUTE on
 `book_stay`, `cancel_booking`, `confirm_booking_payment`, `release_booking`,
 `open_claim`, `resolve_claim`, `process_escrow_releases`, `create_lodging`,
 `update_lodging`, `archive_lodging`, `set_lodging_status`, `submit_review`,
-`reply_to_review`, `refresh_review_scores` and `traveler_score` is revoked
+`reply_to_review`, `refresh_review_scores`, `traveler_score`,
+`send_message` and `mark_thread_read` is revoked
 from PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST
 can't reach them; `apps/api` calls them with the secret key.
 Traveler-initiated cancellation (ADR-0004) goes through

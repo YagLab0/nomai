@@ -19,6 +19,7 @@ import {
   PROPERTIES,
   RATE_RULES,
 } from "../src/data/inventory.js";
+import { MESSAGE_FIXTURES } from "../src/data/message-fixtures.js";
 import { REVIEW_BUSINESS, REVIEW_FIXTURES } from "../src/data/review-fixtures.js";
 
 type Val = string | number | boolean | null | undefined;
@@ -151,6 +152,23 @@ lines.push(
   "",
   ...[...new Set(REVIEW_FIXTURES.map((r) => r.listing))].map(
     (l) => `select public.refresh_review_scores('${l}', '${REVIEW_BUSINESS[l]}');`
+  ),
+  ""
+);
+
+lines.push(
+  "-- ---------------------------------------------------------------------------",
+  "-- MESSAGE FIXTURES — the Traveler↔Owner thread demo on bkg_seed_* stays",
+  "-- (ADR-0009). sender_id null: synthetic history, same convention as the",
+  "-- review fixtures' null author_id. The 'system' welcome row is added by",
+  "-- the bookings AFTER INSERT trigger, not seeded here.",
+  "-- ---------------------------------------------------------------------------",
+  insert(
+    "booking_messages",
+    ["id","booking_id","sender_id","sender_role","body","read_at","created_at"],
+    MESSAGE_FIXTURES.map((m) => [
+      m.id, m.booking, null, m.sender_role, m.body, m.read_at, m.created,
+    ])
   ),
   ""
 );

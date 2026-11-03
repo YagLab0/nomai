@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { WidgetCard } from '@/components/app/widget-card';
+import { ChatModal } from '@/components/chat/chat-modal';
 import { CheckBadgeIcon } from '@/components/icons';
 import { LODGING_CATEGORIES, ReviewModal, type ReviewPayload } from '@/components/reviews/review-modal';
 import { formatStayRange } from '@/lib/format';
@@ -18,6 +19,8 @@ interface BookingSummary {
   total_display: string;
   /** Present on completed Bookings (ADR-0008). */
   review_state?: 'eligible' | 'reviewed' | 'expired';
+  /** Unread chat messages from the Owner (ADR-0009). */
+  unread_messages?: number;
 }
 
 type Tone = 'agua' | 'terra' | 'amber' | 'neutral';
@@ -44,28 +47,33 @@ const humanize = (slug: string) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+/** The Booking chat stays open on every status but cancelled/refunded (ADR-0009). */
+const canChat = (status: string) => status !== 'cancelled' && status !== 'refunded';
+
 type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; bookings: BookingSummary[] };
 
 /** The signed-in Traveler's Bookings, read through /api/bookings. */
 export function ReservasPanel() {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [reviewing, setReviewing] = useState<BookingSummary | null>(null);
+  /** The Booking whose chat with the Owner is open (ADR-0009). */
+  const [chatting, setChatting] = useState<BookingSummary | null>(null);
   const lodgings = useLodgings();
 
-  useEffect(() => {
-    let alive = true;
+  const loadBookings = useCallback(() => {
     fetch('/api/bookings')
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d: { bookings?: BookingSummary[] }) => {
-        if (alive) setState({ kind: 'ready', bookings: d.bookings ?? [] });
+        setState({ kind: 'ready', bookings: d.bookings ?? [] });
       })
       .catch(() => {
-        if (alive) setState({ kind: 'error' });
+        setState({ kind: 'error' });
       });
-    return () => {
-      alive = false;
-    };
   }, []);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
 
   async function submitReview(payload: ReviewPayload) {
     if (!reviewing) return;
@@ -123,20 +131,36 @@ export function ReservasPanel() {
                     <span className="font-mono">{formatStayRange(b.checkin.slice(0, 10), b.checkout.slice(0, 10))}</span>
                     {b.total_display && <span className="font-mono"> · {b.total_display}</span>}
                   </p>
-                  {b.review_state === 'eligible' && (
-                    <button
-                      type="button"
-                      onClick={() => setReviewing(b)}
-                      className="mt-1 text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
-                    >
-                      Dejá tu reseña
-                    </button>
-                  )}
-                  {b.review_state === 'reviewed' && (
-                    <p className="mt-1 inline-flex items-center gap-1 text-xs text-ink-muted">
-                      <CheckBadgeIcon className="h-3.5 w-3.5 text-agua" /> reseñada
-                    </p>
-                  )}
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {b.review_state === 'eligible' && (
+                      <button
+                        type="button"
+                        onClick={() => setReviewing(b)}
+                        className="text-xs font-medium text-terra-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-terra"
+                      >
+                        Dejá tu reseña
+                      </button>
+                    )}
+                    {b.review_state === 'reviewed' && (
+                      <p className="inline-flex items-center gap-1 text-xs text-ink-muted">
+                        <CheckBadgeIcon className="h-3.5 w-3.5 text-agua" /> reseñada
+                      </p>
+                    )}
+                    {canChat(b.status) && (
+                      <button
+                        type="button"
+                        onClick={() => setChatting(b)}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-terra-deep focus-visible:outline-2 focus-visible:outline-terra"
+                      >
+                        <span className="underline underline-offset-4">Mensajes</span>
+                        {(b.unread_messages ?? 0) > 0 && (
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-terra px-1 text-[10px] font-semibold leading-none text-white">
+                            {b.unread_messages}
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASS[status.tone]}`}>
                   {status.label}
@@ -155,6 +179,30 @@ export function ReservasPanel() {
         subtitle="Solo vos y el anfitrión saben que esta reseña es tuya — se publica de inmediato."
         categories={LODGING_CATEGORIES}
         onSubmit={submitReview}
+      />
+      <ChatModal
+        isOpen={chatting != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setChatting(null);
+            // Opening the thread marked it read — refresh the badges.
+            loadBookings();
+          }
+        }}
+        title={
+          chatting
+            ? (lodgings.find((l) => l.id === chatting.listing_slug)?.name ??
+              humanize(chatting.listing_slug))
+            : ''
+        }
+        subtitle="Mensajes con tu anfitrión — solo ustedes dos los ven."
+        endpoint={
+          chatting
+            ? `/api/bookings/${encodeURIComponent(chatting.booking_id)}/messages`
+            : ''
+        }
+        bookingId={chatting?.booking_id ?? ''}
+        emptyHint="Escribile a tu anfitrión — coordiná la llegada, pedí recomendaciones."
       />
     </WidgetCard>
   );

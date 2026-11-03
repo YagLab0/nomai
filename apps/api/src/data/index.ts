@@ -10,6 +10,9 @@ export type {
   BookingDetailResult,
   BookingOwner,
   BookingSummary,
+  ChatMessage,
+  ChatSide,
+  ChatThread,
   ClaimErrorCode,
   ClaimInput,
   ClaimResult,
@@ -19,9 +22,13 @@ export type {
   Cancellation,
   DomainError,
   DomainErrorCode,
+  InboxEntry,
   ListingCard,
   ListingDetail,
   ListingReviews,
+  ListMessagesResult,
+  MarkThreadResult,
+  MessageErrorCode,
   OwnerReviews,
   Quote,
   QuoteError,
@@ -32,6 +39,8 @@ export type {
   ReviewErrorCode,
   ReviewView,
   SearchParams,
+  SendMessageResult,
+  SenderRole,
   SubmitReviewInput,
   SubmitReviewResult,
 } from "./repo.js";
@@ -51,13 +60,17 @@ import {
   getBookingDetail as mockGetBookingDetail,
   listBookings as mockListBookings,
   listListingReviews as mockListListingReviews,
+  listMessages as mockListMessages,
+  listOwnerInbox as mockListOwnerInbox,
   listOwnerReviews as mockListOwnerReviews,
+  markThreadRead as mockMarkThreadRead,
   openClaim as mockOpenClaim,
   getListingBySlug as mockGetListingBySlug,
   getListingPayTo as mockGetListingPayTo,
   quoteStay as mockQuoteStay,
   replyToReview as mockReplyToReview,
   searchListings as mockSearchListings,
+  sendMessage as mockSendMessage,
   submitReview as mockSubmitReview,
   travelerScore as mockTravelerScore,
 } from "./repo.js";
@@ -68,13 +81,17 @@ import {
   getBookingDetail as supabaseGetBookingDetail,
   listBookings as supabaseListBookings,
   listListingReviews as supabaseListListingReviews,
+  listMessages as supabaseListMessages,
+  listOwnerInbox as supabaseListOwnerInbox,
   listOwnerReviews as supabaseListOwnerReviews,
+  markThreadRead as supabaseMarkThreadRead,
   openClaim as supabaseOpenClaim,
   getListingBySlug as supabaseGetListingBySlug,
   getListingPayTo as supabaseGetListingPayTo,
   quoteStay as supabaseQuoteStay,
   replyToReview as supabaseReplyToReview,
   searchListings as supabaseSearchListings,
+  sendMessage as supabaseSendMessage,
   submitReview as supabaseSubmitReview,
   travelerScore as supabaseTravelerScore,
 } from "./supabase.js";
@@ -119,3 +136,11 @@ export const replyToReview =
   dataSource === "supabase" ? supabaseReplyToReview : mockReplyToReview;
 export const travelerScore =
   dataSource === "supabase" ? supabaseTravelerScore : mockTravelerScore;
+export const listMessages =
+  dataSource === "supabase" ? supabaseListMessages : mockListMessages;
+export const sendMessage =
+  dataSource === "supabase" ? supabaseSendMessage : mockSendMessage;
+export const markThreadRead =
+  dataSource === "supabase" ? supabaseMarkThreadRead : mockMarkThreadRead;
+export const listOwnerInbox =
+  dataSource === "supabase" ? supabaseListOwnerInbox : mockListOwnerInbox;

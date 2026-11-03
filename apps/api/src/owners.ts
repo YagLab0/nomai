@@ -15,10 +15,15 @@ import type { Context } from "hono";
 import { createSupabaseUser } from "./supabase.js";
 import { bearerToken, supabaseAdmin, travelerIdFrom } from "./auth.js";
 import {
+  listMessages,
+  listOwnerInbox,
   listOwnerReviews,
+  markThreadRead,
   replyToReview,
+  sendMessage,
   submitReview,
   travelerScore,
+  type MessageErrorCode,
   type ReviewCategories,
   type ReviewErrorCode,
 } from "./data/index.js";
@@ -875,6 +880,114 @@ owners.post("/bookings/:id/review", async (c) => {
       );
     }
     return c.json({ ok: true, review_id: r.review_id, score: r.score }, 201);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// booking messages (issues #73/#74, ADR-0009) — the Owner's side: the inbox
+// of Booking threads plus read/write on each. The Bearer user IS the Owner
+// (businesses.user_id); the repo's party check re-derives that the caller
+// owns THIS Booking's Lodging — owning any business isn't enough.
+// ---------------------------------------------------------------------------
+
+function messageFailureStatus(code: MessageErrorCode | undefined): 400 | 403 | 404 {
+  switch (code) {
+    case "forbidden":
+      return 403;
+    case "not_found":
+      return 404;
+    default:
+      // empty_body and anything unmapped are caller errors.
+      return 400;
+  }
+}
+
+/**
+ * GET /owners/inbox — { threads }: the business's Booking threads, last
+ * message first — Airbnb's host inbox. Each entry carries the guest's name,
+ * the Lodging title, the last message and the unread badge (messages the
+ * Traveler sent that the Owner hasn't opened).
+ */
+owners.get("/inbox", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para ver tu bandeja.");
+    if ("response" in who) return who.response;
+    const { userId, supabase } = who;
+
+    const { data: business, error: busErr } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (busErr) return c.json({ error: busErr.message }, 500);
+    if (!business) {
+      return c.json({ error: "Primero registrá tu negocio en /owners/join." }, 403);
+    }
+
+    return c.json({ threads: await listOwnerInbox(business.id, userId) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * GET /owners/bookings/:id/messages — the Owner's side of the Booking's
+ * thread. Reading marks the Traveler's messages read; `unread` answers the
+ * count BEFORE this read marked them (same contract as the traveler GET).
+ */
+owners.get("/bookings/:id/messages", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para ver el hilo.");
+    if ("response" in who) return who.response;
+    const { userId } = who;
+
+    const id = c.req.param("id");
+    const t = await listMessages(userId, id, "owner");
+    if (!t.ok) {
+      return c.json(
+        { error: t.error.message, code: t.error.code },
+        messageFailureStatus(t.error.code)
+      );
+    }
+    await markThreadRead(userId, id, "owner");
+    return c.json(t.thread);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * POST /owners/bookings/:id/messages — the Owner answers the Traveler.
+ * Body: { body: string } → 201 { message }. send_message derives
+ * sender_role server-side; the route never sends it.
+ */
+owners.post("/bookings/:id/messages", async (c) => {
+  try {
+    const who = await ownerClient(c, "Iniciá sesión para responder.");
+    if ("response" in who) return who.response;
+    const { userId } = who;
+
+    const body = (await c.req.json().catch(() => null)) as {
+      body?: unknown;
+    } | null;
+    const r = await sendMessage(
+      userId,
+      c.req.param("id"),
+      typeof body?.body === "string" ? body.body : "",
+      "owner"
+    );
+    if (!r.ok) {
+      return c.json(
+        { error: r.error.message, code: r.error.code },
+        messageFailureStatus(r.error.code)
+      );
+    }
+    return c.json({ message: r.message }, 201);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error inesperado";
     return c.json({ error: message }, 500);

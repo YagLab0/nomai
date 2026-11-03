@@ -245,3 +245,45 @@ export async function fetchListingReviews(
   if (res.status === 404 || !res.ok) return null;
   return (await res.json()) as ApiListingReviews;
 }
+
+// ---------------------------------------------------------------------------
+// chat (ADR-0009) — the private Traveler↔Owner thread per Booking
+// ---------------------------------------------------------------------------
+
+/**
+ * One message in a Booking's chat. `mine` is relative to the caller — the
+ * Traveler and the Owner both see their own messages flagged; 'system' rows
+ * are nomai's (booking events), never writable over POST.
+ */
+export interface ApiChatMessage {
+  id: string;
+  booking_id: string;
+  sender_role: 'traveler' | 'owner' | 'system';
+  mine: boolean;
+  body: string;
+  /** When the other side read it; null while unread. */
+  read_at: string | null;
+  created_at: string;
+}
+
+/**
+ * GET …/bookings/:id/messages → the whole thread. Opening it marks the
+ * caller's side read, so `unread` is the count *before* this read.
+ */
+export interface ApiChatThread {
+  booking_id: string;
+  messages: ApiChatMessage[];
+  unread: number;
+}
+
+/** GET /owners/inbox → one row per Booking with messages, newest first. */
+export interface ApiInboxEntry {
+  booking_id: string;
+  /** The Traveler's display name. */
+  guest_name: string;
+  listing_title: string;
+  /** Last message body, for the preview line. */
+  last_body: string;
+  last_at: string;
+  unread: number;
+}
