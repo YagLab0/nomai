@@ -44,6 +44,32 @@ resource metadata + challenges; default `http://localhost:3001`),
 `NODE_ENV != production`, `/mcp` answers as that Traveler — never set on a
 deployed instance).
 
+## Connecting a client to the WEB origin (the `/api/mcp` passthrough)
+
+MCP clients can also connect against the **web app's** public URL, when the
+API host is not the URL you want to hand out:
+
+- URL de conector: `https://<web-host>/api/mcp` — `apps/web/src/app/api/mcp/
+  route.ts` forwards every method to `{NOMAI_API_URL}/mcp`, answers CORS
+  preflights itself, and rewrites the 401 `WWW-Authenticate` so
+  `resource_metadata` names the **web** origin (`apps/api` would name its
+  own host, stranding a client that never talks to it).
+- Discovery pair served by the web: `GET /.well-known/oauth-protected-resource
+  [/mcp]` (`apps/web/src/app/api/well-known/[...path]`, reachable via a
+  `next.config.mjs` rewrite) — same JSON the API would serve, with
+  `resource = <web origin>/api/mcp` and Supabase Auth as authorization
+  server.
+
+`NOMAI_API_URL` (the web's existing env) is all this needs. Local test with
+`pnpm api:dev` + `pnpm --filter web dev`:
+
+```sh
+curl -s http://localhost:3000/.well-known/oauth-protected-resource/mcp
+curl -s -X POST http://localhost:3000/api/mcp \
+  -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
+```
+
 ## Connecting Grok
 
 ### xAI API (remote MCP tool) — works today

@@ -13,6 +13,12 @@ const nextConfig = {
       { source: '/app/dueno', destination: '/app/owner', permanent: true },
     ]
   },
+  async rewrites() {
+    // RFC 9728 well-knowns live on a literal /​.well-known/… path for every MCP
+    // client; the handlers are /api/well-known/[...path] (route segment names
+    // cannot start with a dot).
+    return [{ source: '/.well-known/:path*', destination: '/api/well-known/:path*' }]
+  },
   webpack: (config) => {
     config.externals.push('pino-pretty', 'lokijs', 'encoding')
 
