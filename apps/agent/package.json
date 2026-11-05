@@ -19,6 +19,7 @@
     "@ai-sdk/anthropic": "^4.0.78",
     "@ai-sdk/openai": "^4.0.91",
     "@ai-sdk/openai-compatible": "^3.0.67",
+    "@supabase/supabase-js": "^2.118.0",
     "@celo/attribution-tags": "^0.5.0",
     "@openuidev/lang-core": "^1.0.1",
     "@vercel/connect": "2.2.0",
@@ -30,7 +31,6 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.118.0",
     "@types/node": "24.x",
     "just-bash": "^3.6.0",
     "microsandbox": "0.5.5",
