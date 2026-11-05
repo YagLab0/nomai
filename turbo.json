@@ -4,7 +4,12 @@
   "pipeline": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      // `.vercel/output/config.json` is what withEve writes during next build
+      // on Vercel to attach the Agent as a Vercel service (`/eve/v1/*` routes +
+      // its build command). Turbo must cache it, or a full-turbo cache hit on
+      // web:build deploys a Next-only app where every /eve/v1 request hits
+      // Next's 404 page (see YagLab0/nomai#53).
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", ".vercel/output/config.json"]
     },
     "dev": {
       "cache": false,
