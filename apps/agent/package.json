@@ -13,6 +13,7 @@
     "start": "eve start",
     "test:openui": "node scripts/check-openui-golden.mjs",
     "smoke:book": "tsx scripts/smoke-book-traveler-pays.ts",
+    "erc8004": "tsx scripts/register-8004.ts",
     "type-check": "tsc"
   },
   "dependencies": {
