@@ -148,7 +148,7 @@ const run = async () => {
 
   step("auth gate + validation");
   assert((await post("/bookings/requests", null, { slug, ...stay })).status === 401, "no token → 401");
-  assert((await post("/bookings/requests", a.token, { slug })).status === 400, "bad body → 400");
+  assert((await post("/bookings/requests", a.token, {})).status === 400, "no slug → 400");
   assert(
     (await post("/bookings/requests", a.token, { ...stay, slug: "no-existe", guests: 2 })).status === 404,
     "unknown slug → 404"
@@ -210,7 +210,78 @@ const run = async () => {
     "confirmed + booking_id linked"
   );
 
-  step("MCP: create + list + thread tools");
+  step("ideas: slug-only create + complete");
+  const idea = await post("/bookings/requests", a.token, { slug });
+  assert(idea.status === 201, `slug-only → 201 idea (got ${idea.status})`);
+  assert(
+    (idea.body as { status: string }).status === "idea",
+    "no dates → idea, not pending"
+  );
+  assert(
+    (idea.body as { origin: string }).origin === "mcp",
+    "default origin is mcp"
+  );
+  const ideaId = (idea.body as { request_id: string }).request_id;
+  assert(
+    (await post("/bookings/requests", a.token, { slug, checkin: stay.checkin })).status === 400,
+    "partial dates → 400"
+  );
+  assert(
+    (
+      await post(`/bookings/requests/${ideaId}/complete`, b.token, stay)
+    ).status === 404,
+    "other Traveler cannot complete → 404"
+  );
+  const completed = await post(`/bookings/requests/${ideaId}/complete`, a.token, {
+    ...stay,
+    guests: 2,
+  });
+  assert(completed.status === 200, "complete idea → 200 pending");
+  assert(
+    (completed.body as { status: string }).status === "pending" &&
+      typeof (completed.body as { total_minor: number }).total_minor === "number",
+    "completed draft is pending with frozen totals"
+  );
+  assert(
+    (await post(`/bookings/requests/${ideaId}/complete`, a.token, { ...stay, guests: 2 }))
+      .status === 409,
+    "complete a pending draft → 409"
+  );
+
+  step("MCP: create + complete + list + thread tools");
+  const mcpIdea = textOf(
+    (await mcpCall(a.token, "create_booking_request", { slug })).body
+  );
+  assert(!mcpIdea.isError, "MCP create without dates ok");
+  assert(
+    (JSON.parse(mcpIdea.text) as { status: string }).status === "idea",
+    "MCP slug-only → idea"
+  );
+  const mcpIdeaId = (JSON.parse(mcpIdea.text) as { request_id: string })
+    .request_id;
+  const mcpPartial = textOf(
+    (
+      await mcpCall(a.token, "create_booking_request", {
+        slug,
+        checkin: stay.checkin,
+      })
+    ).body
+  );
+  assert(mcpPartial.isError, "MCP partial dates → error, never a half draft");
+  const mcpCompleted = textOf(
+    (
+      await mcpCall(a.token, "complete_booking_request", {
+        request_id: mcpIdeaId,
+        ...stay,
+        guests: 2,
+      })
+    ).body
+  );
+  assert(!mcpCompleted.isError, "MCP complete_booking_request ok");
+  assert(
+    (JSON.parse(mcpCompleted.text) as { status: string }).status === "pending",
+    "MCP completed → pending"
+  );
   const mcpCreated = textOf(
     (await mcpCall(a.token, "create_booking_request", { slug, ...stay })).body
   );

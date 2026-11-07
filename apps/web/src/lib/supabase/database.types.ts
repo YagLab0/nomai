@@ -114,13 +114,13 @@ isOneToOne: false
                   ]
                 },"booking_requests": {
                   Row: {
-                    "booking_id": string | null,"checkin": string,"checkout": string,"created_at": string,"currency": string,"expires_at": string,"guests": number,"id": string,"listing_id": string,"quote": Json,"status": string,"total_minor": number,"traveler_id": string
+                    "booking_id": string | null,"checkin": string | null,"checkout": string | null,"created_at": string,"currency": string | null,"expires_at": string,"guests": number | null,"id": string,"listing_id": string,"origin": string,"quote": Json,"status": string,"total_minor": number | null,"traveler_id": string
                   }
                   Insert: {
-                    "booking_id"?: string | null,"checkin": string,"checkout": string,"created_at"?: string,"currency": string,"expires_at"?: string,"guests": number,"id"?: string,"listing_id": string,"quote"?: Json,"status"?: string,"total_minor": number,"traveler_id": string
+                    "booking_id"?: string | null,"checkin"?: string | null,"checkout"?: string | null,"created_at"?: string,"currency"?: string | null,"expires_at"?: string,"guests"?: number | null,"id"?: string,"listing_id": string,"origin"?: string,"quote"?: Json,"status"?: string,"total_minor"?: number | null,"traveler_id": string
                   }
                   Update: {
-                    "booking_id"?: string | null,"checkin"?: string,"checkout"?: string,"created_at"?: string,"currency"?: string,"expires_at"?: string,"guests"?: number,"id"?: string,"listing_id"?: string,"quote"?: Json,"status"?: string,"total_minor"?: number,"traveler_id"?: string
+                    "booking_id"?: string | null,"checkin"?: string | null,"checkout"?: string | null,"created_at"?: string,"currency"?: string | null,"expires_at"?: string,"guests"?: number | null,"id"?: string,"listing_id"?: string,"origin"?: string,"quote"?: Json,"status"?: string,"total_minor"?: number | null,"traveler_id": string
                   }
                   Relationships: [
                     {
@@ -449,8 +449,11 @@ isOneToOne: false
 "convert_booking_request":
 { Args: { "p_booking_id": string,"p_request_id": string,"p_traveler_id": string }; Returns: Json
                            },
+"complete_booking_request":
+{ Args: { "p_checkin": string,"p_checkout": string,"p_currency": string,"p_guests": number,"p_quote": Json,"p_request_id": string,"p_total_minor": number,"p_traveler_id": string }; Returns: Json
+                           },
 "create_booking_request":
-{ Args: { "p_checkin": string,"p_checkout": string,"p_currency": string,"p_guests": number,"p_listing_id": string,"p_quote": Json,"p_total_minor": number,"p_traveler_id": string }; Returns: Json
+{ Args: { "p_checkin"?: string,"p_checkout"?: string,"p_currency"?: string,"p_guests"?: number,"p_listing_id": string,"p_origin"?: string,"p_quote"?: Json,"p_total_minor"?: number,"p_traveler_id": string }; Returns: Json
                            },
 "claim_escrow_intents":
 { Args: { "p_booking_id"?: string,"p_dry_run"?: boolean,"p_limit"?: number }; Returns: Json

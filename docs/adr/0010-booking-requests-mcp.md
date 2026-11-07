@@ -12,11 +12,17 @@ behalf, still never touching payments.
 
 ## Rules
 
-- A Booking request is a row in `booking_requests`, **not** a Booking: it
-  never touches `bookings`, escrow, nights inventory or the keeper. It
-  carries the requester's `traveler_id` (from the verified Bearer — never
-  from the body), the listing, dates, guests, a frozen `quote` snapshot
-  (totals, currency, Service fee) and an `expires_at` (48 h).
+- A Booking request starts as an **idea** (only the place is required —
+  "agendame X") and becomes **pending** (ready to pay) once dates/guests
+  complete and a fresh server-side quote freezes. `origin` (`mcp`/`app`/
+  `agent`) tracks where the draft was born so the UI can badge it
+  ("Agendado por tu asistente" vs "por Nomito" vs "por vos"). Expiry (48 h)
+  only runs on `pending` rows.
+- A request is a draft: it never touches `bookings`, escrow, nights
+  inventory or the keeper. It carries the requester's `traveler_id` (from
+  the verified Bearer — never from the body), the listing, the origin, and —
+  once completed — dates, guests, a frozen `quote` snapshot (totals,
+  currency) and an `expires_at`.
 - **No inventory hold (v1).** A request does not retain nights. Two
   Travelers can request overlapping dates; whoever pays first wins, the
   other's confirmation fails with the normal availability error and their
@@ -31,7 +37,7 @@ behalf, still never touching payments.
   RLS allows select/insert/update only on own rows; the only write path is
   `apps/api` with the service_role client, same posture as Bookings and
   Reviews.
-- Lifecycle: `pending → confirmed | cancelled | expired | stale`.
+- Lifecycle: `idea → pending → confirmed | cancelled | expired | stale`. Only `idea` rows can complete; only `idea`/`pending` rows can cancel.
   `expired` is computed on read (`expires_at < now()` still answering
   `pending` is a lie the API never tells — the list endpoint marks them).
   `confirmed` carries the resulting `booking_id`.

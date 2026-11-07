@@ -28,6 +28,7 @@ import { formatEther } from "viem";
 import { z } from "zod";
 
 import { travelerIdFrom } from "./auth.js";
+import type { Json } from "./database.types.js";
 import {
   getBookingDetail,
   getListingBySlug,
@@ -250,18 +251,16 @@ function nomaiMcpServer(travelerId: string): McpServer {
     "create_booking_request",
     {
       description:
-        "Draft a Booking request for the authenticated Traveler ('reservame X para tal fecha'): quotes the stay fresh server-side and saves a pending request with a frozen quote snapshot. Creates NO Booking, holds NO nights, moves NO money — the Traveler confirms and pays it later in the nomai app. Returns the request id, totals and expiry.",
+        "Save a Booking request draft for the authenticated Traveler ('reservame X para tal fecha'). Only the place (slug) is required: without dates it saves an IDEA the Traveler completes later; with checkin/checkout/guests it quotes the stay fresh server-side and saves it PENDING with a frozen quote snapshot. Creates NO Booking, holds NO nights, moves NO money — the Traveler confirms and pays it later in the nomai app. Returns the request id, origin, status ('idea' or 'pending'), totals when priced, and expiry.",
       inputSchema: {
         slug: z.string().describe("The listing slug, e.g. 'palermo-loft'"),
-        checkin: z.string().describe("Check-in date YYYY-MM-DD"),
-        checkout: z.string().describe("Check-out date YYYY-MM-DD"),
-        guests: z.number().int().min(1).describe("Number of guests"),
+        checkin: z.string().optional().describe("Check-in date YYYY-MM-DD (optional — without it the draft is an idea)"),
+        checkout: z.string().optional().describe("Check-out date YYYY-MM-DD (optional — without it the draft is an idea)"),
+        guests: z.number().int().min(1).optional().describe("Number of guests (optional — without it the draft is an idea)"),
       },
       annotations: REQUEST_WRITE,
     },
     async ({ slug, checkin, checkout, guests }) => {
-      const q = await quoteStay(slug, checkin, checkout, guests);
-      if (!q.ok) return err(q.error.message, { code: q.error.code });
       const listing = await getListingBySlug(slug);
       if (!listing) return err("listing not found", { code: "not_found" });
       const { data: listingRow, error: listingErr } = await supabaseAdmin()
@@ -272,11 +271,123 @@ function nomaiMcpServer(travelerId: string): McpServer {
       if (listingErr || !listingRow)
         return err("listing not found", { code: "not_found" });
       const listingId = (listingRow as unknown as { id: string }).id;
+
+      const dated = checkin != null || checkout != null || guests != null;
+      if (dated && (!checkin || !checkout || guests == null)) {
+        return err(
+          "checkin, checkout and guests are all required together — or omit all three to save an idea",
+          { code: "invalid" }
+        );
+      }
+      let quote: Record<string, unknown> | null = null;
+      let totalMinor: number | null = null;
+      let currency: string | null = null;
+      if (dated) {
+        const q = await quoteStay(slug, checkin!, checkout!, guests!);
+        if (!q.ok) return err(q.error.message, { code: q.error.code });
+        quote = q.quote as unknown as Record<string, unknown>;
+        totalMinor = q.quote.total_minor;
+        currency = q.quote.currency;
+      } else {
+        // An idea carries no quote yet — but it must remember its own place.
+        quote = { listing_slug: slug };
+      }
+      const rpcParams: {
+        p_traveler_id: string;
+        p_listing_id: string;
+        p_origin: string;
+        p_checkin?: string;
+        p_checkout?: string;
+        p_guests?: number;
+        p_quote: Json;
+        p_total_minor?: number;
+        p_currency?: string;
+      } = {
+        p_traveler_id: travelerId,
+        p_listing_id: listingId,
+        p_origin: "mcp",
+        p_quote: quote as unknown as Json,
+      };
+      if (dated) {
+        rpcParams.p_checkin = checkin!;
+        rpcParams.p_checkout = checkout!;
+        rpcParams.p_guests = guests!;
+        rpcParams.p_total_minor = totalMinor!;
+        rpcParams.p_currency = currency!;
+      }
       const { data, error } = await supabaseAdmin().rpc(
         "create_booking_request",
+        rpcParams
+      );
+      if (error || !data) return err("could not create the booking request");
+      const r = data as unknown as {
+        id: string;
+        origin: string;
+        status: string;
+        total_minor: number | null;
+        currency: string | null;
+        expires_at: string;
+      };
+      return ok({
+        request_id: r.id,
+        listing_slug: slug,
+        origin: r.origin,
+        checkin: checkin ?? null,
+        checkout: checkout ?? null,
+        guests: guests ?? null,
+        total_minor: r.total_minor,
+        currency: r.currency,
+        status: r.status,
+        expires_at: r.expires_at,
+      });
+    }
+  );
+
+  server.registerTool(
+    "complete_booking_request",
+    {
+      description:
+        "Complete an IDEA draft with stay dates: quotes fresh server-side and flips it to PENDING (ready to pay in the nomai app) with a frozen quote snapshot and a new 48 h expiry. Only ideas can complete — pending drafts are already priced. The Traveler still confirms and pays in the app; nothing is charged here.",
+      inputSchema: {
+        request_id: z.string().describe("The request id from create_booking_request"),
+        checkin: z.string().describe("Check-in date YYYY-MM-DD"),
+        checkout: z.string().describe("Check-out date YYYY-MM-DD"),
+        guests: z.number().int().min(1).describe("Number of guests"),
+      },
+      annotations: REQUEST_WRITE,
+    },
+    async ({ request_id, checkin, checkout, guests }) => {
+      const { data: rows, error: listErr } = await supabaseAdmin().rpc(
+        "list_booking_requests",
+        { p_traveler_id: travelerId }
+      );
+      if (listErr) return err("could not read booking requests");
+      const draft = ((rows ?? []) as unknown as Array<{
+        id: string;
+        status: string;
+        quote: { listing_slug?: unknown };
+      }>).find((r) => r.id === request_id);
+      if (!draft) return err("booking request not found", { code: "not_found" });
+      if (draft.status !== "idea") {
+        return err(
+          draft.status === "pending"
+            ? "this request is already ready to pay"
+            : "only ideas can be completed",
+          { code: "invalid_state" }
+        );
+      }
+      const slug =
+        typeof draft.quote?.listing_slug === "string"
+          ? (draft.quote.listing_slug as string)
+          : null;
+      if (!slug) return err("booking request has no listing");
+      const q = await quoteStay(slug, checkin, checkout, guests);
+      if (!q.ok) return err(q.error.message, { code: q.error.code });
+      const { data, error } = await supabaseAdmin().rpc(
+        "complete_booking_request",
         {
           p_traveler_id: travelerId,
-          p_listing_id: listingId,
+          p_request_id: request_id,
           p_checkin: checkin,
           p_checkout: checkout,
           p_guests: guests,
@@ -285,12 +396,12 @@ function nomaiMcpServer(travelerId: string): McpServer {
           p_currency: q.quote.currency,
         }
       );
-      if (error || !data) return err("could not create the booking request");
+      if (error || !data) return err("could not complete the booking request");
       const r = data as unknown as {
         id: string;
+        status: string;
         total_minor: number;
         currency: string;
-        status: string;
         expires_at: string;
       };
       return ok({
@@ -323,11 +434,12 @@ function nomaiMcpServer(travelerId: string): McpServer {
       if (error) return err("could not list booking requests");
       const rows = (data ?? []) as unknown as Array<{
         id: string;
-        checkin: string;
-        checkout: string;
-        guests: number;
-        total_minor: number;
-        currency: string;
+        origin: string;
+        checkin: string | null;
+        checkout: string | null;
+        guests: number | null;
+        total_minor: number | null;
+        currency: string | null;
         status: string;
         booking_id: string | null;
         expires_at: string;
@@ -337,6 +449,7 @@ function nomaiMcpServer(travelerId: string): McpServer {
         count: rows.length,
         requests: rows.map((r) => ({
           request_id: r.id,
+          origin: r.origin,
           checkin: r.checkin,
           checkout: r.checkout,
           guests: r.guests,

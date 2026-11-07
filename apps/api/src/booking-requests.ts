@@ -1,9 +1,10 @@
 // Booking requests (ADR-0010) — the Agent proposes, the Traveler disposes.
 //
-// POST /bookings/requests creates a draft from a fresh server-side quote:
-// no payment, no inventory hold, no escrow. The Traveler confirms it in the
-// app, which runs the normal paid POST /listings/:slug/book x402 flow and
-// then marks the request converted. The Owner sees nothing until then.
+// A request starts as an IDEA (only the place is required) and becomes
+// PENDING (ready to pay) once dates/guests complete and a fresh server-side
+// quote freezes. Confirmation runs the normal paid POST /listings/:slug/book
+// x402 flow in the app and marks the request converted. The Owner sees
+// nothing until then.
 //
 // All routes are Bearer-required; the verified user id IS the traveler_id.
 // None of these routes match a paid pattern, so the x402 gate ignores them.
@@ -15,6 +16,7 @@ import {
   type DomainErrorCode,
 } from "./data/index.js";
 import { supabaseAdmin, travelerIdFrom } from "./auth.js";
+import type { Json } from "./database.types.js";
 
 const requests = new Hono();
 
@@ -33,12 +35,13 @@ interface RequestRow {
   id: string;
   traveler_id: string;
   listing_id: string;
-  checkin: string;
-  checkout: string;
-  guests: number;
+  origin: string;
+  checkin: string | null;
+  checkout: string | null;
+  guests: number | null;
   quote: Record<string, unknown>;
-  total_minor: number;
-  currency: string;
+  total_minor: number | null;
+  currency: string | null;
   status: string;
   booking_id: string | null;
   expires_at: string;
@@ -52,6 +55,7 @@ const shape = (r: RequestRow) => ({
     typeof (r.quote as { listing_slug?: unknown }).listing_slug === "string"
       ? (r.quote as { listing_slug: string }).listing_slug
       : undefined,
+  origin: r.origin,
   checkin: r.checkin,
   checkout: r.checkout,
   guests: r.guests,
@@ -68,10 +72,19 @@ const shape = (r: RequestRow) => ({
   created_at: r.created_at,
 });
 
-// POST /bookings/requests — body:
-//   { slug, checkin: YYYY-MM-DD, checkout: YYYY-MM-DD, guests: int }
-// Quotes fresh server-side (the quote authority is never the caller), then
-// inserts the draft. 201 { request_id, ..., status: "pending", expires_at }.
+async function listingId(slug: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("listings")
+    .select("id")
+    .eq("slug", slug)
+    .single();
+  if (error || !data) return null;
+  return (data as unknown as { id: string }).id;
+}
+
+// POST /bookings/requests — body: { slug, checkin?, checkout?, guests?,
+// origin?: 'mcp'|'app'|'agent' }. Only the place is required: without dates
+// the row is an IDEA; with dates it quotes fresh server-side and is PENDING.
 requests.post("/", async (c) => {
   const userId = await travelerIdFrom(c);
   if (!userId)
@@ -82,20 +95,138 @@ requests.post("/", async (c) => {
     checkin?: unknown;
     checkout?: unknown;
     guests?: unknown;
+    origin?: unknown;
   } | null;
 
   const slug = typeof body?.slug === "string" ? body.slug.trim() : "";
-  const checkin = typeof body?.checkin === "string" ? body.checkin : "";
-  const checkout = typeof body?.checkout === "string" ? body.checkout : "";
-  const guests = body?.guests;
-  if (!slug || !checkin || !checkout || !Number.isInteger(guests)) {
+  if (!slug) return c.json({ error: "slug is required" }, 400);
+  const origin =
+    body?.origin === "app" || body?.origin === "agent" ? body.origin : "mcp";
+
+  const listing = await getListingBySlug(slug);
+  if (!listing) return c.json({ error: "listing not found", code: "not_found" }, 404);
+  const id = await listingId(listing.slug);
+  if (!id) return c.json({ error: "listing not found", code: "not_found" }, 404);
+
+  const checkin = typeof body?.checkin === "string" ? body.checkin : null;
+  const checkout = typeof body?.checkout === "string" ? body.checkout : null;
+  const guests =
+    typeof body?.guests === "number" && Number.isInteger(body.guests)
+      ? (body.guests as number)
+      : null;
+  const dated = checkin !== null || checkout !== null || guests !== null;
+  if (dated && (!checkin || !checkout || guests === null)) {
     return c.json(
-      { error: "slug, checkin (YYYY-MM-DD), checkout (YYYY-MM-DD) and guests (int) are required" },
+      { error: "checkin (YYYY-MM-DD), checkout (YYYY-MM-DD) and guests (int) are all required together" },
       400
     );
   }
 
-  // Fresh server-side quote — validates dates, availability and price.
+  let quote: Record<string, unknown> | null = null;
+  let totalMinor: number | null = null;
+  let currency: string | null = null;
+  if (dated) {
+    // Fresh server-side quote — the quote authority is never the caller.
+    const q = await quoteStay(slug, checkin!, checkout!, guests!);
+    if (!q.ok) {
+      return c.json(
+        { error: q.error.message, code: q.error.code },
+        domainStatus(q.error.code)
+      );
+    }
+    quote = q.quote as unknown as Record<string, unknown>;
+    totalMinor = q.quote.total_minor;
+    currency = q.quote.currency;
+  } else {
+    // An idea carries no quote yet — but it must remember its own place,
+    // because complete() reads the stay params off the draft, never off the
+    // client. The listing_slug is the draft's anchor, not a price.
+    quote = { listing_slug: slug };
+  }
+
+  const params: {
+    p_traveler_id: string;
+    p_listing_id: string;
+    p_origin: string;
+    p_checkin?: string;
+    p_checkout?: string;
+    p_guests?: number;
+    p_quote: Json;
+    p_total_minor?: number;
+    p_currency?: string;
+  } = {
+    p_traveler_id: userId,
+    p_listing_id: id,
+    p_origin: origin,
+    p_quote: quote as unknown as Json,
+  };
+  if (dated) {
+    params.p_checkin = checkin!;
+    params.p_checkout = checkout!;
+    params.p_guests = guests!;
+    params.p_total_minor = totalMinor!;
+    params.p_currency = currency!;
+  }
+
+  const { data, error } = await supabaseAdmin().rpc("create_booking_request", params);
+  if (error || !data) {
+    return c.json({ error: "could not create the booking request" }, 500);
+  }
+  return c.json(shape(data as unknown as RequestRow), 201);
+});
+
+// POST /bookings/requests/:id/complete — body: { checkin, checkout, guests }.
+// Freezes a fresh server-side quote on an IDEA and flips it to PENDING.
+requests.post("/:id/complete", async (c) => {
+  const userId = await travelerIdFrom(c);
+  if (!userId) return c.json({ error: "unauthorized" }, 401);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    checkin?: unknown;
+    checkout?: unknown;
+    guests?: unknown;
+  } | null;
+  const checkin = typeof body?.checkin === "string" ? body.checkin : "";
+  const checkout = typeof body?.checkout === "string" ? body.checkout : "";
+  const guests = body?.guests;
+  if (!checkin || !checkout || !Number.isInteger(guests)) {
+    return c.json(
+      { error: "checkin (YYYY-MM-DD), checkout (YYYY-MM-DD) and guests (int) are required" },
+      400
+    );
+  }
+
+  // The draft, read server-side — the stay params land on the idea's own
+  // listing; the client never names it.
+  const { data: rows, error: listErr } = await supabaseAdmin().rpc(
+    "list_booking_requests",
+    { p_traveler_id: userId }
+  );
+  if (listErr) return c.json({ error: "could not read booking requests" }, 500);
+  const draft = ((rows ?? []) as unknown as RequestRow[]).find(
+    (r) => r.id === c.req.param("id")
+  );
+  if (!draft)
+    return c.json({ error: "booking request not found", code: "not_found" }, 404);
+  if (draft.status !== "idea") {
+    return c.json(
+      {
+        error:
+          draft.status === "pending"
+            ? "this request is already ready to pay"
+            : "only ideas can be completed",
+        code: "invalid_state",
+      },
+      409
+    );
+  }
+  const slug =
+    typeof (draft.quote as { listing_slug?: unknown }).listing_slug === "string"
+      ? (draft.quote as { listing_slug: string }).listing_slug
+      : null;
+  if (!slug)
+    return c.json({ error: "booking request has no listing" }, 500);
+
   const q = await quoteStay(slug, checkin, checkout, guests as number);
   if (!q.ok) {
     return c.json(
@@ -104,20 +235,9 @@ requests.post("/", async (c) => {
     );
   }
 
-  const listing = await getListingBySlug(slug);
-  if (!listing) return c.json({ error: "listing not found", code: "not_found" }, 404);
-
-  const { data: listingRow, error: listingErr } = await supabaseAdmin()
-    .from("listings")
-    .select("id")
-    .eq("slug", listing.slug)
-    .single();
-  if (listingErr || !listingRow)
-    return c.json({ error: "listing not found", code: "not_found" }, 404);
-
-  const { data, error } = await supabaseAdmin().rpc("create_booking_request", {
+  const { data, error } = await supabaseAdmin().rpc("complete_booking_request", {
     p_traveler_id: userId,
-    p_listing_id: (listingRow as unknown as { id: string }).id,
+    p_request_id: draft.id,
     p_checkin: checkin,
     p_checkout: checkout,
     p_guests: guests as number,
@@ -125,10 +245,13 @@ requests.post("/", async (c) => {
     p_total_minor: q.quote.total_minor,
     p_currency: q.quote.currency,
   });
-  if (error || !data) {
-    return c.json({ error: "could not create the booking request" }, 500);
+  if (error) {
+    const msg: string = error.message ?? "";
+    if (msg.includes("not found"))
+      return c.json({ error: "booking request not found", code: "not_found" }, 404);
+    return c.json({ error: "could not complete the booking request" }, 500);
   }
-  return c.json(shape(data as unknown as RequestRow), 201);
+  return c.json(shape(data as unknown as RequestRow));
 });
 
 // GET /bookings/requests — the caller's drafts, newest first. The RPC marks
@@ -147,8 +270,8 @@ requests.get("/", async (c) => {
   });
 });
 
-// POST /bookings/requests/:id/cancel — withdraw a pending draft. No money
-// ever moved, so there is no refund — just a status flip.
+// POST /bookings/requests/:id/cancel — withdraw a draft (idea or pending).
+// No money ever moved, so there is no refund — just a status flip.
 requests.post("/:id/cancel", async (c) => {
   const userId = await travelerIdFrom(c);
   if (!userId) return c.json({ error: "unauthorized" }, 401);
@@ -161,9 +284,9 @@ requests.post("/:id/cancel", async (c) => {
     const msg: string = error.message ?? "";
     if (msg.includes("not found"))
       return c.json({ error: "booking request not found", code: "not_found" }, 404);
-    if (msg.includes("not pending"))
+    if (msg.includes("can be cancelled"))
       return c.json(
-        { error: "only pending requests can be cancelled", code: "invalid_state" },
+        { error: "only ideas and pending requests can be cancelled", code: "invalid_state" },
         409
       );
     return c.json({ error: "could not cancel the booking request" }, 500);

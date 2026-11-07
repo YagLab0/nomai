@@ -18,8 +18,9 @@ of Booking threads. Real payments are not exposed: there is no `book`,
 | `list_bookings` | the caller's Bookings ("mis reservas"); optional `guest_ref` fallback |
 | `get_booking` | one Booking's status + Escrow/Claim timeline (ownership enforced) |
 | `check_wallet` | the caller's agent wallet: address, network, CELO balance |
-| `create_booking_request` | draft a Booking request (ADR-0010): frozen quote, no hold, no payment |
-| `list_booking_requests` | the caller's drafts with status + expiry |
+| `create_booking_request` | draft a Booking request (ADR-0010): slug only → idea; with dates → pending with frozen quote. No hold, no payment |
+| `complete_booking_request` | complete an idea with dates → pending with frozen quote |
+| `list_booking_requests` | the caller's drafts with status, origin + expiry |
 | `get_thread` | read the caller's side of one Booking's Traveler↔Owner thread |
 | `send_message` | write to that thread as the Traveler (final — no edit/delete) |
 
@@ -32,9 +33,12 @@ verified Bearer identity — see Auth model below.
 "Reservame X para tal fecha" over MCP runs in two phases:
 
 1. The agent calls `create_booking_request` (or the Traveler does it in
-   the app): the API quotes fresh server-side and saves a `pending` draft
-   with a frozen quote snapshot and a 48 h expiry. No Booking is created,
-   no nights are held, no money moves, the Owner sees nothing.
+   the app or chat): with only the place it saves an `idea` draft; with
+   dates it quotes fresh server-side and saves a `pending` draft with a
+   frozen quote snapshot and a 48 h expiry. An idea becomes `pending` via
+   `complete_booking_request` (or the **Completar datos** form in `/app`).
+   No Booking is created, no nights are held, no money moves, the Owner
+   sees nothing.
 2. The Traveler opens **Por confirmar** in `/app`, reviews the draft and
    presses **Confirmar y pagar**: the web runs the normal paid
    `POST /listings/:slug/book` x402 flow server-side (payment-auth signs
