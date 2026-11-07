@@ -13,12 +13,29 @@ import { hasSupabaseEnv } from '@/lib/supabase/env';
 const ITEMS = [
   { label: 'Inicio', href: '/app' },
   { label: 'Explorar', href: '/app/lodgings' },
+  { label: 'Mis alojamientos', href: '/app/owner' },
   { label: 'Reservas', href: '/app/reservas' },
   { label: 'Ayuda' },
 ] as const;
 
 const itemClass =
   'flex items-center rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-terra';
+
+/**
+ * The Traveler ⇄ Owner mode switch. One account is both (owner-views §6), so
+ * the same pill appears in the Traveler chip ("Modo dueño") and in the Owner
+ * chip ("Modo viajero").
+ */
+export function ModeSwitch({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-full border border-sand px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-terra hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
+    >
+      {label}
+    </Link>
+  );
+}
 
 export function Logo() {
   return (
@@ -121,13 +138,8 @@ export function UserChip() {
           <span className="block truncate text-xs text-ink-muted">{subtitle}</span>
         </span>
       </div>
-      <div className="mt-3 flex items-center justify-between text-xs">
-        <Link
-          href="/app/owner"
-          className="rounded-lg font-medium text-ink-muted underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
-        >
-          Modo dueño
-        </Link>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <ModeSwitch href="/app/owner" label="Modo dueño" />
         <button
           type="button"
           disabled={signingOut}

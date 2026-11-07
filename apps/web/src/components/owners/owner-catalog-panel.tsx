@@ -90,7 +90,9 @@ export function OwnerCatalogPanel() {
         <h2 id="reservas-heading" className="font-brand text-2xl font-medium text-ink">
           Reservas
         </h2>
-        <p className="mt-1 text-sm text-ink-muted">Cada reserva ya está cobrada en tu Ripio.</p>
+        <p className="mt-1 text-sm text-ink-muted">
+          El pago de cada reserva queda en garantía y se libera a tu Ripio por etapas.
+        </p>
         <div className="mt-4 flex flex-col gap-4">
           {ownerBookings.map((b) => (
             <ReservaCard key={b.id} booking={toBookingData(b)} />

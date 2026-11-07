@@ -244,7 +244,39 @@ interface RpcResult {
   listing_id?: string;
   property_id?: string;
   slug?: string;
+  /** block_nights / unblock_nights result lists (ISO nights). */
+  blocked?: string[];
+  unblocked?: string[];
+  skipped?: string[];
+  unchanged?: string[];
   error?: { code?: string; message?: string };
+}
+
+/**
+ * The nights payload the Owner calendar sends: ISO dates, 1..366 of them,
+ * today or later. The RPC re-checks all of it — this only keeps malformed
+ * bodies from reaching it (and gives a clearer message than a cast error).
+ */
+function parseNights(raw: unknown): string[] | { error: string } {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { error: "Elegí al menos una noche." };
+  }
+  if (raw.length > 366) {
+    return { error: "Hasta 366 noches por pedido." };
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const nights: string[] = [];
+  for (const value of raw) {
+    const night = typeof value === "string" ? value.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(night) || Number.isNaN(Date.parse(night))) {
+      return { error: "Cada noche tiene que ser una fecha YYYY-MM-DD." };
+    }
+    if (night < today) {
+      return { error: "No se pueden cambiar noches pasadas." };
+    }
+    if (!nights.includes(night)) nights.push(night);
+  }
+  return nights;
 }
 
 /** Maps an RPC {ok:false, error:{code}} failure to an HTTP status. */
@@ -535,6 +567,120 @@ owners.patch("/lodgings/:id/status", async (c) => {
     return c.json({ error: message }, 500);
   }
 });
+
+/**
+ * GET /owners/lodgings/:id/nights — the Owner calendar's nights (id or slug):
+ * every availability row from today on with its status (`open`, `blocked`,
+ * `booked`). Ownership is checked here through the caller's own session
+ * (listings → properties → businesses.user_id); a non-owner gets 403, and
+ * without a Bearer the route answers 401 like the rest of the surface.
+ */
+owners.get("/lodgings/:id/nights", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const who = await ownerClient(c, "Iniciá sesión para ver tu disponibilidad.");
+    if ("response" in who) return who.response;
+    const { userId, supabase } = who;
+
+    const listingKey = /^[a-z0-9-]+$/i.test(id) ? id : "no-match";
+    const { data: listing, error: listErr } = await supabase
+      .from("listings")
+      .select("id, property:properties!inner (business_id)")
+      .or(`id.eq.${listingKey},slug.eq.${listingKey}`)
+      .maybeSingle();
+    if (listErr) return c.json({ error: listErr.message }, 500);
+    if (!listing) return c.json({ error: "Alojamiento no encontrado." }, 404);
+
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const prop = Array.isArray(listing.property) ? listing.property[0] : listing.property;
+    if (!business || prop?.business_id !== business.id) {
+      return c.json({ error: "Este alojamiento no es tuyo." }, 403);
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: nights, error: nightsErr } = await supabaseAdmin()
+      .from("availability_nights")
+      .select("night, status, units_available, price_minor")
+      .eq("listing_id", listing.id)
+      .gte("night", today)
+      .order("night", { ascending: true })
+      .limit(400);
+    if (nightsErr) return c.json({ error: nightsErr.message }, 500);
+
+    return c.json({ listing_id: listing.id, today, nights: nights ?? [] });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * POST /owners/lodgings/:id/nights/{block,unblock} — the Owner closes or
+ * reopens nights (id or slug). Body: { nights: ["YYYY-MM-DD", …] }. Both run
+ * the service_role-only RPC, which re-checks ownership and the night itself:
+ * a blocked night flips open → blocked, a booked night is never moved and
+ * comes back in `skipped`. The calendar reads the result lists to report
+ * exactly what changed.
+ */
+async function nightsAction(
+  c: Context,
+  rpc: "block_nights" | "unblock_nights",
+  failureMessage: string
+) {
+  try {
+    const id = c.req.param("id") ?? "";
+    const who = await ownerClient(c, "Iniciá sesión para cambiar tu disponibilidad.");
+    if ("response" in who) return who.response;
+    const { userId } = who;
+
+    const body = (await c.req.json().catch(() => null)) as { nights?: unknown } | null;
+    const nights = parseNights(body?.nights);
+    if ("error" in nights) return c.json({ error: nights.error }, 400);
+
+    const { data: result, error: rpcErr } = await supabaseAdmin().rpc(rpc, {
+      p_user_id: userId,
+      p_listing_id: id,
+      p_nights: nights,
+    });
+
+    const typed = result as RpcResult | null;
+    const failure = rpcErr
+      ? { code: "internal", message: rpcErr.message }
+      : typed?.ok === false
+        ? (typed.error ?? {})
+        : null;
+    if (failure) {
+      return c.json(
+        { error: failure.message ?? failureMessage },
+        rpcFailureStatus(failure.code)
+      );
+    }
+
+    return c.json({
+      success: true,
+      listing_id: typed?.listing_id ?? id,
+      blocked: typed?.blocked ?? [],
+      unblocked: typed?.unblocked ?? [],
+      skipped: typed?.skipped ?? [],
+      unchanged: typed?.unchanged ?? [],
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error inesperado";
+    return c.json({ error: message }, 500);
+  }
+}
+
+owners.post("/lodgings/:id/nights/block", (c) =>
+  nightsAction(c, "block_nights", "No se pudieron bloquear las noches.")
+);
+
+owners.post("/lodgings/:id/nights/unblock", (c) =>
+  nightsAction(c, "unblock_nights", "No se pudieron desbloquear las noches.")
+);
 
 /**
  * POST /owners/onboard — the Owner onboarding actions. `claim` (attach an

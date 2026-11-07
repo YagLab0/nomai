@@ -16,6 +16,7 @@ import {
 import { ChatModal } from '@/components/chat/chat-modal';
 import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
+import { OwnerNightsCalendar } from '@/components/owners/owner-nights-calendar';
 import { OwnerReviewsSection } from '@/components/owners/owner-reviews';
 import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
 import type { ApiInboxEntry, ApiOwnerReviews } from '@/lib/api';
@@ -475,6 +476,11 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     Record<string, { canRelocate: boolean; canRemove: boolean }>
   >({});
   const [bookings, setBookings] = useState<BookingData[]>([]);
+  /**
+   * Sent Escrow releases (payments kind='release', status='sent') for this
+   * Owner's Bookings — the truth behind "Cobrado en Ripio" (ADR-0006).
+   */
+  const [releases, setReleases] = useState<{ booking_id: string; amount_minor: number }[]>([]);
   /** The Owner's review feed (ADR-0008): storefront score + received/given. */
   const [reviewFeed, setReviewFeed] = useState<ApiOwnerReviews | null>(null);
   /** The Owner's message inbox (ADR-0009) — one thread per Booking. */
@@ -596,6 +602,8 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           total_minor,
           currency,
           status,
+          service_fee_minor,
+          escrow_status,
           created_at,
           listing:listings!inner (
             id,
@@ -615,6 +623,16 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       } else if (bookingsData) {
         setBookings(bookingsData as unknown as BookingData[]);
       }
+
+      // 3b. "Cobrado en Ripio" is what Escrow actually released, not the
+      // Booking total: payments kind='release', status='sent'. RLS
+      // payments_owner_read scopes the rows to this Owner's Bookings.
+      const { data: releaseData } = await supabase
+        .from('payments')
+        .select('booking_id, amount_minor')
+        .eq('kind', 'release')
+        .eq('status', 'sent');
+      setReleases(releaseData ?? []);
 
       // 4. The review feed goes through the api: Traveler-facing rows aren't
       // readable over RLS, only via the service-role RPCs (ADR-0008).
@@ -696,9 +714,34 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     (b) => b.status === 'confirmed' || b.status === 'completed'
   );
 
-  // Total income in minor units
-  const totalIncomeMinor = validBookings.reduce((sum, b) => sum + (b.total_minor || 0), 0);
+  // "Cobrado en Ripio" — the truth under ADR-0006: only Escrow releases that
+  // already landed in the Owner's Ripio (payments kind='release', status
+  // 'sent'), never the Booking totals — that money sits in Escrow.
   const currency = lodgings[0]?.currency || 'ARS';
+  const bookingsById = new Map(bookings.map((b) => [b.id, b]));
+  const releasedByBooking = new Map<string, number>();
+  for (const payment of releases) {
+    releasedByBooking.set(
+      payment.booking_id,
+      (releasedByBooking.get(payment.booking_id) ?? 0) + payment.amount_minor,
+    );
+  }
+  const totalIncomeMinor = releases.reduce((sum, payment) => {
+    const booking = bookingsById.get(payment.booking_id);
+    return sum + (booking && booking.currency === currency ? payment.amount_minor : 0);
+  }, 0);
+
+  // "En Escrow" — rental still held for Upcoming Bookings, minus whatever
+  // already released. Cancelled/refunded Bookings hold nothing (ADR-0006).
+  const heldIncomeMinor = bookings.reduce((sum, b) => {
+    if (b.currency !== currency) return sum;
+    if (b.escrow_status !== 'funded' && b.escrow_status !== 'partially_released') return sum;
+    if (b.status === 'cancelled' || b.status === 'refunded' || b.status === 'pending_payment') {
+      return sum;
+    }
+    const rental = Math.max(0, (b.total_minor ?? 0) - (b.service_fee_minor ?? 0));
+    return sum + Math.max(0, rental - (releasedByBooking.get(b.id) ?? 0));
+  }, 0);
 
   // Total occupied nights
   const occupiedNights = validBookings.reduce((sum, b) => {
@@ -855,7 +898,10 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
             {formatMoney(totalIncomeMinor, currency)}
           </p>
           <p className="mt-2 text-xs text-white/70">
-            neto · liberado por etapas en tu billetera Ripio
+            neto · ya liberado por Escrow a tu cuenta de Ripio
+          </p>
+          <p className="mt-1 text-xs text-white/70">
+            En Escrow: {formatMoney(heldIncomeMinor, currency)} · se libera por etapas
           </p>
         </div>
 
@@ -1016,12 +1062,15 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         <div className="mt-4 grid gap-5 md:grid-cols-2">
           {lodgings.length > 0 ? (
             lodgings.map((l) => (
-              <AlojamientoCard
-                key={l.id}
-                lodging={l}
-                onEdit={() => setWizard({ lodging: l })}
-                onToggleStatus={(status) => toggleListingStatus(l.id, status)}
-              />
+              <div key={l.id} className="flex flex-col gap-3">
+                <AlojamientoCard
+                  lodging={l}
+                  onEdit={() => setWizard({ lodging: l })}
+                  onToggleStatus={(status) => toggleListingStatus(l.id, status)}
+                />
+                {/* Availability per Lodging: mark nights blocked or reopen them. */}
+                <OwnerNightsCalendar listingId={l.id} lodgingName={l.name} />
+              </div>
             ))
           ) : (
             <div className="col-span-2 rounded-card border border-dashed border-sand bg-white/60 p-8 text-center text-ink-muted">

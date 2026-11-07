@@ -437,6 +437,9 @@ isOneToOne: false
             "archive_lodging":
 { Args: { "p_listing_id": string,"p_user_id": string }; Returns: Json
                            },
+"block_nights":
+{ Args: { "p_listing_id": string,"p_nights": string[],"p_user_id": string }; Returns: Json
+                           },
 "book_stay":
 { Args: { "p_checkin": string,"p_checkout": string,"p_guest_ref"?: string,"p_guests": number,"p_listing_slug": string,"p_traveler_id"?: string }; Returns: Json
                            },
@@ -538,6 +541,9 @@ isOneToOne: false
                            },
 "traveler_score":
 { Args: { "p_traveler_id": string }; Returns: Json
+                           },
+"unblock_nights":
+{ Args: { "p_listing_id": string,"p_nights": string[],"p_user_id": string }; Returns: Json
                            },
 "update_lodging":
 { Args: { "p_address": string,"p_amenities"?: Json,"p_base_price_minor": number,"p_bathrooms": number,"p_bedrooms": number,"p_blurb"?: string,"p_city": string,"p_country_code": string,"p_currency": string,"p_guests": number,"p_latitude": number,"p_listing_id": string,"p_longitude": number,"p_name": string,"p_photos"?: Json,"p_property_type": Database["public"]['Enums']["property_type"],"p_region": string,"p_timezone": string,"p_user_id": string }; Returns: Json

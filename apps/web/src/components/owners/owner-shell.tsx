@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Toast } from '@heroui/react';
 
-import { Logo } from '@/components/app/nav-list';
+import { Logo, ModeSwitch } from '@/components/app/nav-list';
 import { CheckBadgeIcon } from '@/components/icons';
 import { createClient } from '@/lib/supabase/client';
 import { initialsFor } from '@/lib/api-mapping';
@@ -68,23 +67,28 @@ function OwnerChip() {
   }, []);
 
   return (
-    <div className="flex items-center gap-3">
-      <span
-        aria-hidden="true"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-terra-soft text-sm font-semibold text-terra-deep"
-      >
-        {profile.initials}
-      </span>
-      <span className="hidden min-w-0 text-sm leading-tight sm:block">
-        <span className="flex items-center gap-1 truncate font-medium text-ink">
-          {profile.name}
-          <CheckBadgeIcon className="h-3.5 w-3.5 shrink-0 text-agua" />
-          <span className="sr-only">(dueño verificado)</span>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-terra-soft text-sm font-semibold text-terra-deep"
+        >
+          {profile.initials}
         </span>
-        {profile.city && (
-          <span className="block truncate text-xs text-ink-muted">{profile.city}</span>
-        )}
-      </span>
+        <span className="hidden min-w-0 text-sm leading-tight sm:block">
+          <span className="flex items-center gap-1 truncate font-medium text-ink">
+            {profile.name}
+            <CheckBadgeIcon className="h-3.5 w-3.5 shrink-0 text-agua" />
+            <span className="sr-only">(dueño verificado)</span>
+          </span>
+          {profile.city && (
+            <span className="block truncate text-xs text-ink-muted">{profile.city}</span>
+          )}
+        </span>
+      </div>
+      <div className="flex justify-end">
+        <ModeSwitch href="/app" label="Modo viajero" />
+      </div>
     </div>
   );
 }
@@ -97,12 +101,6 @@ export function OwnerShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <Logo />
           <div className="flex items-center gap-3">
-            <Link
-              href="/app"
-              className="rounded-full border border-sand px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-terra hover:text-ink focus-visible:outline-2 focus-visible:outline-terra"
-            >
-              Modo viajero
-            </Link>
             <OwnerChip />
           </div>
         </div>

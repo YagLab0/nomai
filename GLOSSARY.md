@@ -51,8 +51,15 @@ _Avoid_: active booking, pending booking (there is no pending state: payment is 
 
 **Availability**:
 The nights a Lodging is free to book: every night not covered by an Upcoming
-Booking. Owners can't block nights. Product Spanish: *disponibilidad*.
+Booking or a Blocked night. Product Spanish: *disponibilidad*.
 _Avoid_: calendar (the UI, not the concept), blocked dates
+
+**Blocked night**:
+A night the Owner closed by hand — maintenance, a private stay, or a channel
+that isn't nomai — so it can't be booked. Blocking never touches a booked
+night: a Booking outranks it. Unblocking returns the night to Availability.
+Product Spanish: *noche bloqueada*.
+_Avoid_: blackout date, closed date, unavailable night
 
 **Cancellation**:
 A Booking ended before check-in, initiated only by the Traveler, under one global
