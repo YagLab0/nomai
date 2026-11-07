@@ -19,9 +19,10 @@ export const AGENT_REGISTRY_CAIP10 = `eip155:42220:${IDENTITY_REGISTRY}`;
 
 /**
  * Minted agentId of the project wallet, or null before the registration tx.
- * Set this after running the register script on mainnet.
+ * Minted on Celo mainnet 2026-11-07:
+ * tx 0x2ed0d353dc365a64c024f24ec88dd82b639c0332dce6dcb1918abc36faf13e50
  */
-export const AGENT_ID: number | null = null;
+export const AGENT_ID: number | null = 10049;
 
 function runtimeAgentId(): number | null {
   const fromEnv = Number(process.env.ERC8004_AGENT_ID ?? '');

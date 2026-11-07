@@ -10,6 +10,39 @@
 
 Guía oficial: <https://docs.celo.org/build-on-celo/build-with-ai/8004>.
 
+## Estado (2026-11-07)
+
+**Registrado.** La wallet del proyecto es la identidad ERC-8004 de nomai en
+Celo mainnet:
+
+| | |
+|---|---|
+| `agentId` | **10049** |
+| owner / `agentWallet` | `0x8BCF810436f39cb386d0137B738a516F44d8731C` (wallet del proyecto) |
+| `agentURI` | <https://nomaiapp.vercel.app/.well-known/agent.json> |
+| tx | <https://celoscan.io/tx/0x2ed0d353dc365a64c024f24ec88dd82b639c0332dce6dcb1918abc36faf13e50> |
+| attribution tag | `celo_40fb48026a9f` (verificado en la tx minada) |
+| costo | 0.03612 CELO |
+
+Implementación (en vez de `apps/api`, se sirve desde el **web origin** — es el
+único dominio público estable y es donde ya viven los well-knowns de MCP):
+
+- `apps/agent/agent/lib/erc8004.ts` — registry por red, `register` / `readIdentity`
+  / `setAgentURI`, y los guards del mint: sin `CELO_ATTRIBUTION_TAG` no firma,
+  no acuña una segunda identidad si la wallet ya tiene una, y verifica el tag en
+  la tx minada (`Registered` es la fuente del `agentId`, nunca el `_lastId` de la
+  simulación).
+- `apps/agent/scripts/register-8004.ts` — `pnpm --filter agent erc8004`:
+  `--check`, `--dry-run` (simula + gas), `--confirm-<network>` para enviar,
+  `--set-uri` para repuntar.
+- `apps/web/src/lib/agent-identity.ts` + `/.well-known/agent.json` — el documento
+  de registro que resuelve el `agentURI`; `AGENT_ID = 10049`.
+- `ERC8004_AGENT_ID=10049` en `apps/agent/.env`.
+
+**Pendiente:** el entry en Loops todavía no existe (`loops project get` →
+`exists: false`), así que falta crearlo con `agent-wallet` =
+`0x8BCF810436f39cb386d0137B738a516F44d8731C` (ver §5, paso 4).
+
 ## 1. Qué es ERC-8004 y por qué lo hacemos
 
 ERC-8004 da identidad verificable y portable a agentes: un ERC-721 cuyo dueño
@@ -85,15 +118,21 @@ Dentro de eso:
 ### 3.2 ¿Dónde se aloja el archivo de registración (`agent.json`)?
 
 El URI debe ser **HTTPS público y estable**; el spec no exige una ruta
-concreta. Opciones:
+concreta. Implementado: `GET /.well-known/agent.json` en **apps/web**, servido
+por el handler de well-knowns (`src/app/api/well-known/[...path]/route.ts`,
+rewrite desde `/.well-known/*`) y construido en
+`apps/web/src/lib/agent-identity.ts`.
 
-1. **Recomendado — servirlo desde `apps/api`** como `GET /.well-known/
-   agent.json`, generando el JSON de constantes: la API ya es pública y
-   tiene dominio estable; así el contenido (endpoints del MCP, `agentId`)
-   nunca se desincroniza del deployment.
-2. Archivo estático en `apps/web/public/agent.json` — más simple, pero hay
-   que completar el `agentId` a mano después de minar y el endpoint queda
-   desacoplado de la API.
+Es una desviación deliberada de la recomendación original (`apps/api`): el web
+origin (`nomaiapp.vercel.app`) es el único dominio público estable que el repo
+controla, ya sirve los well-knowns de OAuth/MCP y se despliega con push — el
+host de la API no es un dominio conocido. Los `endpoints` del documento se
+derivan del origin del request, así que previews y un dominio propio se
+anuncian solos.
+
+La alternativa descartada era un archivo estático en `apps/web/public/`: es más
+simple, pero el `agentId` quedaría congelado en el archivo y cada cambio
+obligaría a otro deploy igual.
 
 Contenido inicial (sin `registrations`, que sólo se agrega después de minar):
 
@@ -146,27 +185,25 @@ envío.
 
 ## 4. Necesitamos (pre-requisitos)
 
-1. **Crear/custodiar la wallet distintiva del agente**: definir
-   `CELO_PRIVATE_KEY` en `apps/agent/.env` (hoy no existe). Su dirección es
-   la que va al campo `agent-wallet` de la submission y es la dueña de la
-   identidad — se firma `register()` desde ella.
-2. **Fondear esa wallet en mainnet** con gas (~0,1 CELO sobra; `register()`
-   es una escritura simple). Sin fondo no hay tx. Vías: exchange (ver
-   <https://docs.celo.org/home/exchanges>) o on-ramp
-   (<https://docs.celo.org/home/ramps>).
-3. **`CELO_ATTRIBUTION_TAG` en `apps/agent/.env`** (hoy no está): debe ser el
-   tag exacto que Loops emitió a este entry (se lee con
-   `loops project get --event agents-on-open-rails`, campo
-   `celo.attributionTag`; los smoke scripts usan el fallback
-   `celo_40fb48026a9f` de este proyecto). Una tx **no se puede taggear
+1. ~~Crear/custodiar la wallet distintiva del agente~~ — hecho: `CELO_PRIVATE_KEY`
+   en `apps/agent/.env` deriva a la wallet del proyecto
+   (`0x8BCF810436f39cb386d0137B738a516F44d8731C`), que es también la que va al
+   campo `agent-wallet` de la submission y la dueña de la identidad.
+2. ~~Fondear esa wallet en mainnet~~ — hecho: la wallet de ops paga el gas.
+3. ~~`CELO_ATTRIBUTION_TAG` en `apps/agent/.env`~~ — hecho: `celo_40fb48026a9f`,
+   confirmado contra `loops project get --event agents-on-open-rails`
+   (campo `celo.attributionTag`). Una tx **no se puede taggear
    retroactivamente**: sin tag no cuenta para el hackathon.
-4. **Deployment HTTPS de la API** con dominio estable, para el `agentURI`.
-   Si la API corre sólo local, plan B: IPFS o `data:` URI, no recomendado
-   (el URI queda pegado al registro y cambiarlo cuesta otra tx).
+4. ~~Deployment HTTPS con dominio estable~~ — hecho: el web origin sirve
+   `/.well-known/agent.json` (ver §3.2).
 5. **El JSON de registración listo** con el `agentRegistry` en formato
-   CAIP-10/CAIP-11: `eip155:<chainId>:<registryAddress>`.
+   CAIP-10/CAIP-11: `eip155:<chainId>:<registryAddress>` — hecho para
+   `eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`.
 
 ## 5. Plan de implementación
+
+> Ejecutado el 2026-11-07 (ver §Estado). Los pasos quedan como referencia de
+> lo construido; las desviaciones están marcadas.
 
 ### Paso 0 — Configuración y fondeo (30 min, arrancar primero)
 
@@ -225,35 +262,45 @@ Función `registerAgent(agentURI: string)`:
 
 ### Paso 2 — Script CLI (30 min)
 
-`apps/agent/scripts/register-8004.ts`, siguiendo el estilo de
-`apps/api/scripts/escrow-deploy.ts` (tag requerido antes de enviar nada;
-imprime hash, explorador, tag y `agentId`; modo `--json`):
+`apps/agent/scripts/register-8004.ts` (`pnpm --filter agent erc8004`),
+siguiendo el estilo de `apps/api/scripts/escrow-deploy.ts` (tag requerido
+antes de enviar nada; imprime hash, explorador, tag y `agentId`; modo
+`--json`):
 
-- Toma el URI de `--uri` o lo compone de `NOMAI_PUBLIC_URL` ×
+- Toma el URI de `--uri` o `ERC8004_AGENT_URI`, o lo compone de
+  `PUBLIC_WEB_URL` (default `https://nomaiapp.vercel.app`) ×
   `/.well-known/agent.json`.
+- `--check` (solo lectura), `--dry-run` (simula + estima gas, no envía),
+  `--confirm-<network>` para transmitir, `--set-uri` para repuntar.
 - Llama a `registerAgent()` con seguridad de simulación, y al final imprime
   la línea para pegar en `apps/agent/.env`.
 - Si la tx se revierte, reporta el motivo (`ExecutionReverted`) sin
   reintentar.
 
-### Paso 3 — Endpoint `GET /.well-known/agent.json` en `apps/api` (30 min)
+### Paso 3 — Endpoint `GET /.well-known/agent.json` (30 min)
 
-- Ruta pública en `src/index.ts` que sirve el JSON del §3.2, con
-  `agentId`/`registrations` según `process.env.ERC8004_AGENT_ID` (sin
-  `registrations` si está vacío).
-- Decide los endpoints a partir del dominio en el que corre (o una const de
-  config), para que no haya dos fuentes de verdad.
+> **Desviación:** se sirve desde **apps/web**, no desde `apps/api` (ver §3.2).
+
+- Handler en `apps/web/src/app/api/well-known/[...path]/route.ts` (rewrite
+  desde `/.well-known/*`), documento armado en
+  `apps/web/src/lib/agent-identity.ts`.
+- `AGENT_ID` es una constante commiteada (hoy `10049`); `ERC8004_AGENT_ID`
+  la overridea en runtime si se setea en el deployment.
+- Los endpoints se derivan del origin del request, así que previews y un
+  dominio propio se anuncian solos.
 
 ### Paso 4 — Registro real y cierre del entry (30 min)
 
-1. Correr el script en mainnet y guardar el `agentId`.
+1. ~~Correr el script en mainnet y guardar el `agentId`~~ — hecho: `10049`.
 2. Confirmar que el endpoint servido ahora lista el `registrations` con el
    agentId correcto.
-3. Cerrar el entry en Loops:
+3. Crear el entry en Loops (hoy **no existe**: `loops project get` →
+   `exists: false`) y cargar el `agent-wallet`:
 
 ```sh
+loops project create --event agents-on-open-rails --name <nombre>
 loops project update --event agents-on-open-rails \
-  --answer agent-wallet=0x<dirección del agente> --confirm
+  --answer agent-wallet=0x8BCF810436f39cb386d0137B738a516F44d8731C --confirm
 ```
 4. Verificar con `loops project get` que aparece
    `project.celo.agentWallet`.
