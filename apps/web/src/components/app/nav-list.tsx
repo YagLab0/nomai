@@ -13,7 +13,7 @@ import { hasSupabaseEnv } from '@/lib/supabase/env';
 const ITEMS = [
   { label: 'Inicio', href: '/app' },
   { label: 'Explorar', href: '/app/lodgings' },
-  { label: 'Reservas' },
+  { label: 'Reservas', href: '/app/reservas' },
   { label: 'Ayuda' },
 ] as const;
 
