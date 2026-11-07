@@ -23,7 +23,7 @@ function metadata(request: NextRequest) {
     authorization_servers: supabaseBase ? [`${supabaseBase}/auth/v1`] : [],
     bearer_methods_supported: ['header'],
     scopes_supported: [],
-    resource_name: 'nomai — Traveler data (read-only)',
+    resource_name: 'nomai — Traveler bookings, requests and threads',
   });
 }
 

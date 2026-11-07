@@ -112,6 +112,25 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"booking_requests": {
+                  Row: {
+                    "booking_id": string | null,"checkin": string,"checkout": string,"created_at": string,"currency": string,"expires_at": string,"guests": number,"id": string,"listing_id": string,"quote": Json,"status": string,"total_minor": number,"traveler_id": string
+                  }
+                  Insert: {
+                    "booking_id"?: string | null,"checkin": string,"checkout": string,"created_at"?: string,"currency": string,"expires_at"?: string,"guests": number,"id"?: string,"listing_id": string,"quote"?: Json,"status"?: string,"total_minor": number,"traveler_id": string
+                  }
+                  Update: {
+                    "booking_id"?: string | null,"checkin"?: string,"checkout"?: string,"created_at"?: string,"currency"?: string,"expires_at"?: string,"guests"?: number,"id"?: string,"listing_id"?: string,"quote"?: Json,"status"?: string,"total_minor"?: number,"traveler_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "booking_requests_listing_id_fkey"
+      columns: ["listing_id"]
+isOneToOne: false
+      referencedRelation: "listings"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"bookings": {
                   Row: {
                     "cancel_deadline": string | null,"checkin": string,"checkout": string,"claim_evidence": Json | null,"claim_reason": Database["public"]['Enums']["claim_reason"] | null,"claim_resolution": Database["public"]['Enums']["claim_resolution"] | null,"claim_resolved_at": string | null,"created_at": string,"currency": string,"escrow_address": string | null,"escrow_status": Database["public"]['Enums']["escrow_status"],"final_release_at": string | null,"first_release_at": string | null,"guest_ref": string | null,"guests": number,"id": string,"listing_id": string,"service_fee_minor": number,"service_fee_pct": number | null,"status": Database["public"]['Enums']["booking_status"],"total_minor": number,"traveler_id": string | null,"updated_at": string
@@ -424,6 +443,15 @@ isOneToOne: false
 "cancel_booking":
 { Args: { "p_booking_id": string,"p_guest_ref"?: string,"p_traveler_id"?: string }; Returns: Json
                            },
+"cancel_booking_request":
+{ Args: { "p_request_id": string,"p_traveler_id": string }; Returns: Json
+                           },
+"convert_booking_request":
+{ Args: { "p_booking_id": string,"p_request_id": string,"p_traveler_id": string }; Returns: Json
+                           },
+"create_booking_request":
+{ Args: { "p_checkin": string,"p_checkout": string,"p_currency": string,"p_guests": number,"p_listing_id": string,"p_quote": Json,"p_total_minor": number,"p_traveler_id": string }; Returns: Json
+                           },
 "claim_escrow_intents":
 { Args: { "p_booking_id"?: string,"p_dry_run"?: boolean,"p_limit"?: number }; Returns: Json
                            },
@@ -444,6 +472,9 @@ isOneToOne: false
                            },
 "is_owner_of_traveler":
 { Args: { "p_traveler_id": string }; Returns: boolean
+                           },
+"list_booking_requests":
+{ Args: { "p_traveler_id": string }; Returns: Json
                            },
 "mark_thread_read":
 { Args: { "p_booking_id": string,"p_user_id": string }; Returns: Json

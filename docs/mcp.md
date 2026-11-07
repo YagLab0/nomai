@@ -1,10 +1,12 @@
-# nomai MCP — read-only tools for external agents
+# nomai MCP — tools for external agents
 
-`apps/api` serves a **read-only MCP server** (Streamable HTTP, stateless) at
+`apps/api` serves an **MCP server** (Streamable HTTP, stateless) at
 `POST /mcp`, so external agents (Grok, ChatGPT, Claude, any MCP client) can
-query the marketplace and the caller's own Traveler data — the same read
-surface the eve Agent's tools wrap. Writes and payments are not exposed:
-there is no `book`, `cancel`, `claim` or `pay` tool here by design.
+query the marketplace and the caller's own Traveler data — the same surface
+the eve Agent's tools wrap — plus two narrow write scopes: booking REQUESTS
+(drafts the Traveler confirms and pays in the app) and the Traveler's side
+of Booking threads. Real payments are not exposed: there is no `book`,
+`cancel`, `claim` or `pay` tool here by design.
 
 ## Tools
 
@@ -16,8 +18,34 @@ there is no `book`, `cancel`, `claim` or `pay` tool here by design.
 | `list_bookings` | the caller's Bookings ("mis reservas"); optional `guest_ref` fallback |
 | `get_booking` | one Booking's status + Escrow/Claim timeline (ownership enforced) |
 | `check_wallet` | the caller's agent wallet: address, network, CELO balance |
+| `create_booking_request` | draft a Booking request (ADR-0010): frozen quote, no hold, no payment |
+| `list_booking_requests` | the caller's drafts with status + expiry |
+| `get_thread` | read the caller's side of one Booking's Traveler↔Owner thread |
+| `send_message` | write to that thread as the Traveler (final — no edit/delete) |
 
-All tools carry `readOnlyHint`/`idempotentHint` annotations.
+Read tools carry `readOnlyHint`/`idempotentHint` annotations; the four
+write tools are marked `readOnlyHint: false`. All tools are scoped to the
+verified Bearer identity — see Auth model below.
+
+## Booking requests — the agent proposes, the Traveler disposes (ADR-0010)
+
+"Reservame X para tal fecha" over MCP runs in two phases:
+
+1. The agent calls `create_booking_request` (or the Traveler does it in
+   the app): the API quotes fresh server-side and saves a `pending` draft
+   with a frozen quote snapshot and a 48 h expiry. No Booking is created,
+   no nights are held, no money moves, the Owner sees nothing.
+2. The Traveler opens **Por confirmar** in `/app`, reviews the draft and
+   presses **Confirmar y pagar**: the web runs the normal paid
+   `POST /listings/:slug/book` x402 flow server-side (payment-auth signs
+   with the custodial key, paid retry settles into the Escrow vault), then
+   marks the draft `converted` with the resulting `booking_id`.
+
+The frozen quote is a reference ("te había cotizado $ X"), never the
+charge: confirmation re-quotes server-side, so a moved total shows in the
+app before anything is signed. Drafts never block inventory — whoever pays
+first wins; the loser's confirmation fails with the normal availability
+error.
 
 ## Auth model
 

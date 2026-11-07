@@ -15,6 +15,7 @@
     "smoke:escrow": "tsx scripts/smoke-escrow.ts",
     "smoke:payout": "tsx scripts/smoke-payout.ts",
     "smoke:keeper": "tsx scripts/smoke-keeper.ts",
+    "smoke:booking-requests": "tsx scripts/smoke-booking-requests.ts",
     "escrow:deploy": "tsx scripts/escrow-deploy.ts",
     "escrow:admin": "tsx scripts/escrow-admin.ts",
     "seed:test-users": "node scripts/seed-test-users.mjs",

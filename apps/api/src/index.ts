@@ -23,6 +23,7 @@ import { CAIP2, CONFIG, NETWORK, facilitator } from "./x402.js";
 import listings from "./listings.js";
 import mcp, { mcpWellKnown } from "./mcp.js";
 import bookings from "./cancellations.js";
+import bookingRequests from "./booking-requests.js";
 import usage from "./usage.js";
 import wallet from "./wallet.js";
 import keeper from "./keeper.js";
@@ -102,6 +103,11 @@ if (!process.env.OPS_WALLET_PRIVATE_KEY) {
 // only claims its own patterns); POST /listings/:slug/book is the paid
 // Booking endpoint.
 app.route("/listings", listings);
+
+// Booking requests (ADR-0010) — drafts over MCP, confirmed in the app.
+// Bearer-scoped, no payment anywhere on these routes. Mounted BEFORE the
+// bookings router: its GET /:id would otherwise swallow /requests as an id.
+app.route("/bookings/requests", bookingRequests);
 
 // Booking cancellations — POST /bookings/:id/cancel (issue #18): a
 // cancellation carries no new payment, it releases one (the refund flows

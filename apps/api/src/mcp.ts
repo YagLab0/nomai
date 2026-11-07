@@ -1,9 +1,11 @@
-// Read-only MCP surface — Streamable HTTP, stateless, mounted at /mcp.
+// Read-only-plus MCP surface — Streamable HTTP, stateless, mounted at /mcp.
 //
-// External agents (Grok, ChatGPT, any MCP client) get the same read tools the
+// External agents (Grok, ChatGPT, any MCP client) get the read tools the
 // eve Agent has — marketplace search plus the caller's own Traveler data —
-// without going through the chat agent. Writes and payments are not exposed:
-// no book/cancel/claim/pay tools exist here by design.
+// plus two narrow write scopes: booking REQUESTS (drafts the Traveler later
+// confirms and pays in the app — ADR-0010, no money moves here) and the
+// Traveler's side of Booking threads (ADR-0009). Real writes and payments
+// are not exposed: no book/cancel/claim/pay tools exist here by design.
 //
 // Auth: every call needs `Authorization: Bearer <Supabase access_token>` —
 // the same token the web chat forwards to the eve channel. It is verified
@@ -30,9 +32,13 @@ import {
   getBookingDetail,
   getListingBySlug,
   listBookings,
+  listMessages,
+  markThreadRead,
   quoteStay,
   searchListings,
+  sendMessage,
 } from "./data/index.js";
+import { supabaseAdmin } from "./auth.js";
 import { provisionAgentWallet, publicClient } from "./wallet.js";
 
 // Public origin of this API. Used for the OAuth protected-resource metadata
@@ -65,6 +71,16 @@ const READ_ONLY = {
   openWorldHint: false,
 } as const;
 
+// Booking requests and thread messages change state but move no money and
+// hold no inventory (ADR-0010). Non-destructive, non-idempotent (each call
+// writes a new row) — cancel is the undo path.
+const REQUEST_WRITE = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+} as const;
+
 const ok = (data: Record<string, unknown>) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data) }],
   structuredContent: data,
@@ -82,7 +98,7 @@ function nomaiMcpServer(travelerId: string): McpServer {
     { name: "nomai", version: "0.1.0" },
     {
       instructions:
-        "nomai lodging marketplace — read-only tools scoped to the authenticated Traveler: search/get/quote published listings anywhere, list and inspect the Traveler's own Bookings ('mis reservas'), and read the Traveler's agent wallet. Never invent listings, prices or booking ids — always fetch them here.",
+        "nomai lodging marketplace — read tools scoped to the authenticated Traveler: search/get/quote published listings anywhere, list and inspect the Traveler's own Bookings ('mis reservas'), and read the Traveler's agent wallet. Booking requests (create_booking_request/list_booking_requests) save drafts the Traveler later confirms and pays in the app — they create no Booking, hold no nights and move no money. Thread tools (get_thread/send_message) read and write the Traveler's side of their Booking threads. Never invent listings, prices or booking ids — always fetch them here.",
     }
   );
 
@@ -230,6 +246,149 @@ function nomaiMcpServer(travelerId: string): McpServer {
     }
   );
 
+  server.registerTool(
+    "create_booking_request",
+    {
+      description:
+        "Draft a Booking request for the authenticated Traveler ('reservame X para tal fecha'): quotes the stay fresh server-side and saves a pending request with a frozen quote snapshot. Creates NO Booking, holds NO nights, moves NO money — the Traveler confirms and pays it later in the nomai app. Returns the request id, totals and expiry.",
+      inputSchema: {
+        slug: z.string().describe("The listing slug, e.g. 'palermo-loft'"),
+        checkin: z.string().describe("Check-in date YYYY-MM-DD"),
+        checkout: z.string().describe("Check-out date YYYY-MM-DD"),
+        guests: z.number().int().min(1).describe("Number of guests"),
+      },
+      annotations: REQUEST_WRITE,
+    },
+    async ({ slug, checkin, checkout, guests }) => {
+      const q = await quoteStay(slug, checkin, checkout, guests);
+      if (!q.ok) return err(q.error.message, { code: q.error.code });
+      const listing = await getListingBySlug(slug);
+      if (!listing) return err("listing not found", { code: "not_found" });
+      const { data: listingRow, error: listingErr } = await supabaseAdmin()
+        .from("listings")
+        .select("id")
+        .eq("slug", listing.slug)
+        .single();
+      if (listingErr || !listingRow)
+        return err("listing not found", { code: "not_found" });
+      const listingId = (listingRow as unknown as { id: string }).id;
+      const { data, error } = await supabaseAdmin().rpc(
+        "create_booking_request",
+        {
+          p_traveler_id: travelerId,
+          p_listing_id: listingId,
+          p_checkin: checkin,
+          p_checkout: checkout,
+          p_guests: guests,
+          p_quote: q.quote as unknown as Record<string, never>,
+          p_total_minor: q.quote.total_minor,
+          p_currency: q.quote.currency,
+        }
+      );
+      if (error || !data) return err("could not create the booking request");
+      const r = data as unknown as {
+        id: string;
+        total_minor: number;
+        currency: string;
+        status: string;
+        expires_at: string;
+      };
+      return ok({
+        request_id: r.id,
+        listing_slug: slug,
+        checkin,
+        checkout,
+        guests,
+        total_minor: r.total_minor,
+        currency: r.currency,
+        status: r.status,
+        expires_at: r.expires_at,
+      });
+    }
+  );
+
+  server.registerTool(
+    "list_booking_requests",
+    {
+      description:
+        "List the authenticated Traveler's Booking requests ('mis reservas pendientes'): drafts created over MCP with their frozen totals, status (pending/confirmed/cancelled/expired/stale) and expiry. Pending ones are confirmed and paid in the nomai app, never here.",
+      inputSchema: {},
+      annotations: READ_ONLY,
+    },
+    async () => {
+      const { data, error } = await supabaseAdmin().rpc(
+        "list_booking_requests",
+        { p_traveler_id: travelerId }
+      );
+      if (error) return err("could not list booking requests");
+      const rows = (data ?? []) as unknown as Array<{
+        id: string;
+        checkin: string;
+        checkout: string;
+        guests: number;
+        total_minor: number;
+        currency: string;
+        status: string;
+        booking_id: string | null;
+        expires_at: string;
+        created_at: string;
+      }>;
+      return ok({
+        count: rows.length,
+        requests: rows.map((r) => ({
+          request_id: r.id,
+          checkin: r.checkin,
+          checkout: r.checkout,
+          guests: r.guests,
+          total_minor: r.total_minor,
+          currency: r.currency,
+          status: r.status,
+          booking_id: r.booking_id,
+          expires_at: r.expires_at,
+          created_at: r.created_at,
+        })),
+      });
+    }
+  );
+
+  server.registerTool(
+    "get_thread",
+    {
+      description:
+        "Read the private Traveler↔Owner thread of one of the authenticated Traveler's Bookings ('qué me dijo el anfitrión'). Only threads of their own Bookings are readable — anything else answers not_found/forbidden. Reading marks the Owner's messages as read.",
+      inputSchema: {
+        booking_id: z.string().describe("The booking id, e.g. 'bkg_1'"),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ booking_id }) => {
+      const t = await listMessages(travelerId, booking_id, "traveler");
+      if (!t.ok) return err(t.error.message, { code: t.error.code });
+      await markThreadRead(travelerId, booking_id, "traveler");
+      return ok({ thread: t.thread as unknown as Record<string, unknown> });
+    }
+  );
+
+  server.registerTool(
+    "send_message",
+    {
+      description:
+        "Write to the private Traveler↔Owner thread of one of the authenticated Traveler's Bookings ('decile al dueño que llegamos tarde'): the message goes out as the Traveler. Only their own Bookings' threads accept it. A sent message is final — no edit, no delete.",
+      inputSchema: {
+        booking_id: z.string().describe("The booking id, e.g. 'bkg_1'"),
+        body: z.string().min(1).describe("The message text"),
+      },
+      annotations: REQUEST_WRITE,
+    },
+    async ({ booking_id, body }) => {
+      const trimmed = body.trim();
+      if (!trimmed) return err("message body is required", { code: "empty_body" });
+      const r = await sendMessage(travelerId, booking_id, trimmed, "traveler");
+      if (!r.ok) return err(r.error.message, { code: r.error.code });
+      return ok({ message: r.message as unknown as Record<string, unknown> });
+    }
+  );
+
   return server;
 }
 
@@ -318,7 +477,7 @@ function protectedResourceMetadata() {
     authorization_servers: [issuerUrl()],
     bearer_methods_supported: ["header"],
     scopes_supported: [],
-    resource_name: "nomai — Traveler data (read-only)",
+    resource_name: "nomai — Traveler bookings, requests and threads",
   };
 }
 
