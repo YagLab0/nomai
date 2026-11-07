@@ -121,8 +121,11 @@ Same as §3 of traveler-views, plus the Owner-side allowances from §14:
 
 ## 6. Entry points
 
+- `NavList` gains **"Mis alojamientos"** → `/app/owner` (desktop rail and the
+  mobile menu); it marks itself active like the rest of the items.
 - `UserChip` in the Traveler nav gains a "Modo dueño" toggle → `/app/owner`; the
-  OwnerShell chip carries the reverse ("Modo viajero" → `/app`).
+  OwnerShell chip carries the reverse ("Modo viajero" → `/app`). Both render the
+  same pill.
 - `/owners/join` step "Listo" adds "Ir a tu panel" → `/app/owner`; the existing
   sample-storefront link stays.
 
@@ -130,12 +133,18 @@ Same as §3 of traveler-views, plus the Owner-side allowances from §14:
 
 - Owner-side Agent or chat (ADR-0001: none for now).
 - Views/conversion stats — no tracking exists to back them.
-- Blocking dates. The Traveler-facing calendar (traveler-views §16) shows
-  only nights taken by Bookings; the Owner can't mark nights unavailable.
 - Pausing a publication or drafts (no `Lodging.status` field): a new Lodging
   is published the moment the wizard finishes.
 - Owner-initiated cancellation (ADR-0004).
 - Any real backend — all mock, like the rest of the app.
+
+Night blocking is supported (it graduated from this list): each Lodging card
+carries a "Disponibilidad" calendar. A **blocked night** (GLOSSARY) stops
+being offered by `/listings/:slug` and its quote; a **booked** night is shown
+struck through and can never be blocked or unblocked. The calendar reads
+`GET /api/owners/lodgings/:id/nights` and writes through the thin web proxies
+to `apps/api`, which runs the service_role-only `block_nights` /
+`unblock_nights` RPCs — the browser never writes `availability_nights`.
 
 ## 8. Implementation stages
 

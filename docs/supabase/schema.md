@@ -106,6 +106,15 @@ listing between `published` and `paused` — the dashboard's pause/republish.
 Same `p_user_id` ownership check; pausing is allowed with Upcoming Bookings
 (existing Bookings stand) and the first publish stamps `published_at`.
 
+`block_nights` / `unblock_nights` (`…_owner_block_nights.sql`) close and
+reopen nights from the Owner dashboard's calendar: `open` → `blocked` and
+`blocked` → `open`; a night with no row is inserted `blocked`. A `booked`
+night is never touched — it comes back in `skipped` — and nights already in
+the target state come back in `unchanged`. Same `p_user_id` ownership check;
+past nights and empty or oversized arrays (cap 366) are rejected. The api
+serves the calendar with `GET /owners/lodgings/:id/nights` (today onward,
+id or slug) plus `POST …/nights/block` and `POST …/nights/unblock`.
+
 ### `bookings`
 
 Mock shape plus platform columns: `traveler_id` (→ `travelers`, for RLS
@@ -311,7 +320,8 @@ insert/update policies.
 The same lockdown applies to the `security definer` RPCs: EXECUTE on
 `book_stay`, `cancel_booking`, `confirm_booking_payment`, `release_booking`,
 `open_claim`, `resolve_claim`, `process_escrow_releases`, `create_lodging`,
-`update_lodging`, `archive_lodging`, `set_lodging_status`, `submit_review`,
+`update_lodging`, `archive_lodging`, `set_lodging_status`, `block_nights`,
+`unblock_nights`, `submit_review`,
 `reply_to_review`, `refresh_review_scores`, `traveler_score`,
 `send_message` and `mark_thread_read` is revoked
 from PUBLIC/anon/authenticated and granted to `service_role` only — PostgREST

@@ -19,6 +19,9 @@ export interface BookingData {
   guest_ref?: string | null;
   traveler_id?: string | null;
   created_at?: string;
+  /** ADR-0006: the platform's cut (never refunded) and the Escrow state. */
+  service_fee_minor?: number;
+  escrow_status?: string;
   listing?: {
     id: string;
     title: string;
@@ -129,7 +132,7 @@ export function ReservaCard({
           {booking.traveler_id && <TravelerScore travelerId={booking.traveler_id} />}
           {booking.status === 'confirmed' && (
             <span className="rounded-full bg-terra px-2 py-0.5 text-xs font-medium text-white">
-              Cobrada en Ripio
+              Pago en garantía
             </span>
           )}
         </div>
