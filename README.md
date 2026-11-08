@@ -103,8 +103,28 @@ subscription, no commission.
 | Identity tx | [`0x2ed0…3e50`](https://celoscan.io/tx/0x2ed0d353dc365a64c024f24ec88dd82b639c0332dce6dcb1918abc36faf13e50) |
 | Attribution tag | `celo_40fb48026a9f` |
 | wARS | `0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D` |
-| Escrow vault | `0x59E45048ec1415766236AF449a6160e644F8b07d` |
+| Escrow vault | [`0x59E4…b07d`](https://celoscan.io/address/0x59E45048ec1415766236AF449a6160e644F8b07d) on Celo mainnet (chain 42220) |
 | Agent document | <https://nomaiapp.vercel.app/.well-known/agent.json> |
+
+Production runs with `X402_NETWORK=mainnet`, `X402_ASSETS=wars` and
+`LISTINGS_DATA_SOURCE=supabase`.
+
+### Verified mainnet activity (2026-11-08)
+
+A real Booking end to end, all on Celo mainnet:
+
+| Step | Evidence |
+| --- | --- |
+| Booking | `bkg_e338575f62294f59a1387e6e37342ef0` — 2 nights, ARS 2.14, status `confirmed` |
+| wARS deposit | [`0xea71…64ec`](https://celoscan.io/tx/0xea71da72b4e78ed8cf00a199692fd3e179c70373279166a521c1ece48c8c64ec) — 2.14 wARS from the Traveler's Agent wallet `0xD404…F1E5` to the Escrow |
+| Escrow release | [`0xfe8b…b521`](https://celoscan.io/tx/0xfe8b345856e1bd7586347fd0483b25d04644826722ff8ffc5c957cc5362fb521) — 1.00 wARS from the Escrow to the Owner `0x0779…1924`, tagged `celo_40fb48026a9f` |
+| ERC-8004 mint | [`0x2ed0…3e50`](https://celoscan.io/tx/0x2ed0d353dc365a64c024f24ec88dd82b639c0332dce6dcb1918abc36faf13e50) — tagged |
+
+The x402 settlement is submitted by Celo's facilitator, so its calldata does
+not carry Nomai's attribution tag. The transactions Nomai sends itself — the
+Escrow release above, the keeper, the payouts and the ERC-8004 mint — do. The
+deposit is still fully verifiable on-chain: a wARS `Transfer` from the
+Traveler's wallet to the Escrow vault.
 
 Want to try it? The login page lists the seeded demo accounts:
 
