@@ -1,13 +1,17 @@
 # Owner views — design spec
 
 Source of truth for the Owner-facing templates in `apps/web`. Decisions were made
-in a grilling session (2026-10-23); domain terms follow `GLOSSARY.md`, money and
-cancellation rules follow `docs/adr/0001`–`0004`. Stack, theme, photography and
-copy rules are the same as `traveler-views.md` — this doc only covers what the
-Owner side adds.
+in a grilling session (2026-10-23); domain terms follow `GLOSSARY.md`, money,
+Escrow and cancellation rules follow `docs/adr/0005`–`0006`. Stack, theme,
+photography and copy rules are the same as `traveler-views.md` — this doc only
+covers what the Owner side adds.
 
-Everything here is a **template**: no real auth, no backend, no chain calls. Mock
-data lives in `src/lib/mock/owner.ts`.
+Everything here started as a **template**; it has since grown a real backend.
+With Supabase env configured the panel renders `OwnerDashboard` from the linked
+project (business → Lodgings → Bookings over RLS, plus the api for the Escrow
+releases, the inbox, the Reviews and the payout state). Without it, the mock
+`OwnerCatalogPanel` keeps the same flow on `src/lib/mock/owner.ts` and the
+browser catalog.
 
 ## 1. Routes and shells
 
@@ -50,7 +54,7 @@ export interface OwnerBooking {
   amount: number;
   status: 'confirmada' | 'en-curso' | 'completada' | 'cancelada';
   /** Set only when status is 'cancelada': when it was canceled and what went
-   * back to the Traveler (ADR-0004). */
+   * back to the Traveler (ADR-0006). */
   canceledAt?: string;
   refunded?: number;
   isNew?: boolean;
@@ -78,37 +82,80 @@ nights = amount):
 - Camila · Santiago de Chile · Casa de Adobe · 8→11 nov · $285.000 ·
   cancelada el 4 nov (dentro de la ventana) · refunded $142.500 (50%).
 
-## 3. Page layout: Resumen → Reservas → Tus alojamientos
+## 3. Page layout: one panel, six sections
 
-One page, three stacked blocks.
+One page: a header, a sticky section bar and the blocks it jumps to.
 
-**Resumen** — the pitch in one line:
+**Header** — "Panel del dueño · {business}", "Hola, {nombre}" and the "Cobros
+Ripio" chip: the truncated deposit address, its state (Verificada · Pendiente ·
+Fallida · Sin verificar · Sin cargar) and "Verificar" / "Ver", which opens the
+payout modal (issue #68).
 
-- "Este mes cobraste $622.500" — money in minus money out in November
-  ($285.000 + $480.000 − $142.500).
-- "Próxima llegada: Lucas · Casa de Adobe · 20 nov".
+**Sticky section bar** — `OwnerSectionNav`: Resumen · Calendario · Mensajes ·
+Reservas · Reseñas · Alojamientos, in page order. It sticks right below the
+sticky `OwnerShell` header — the offset is measured, so it never covers it —
+scrolls sideways on a phone, marks the section being read (`aria-current`) and
+carries badges: unread messages (terra alert), upcoming + in-progress Bookings
+and the Lodging count. A section only enters the bar when it renders (Mensajes
+needs threads, Reseñas needs received Reviews, Calendario needs Lodgings). Every
+section has `scroll-mt-44`, so a jump lands clear of the header + bar.
 
-**Reservas** — one ticket-style card per Booking: Traveler name, origin, badge
-"documento verificado", lodging, dates and nights, amount (`$285.000`), status
-chip (Confirmada = agua; En curso / Completada neutral; Cancelada muted). A
-`isNew` Booking gets a "Reserva nueva" chip. A cancelada shows an extra line:
-"Se devolvieron $142.500 al viajero". Each card has "Contactar al viajero" →
-no-op toast, same convention as dead buttons elsewhere.
+**Payout banner** — while money sits in Escrow and the Ripio address is not
+verified, a banner above the summary reads "Tenés $X esperando en Escrow. No se
+liberan a tu Ripio hasta que verifiques tu cuenta de cobro", with "Verificar
+cuenta". The keeper holds every release until then (ADR-0006, issue #68).
 
-**Tus alojamientos** — a card per Lodging (cover photo or `LodgingArt`, name,
-kind, town, rating or a "Nuevo" chip when it has no reviews, price/night),
-linking to its public detail page `/lodgings/[id]` (traveler-views §16). The
-section header has **"Agregar alojamiento"**; each card has **"Editar"**. Both
-open the same wizard (§9). An edited price applies only to future Bookings;
-settled ones are never touched.
+**Resumen** (`#resumen`) — four cards:
+
+- "Cobrado en Ripio": what Escrow already sent to the Owner's account
+  (`payments` kind='release', status='sent'), plus a line with the amount still
+  "En Escrow" — never the Booking totals, which sit in the vault.
+- "Próximo cobro": the next Escrow stage — amount, day and how many Bookings,
+  from `nextPayout` in `src/lib/owner-bookings.ts` (half the rental at the
+  Cancellation deadline, the rest 24 h after check-in, mirroring
+  `process_escrow_releases`). It reads "Retenido hasta verificar tu Ripio" while
+  the payout is unverified, "Se libera en las próximas horas" once the day
+  arrived, and "Nada pendiente" when nothing is owed.
+- "Alojamientos y Noches": published Lodgings and occupied nights.
+- "Próxima llegada": the soonest confirmed Booking whose check-in has not
+  passed — Traveler, date, Lodging and guests.
+
+**Calendario** (`#calendario`) — the consolidated month grid (§7).
+
+**Mensajes** (`#mensajes`) — one row per Booking thread (ADR-0009): Traveler ·
+Lodging, last message, stamp and unread badge; opens that Booking's chat.
+
+**Reservas** (`#reservas`) — one `tablist` with Próximas · En curso · Pasadas ·
+Canceladas and each tab's count, five cards per page and a "11–15 de 23" footer
+with Anterior / page numbers / Siguiente. It opens on the first tab with
+something in it, so a fresh panel lands on the next arrivals; switching tabs
+returns to page 1. Each card is a ticket: Traveler name, "identidad
+verificada", the Traveler's score, Lodging · town, dates · nights · guests,
+amount, status chip (Confirmada = agua; En curso = terra-soft; Pago pendiente /
+Reclamo abierto = amber; Completada = muted), "Pago en garantía" while the
+rental sits in Escrow (Confirmada / En curso), "Calificá al viajero" once
+completed (ADR-0008) and "Mensajes" with its unread badge. Cancelada and
+Reembolsada also strike the amount through.
+
+**Reseñas** (`#resenas`) — the Owner's review feed when there are received
+Reviews (ADR-0008).
+
+**Alojamientos** (`#alojamientos`) — a card per Lodging (cover photo or
+`LodgingArt`, name, kind, town, rating or a "Nuevo" chip when it has no
+reviews, price/night, status), linking to its public detail page `/lodgings/[id]`
+(traveler-views §16). Each card has "Pausar"/"Publicar", "Editar", "Ver en el
+catálogo" and "Escaparate". The section header has "+ Sumar otro alojamiento";
+"Editar" opens the same wizard (§9). An edited price applies only to future
+Bookings; settled ones are never touched.
 
 ## 4. Cancellation
 
-Per ADR-0004: only the Traveler cancels; the Owner just sees the outcome.
-Refund is a single global rule — full until 7 days before check-in, 50% inside
-that window — paid back out of the Owner's wallet, which already holds the
-payment. The dashboard renders the result ("Cancelada · se devolvieron $X"); the
-refund's mechanics are out of scope for the template.
+Per ADR-0006 (which supersedes ADR-0004): only the Traveler cancels; the Owner
+just sees the outcome. The refund is a single global rule — full until the
+Cancellation deadline (5 days before check-in), 50% on or after it — paid back
+out of Escrow, where the rental sits until its release stages. The Service fee
+is never refunded. The dashboard renders the result ("Cancelada", the amount
+struck through); the refund's mechanics belong to the API's `cancel_booking`.
 
 ## 5. Copy rules
 
@@ -129,22 +176,39 @@ Same as §3 of traveler-views, plus the Owner-side allowances from §14:
 - `/owners/join` step "Listo" adds "Ir a tu panel" → `/app/owner`; the existing
   sample-storefront link stays.
 
-## 7. What the dashboard does NOT have
+## 7. Calendar, and what the dashboard does NOT have
+
+The consolidated calendar (`OwnerCalendar`) is the Calendario section: one row
+per Lodging, one column per night of the month, with month navigation and a
+"Hoy" shortcut back. Bookings are bars across their nights, labelled with the
+Traveler's name and coloured by moment — Próxima (terra), En curso (terra-deep),
+Pasada (sand), Sin pagar (dashed amber). Bars are clipped to the month when a
+stay crosses an edge (`bookingBarSpan`, `src/lib/owner-calendar.ts`), so a
+Booking checking out on the 1st ends exactly at the month's edge. Blocked nights
+are striped (`blocked-stripes` in `globals.css`), past nights are muted and
+today carries a marker on its column.
+
+"Editar disponibilidad" on a Lodging row opens that Lodging's
+`OwnerNightsCalendar` in a modal: open, blocked and booked nights, click (shift
+for a range) and "Bloquear"/"Desbloquear". A **blocked night** (GLOSSARY) stops
+being offered by `/listings/:slug` and its quote; a **booked** night is struck
+through and can never be blocked or unblocked. It reads
+`GET /api/owners/lodgings/:id/nights` and writes through the thin web proxies to
+`apps/api`, which runs the service_role-only `block_nights` / `unblock_nights`
+RPCs — the browser never writes `availability_nights`. Closing the modal
+refreshes the consolidated grid.
+
+What the panel deliberately does NOT have:
 
 - Owner-side Agent or chat (ADR-0001: none for now).
 - Views/conversion stats — no tracking exists to back them.
-- Pausing a publication or drafts (no `Lodging.status` field): a new Lodging
-  is published the moment the wizard finishes.
-- Owner-initiated cancellation (ADR-0004).
-- Any real backend — all mock, like the rest of the app.
-
-Night blocking is supported (it graduated from this list): each Lodging card
-carries a "Disponibilidad" calendar. A **blocked night** (GLOSSARY) stops
-being offered by `/listings/:slug` and its quote; a **booked** night is shown
-struck through and can never be blocked or unblocked. The calendar reads
-`GET /api/owners/lodgings/:id/nights` and writes through the thin web proxies
-to `apps/api`, which runs the service_role-only `block_nights` /
-`unblock_nights` RPCs — the browser never writes `availability_nights`.
+- Drafts: a new Lodging is published the moment the wizard finishes. A
+  published Lodging can be **paused** from its card (`Lodging.status`:
+  published ↔ paused, via `PATCH /api/owners/lodgings/:slug/status` →
+  `set_lodging_status`, which re-checks ownership server-side); a paused Lodging
+  leaves the public catalog and cannot be booked.
+- Owner-initiated cancellation (ADR-0006).
+- Owner-side refunds or Claim resolution — Nomai routes those funds (ADR-0006).
 
 ## 8. Implementation stages
 
@@ -197,7 +261,7 @@ Decided in a grilling session (2026-10-24); published as issue #21.
 
 ### The wizard
 
-"Agregar alojamiento" and "Editar" open one HeroUI modal with four steps,
+"+ Sumar otro alojamiento" and "Editar" open one HeroUI modal with four steps,
 "Atrás" / "Siguiente" and a step indicator. "Siguiente" validates only the
 current step; going back keeps what was typed. Focus moves to each new step.
 Required fields are marked \*.
@@ -277,8 +341,13 @@ No component-level tests of the wizard.
 
 ### Out of scope
 
-Real backend, auth or uploads; geocoding or address autocomplete; drafts and
-pausing; Owner date blocking; booking without the Agent; importing from
-Booking/Airbnb in the panel (it stays in `/owners/join`); changes to the join
-flow; Lodgings outside the Owner's country or in another currency; reviews;
-backfill beyond Ramón's two Lodgings; hiding the address until Booking.
+Still out of scope: geocoding or address autocomplete; drafts; booking without
+the Agent; importing from Booking/Airbnb in the panel (it stays in
+`/owners/join`); changes to the join flow; Lodgings outside the Owner's country
+or in another currency; backfill beyond Ramón's two Lodgings; hiding the
+address until Booking.
+
+The rest of that original list has since shipped and is documented above: the
+real backend and auth (§3 — Supabase + `apps/api`), photo uploads (Storage),
+pausing (`Lodging.status`, §7), Owner date blocking (the consolidated
+calendar's modal, §7) and reviews (ADR-0008).

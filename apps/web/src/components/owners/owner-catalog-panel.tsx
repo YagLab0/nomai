@@ -5,7 +5,8 @@ import { Button } from '@heroui/react';
 
 import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
-import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
+import { OwnerBookings } from '@/components/owners/owner-bookings';
+import type { BookingData } from '@/components/owners/reserva-card';
 import { catalog } from '@/lib/catalog';
 import { useLodgings } from '@/lib/use-lodgings';
 import { formatNumber, formatShortDate } from '@/lib/format';
@@ -86,18 +87,17 @@ export function OwnerCatalogPanel() {
         )}
       </section>
 
-      <section aria-labelledby="reservas-heading">
+      <section id="reservas" aria-labelledby="reservas-heading" className="scroll-mt-44">
         <h2 id="reservas-heading" className="font-brand text-2xl font-medium text-ink">
           Reservas
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
           El pago de cada reserva queda en garantía y se libera a tu Ripio por etapas.
         </p>
-        <div className="mt-4 flex flex-col gap-4">
-          {ownerBookings.map((b) => (
-            <ReservaCard key={b.id} booking={toBookingData(b)} />
-          ))}
-        </div>
+        <OwnerBookings
+          bookings={ownerBookings.map(toBookingData)}
+          today={new Date().toLocaleDateString('en-CA')}
+        />
       </section>
 
       <section aria-labelledby="alojamientos-heading">

@@ -22,6 +22,8 @@ export interface BookingData {
   /** ADR-0006: the platform's cut (never refunded) and the Escrow state. */
   service_fee_minor?: number;
   escrow_status?: string;
+  /** The Cancellation deadline: the first Escrow release day (ADR-0006). */
+  cancel_deadline?: string | null;
   listing?: {
     id: string;
     title: string;
@@ -35,14 +37,20 @@ export interface BookingData {
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
+  // The DB's `booking_status` values, labelled like the Traveler's Reservas
+  // panel so both sides of a Booking read the same (ADR-0006).
+  pending_payment: { label: 'Pago pendiente', className: 'bg-amber-100 text-amber-800' },
+  pending: { label: 'Pendiente', className: 'bg-amber-100 text-amber-800' },
   confirmed: { label: 'Confirmada', className: 'bg-agua-soft text-agua' },
   confirmada: { label: 'Confirmada', className: 'bg-agua-soft text-agua' },
-  pending: { label: 'Pendiente', className: 'bg-amber-100 text-amber-800' },
+  in_progress: { label: 'En curso', className: 'bg-terra-soft text-terra-deep' },
   'en-curso': { label: 'En curso', className: 'bg-sand text-ink' },
+  claim_open: { label: 'Reclamo abierto', className: 'bg-amber-100 text-amber-800' },
   completed: { label: 'Completada', className: 'bg-sand/70 text-ink-muted' },
   completada: { label: 'Completada', className: 'bg-sand/70 text-ink-muted' },
   cancelled: { label: 'Cancelada', className: 'bg-sand/70 text-ink-muted' },
   cancelada: { label: 'Cancelada', className: 'bg-sand/70 text-ink-muted' },
+  refunded: { label: 'Reembolsada', className: 'bg-sand/70 text-ink-muted' },
 };
 
 /** The guest's weighted score — Airbnb's host-facing guest rating (ADR-0008). */
@@ -84,7 +92,8 @@ export function ReservaCard({
   unreadMessages?: number;
 }) {
   const status = STATUS_MAP[booking.status] || STATUS_MAP.confirmed;
-  const isCanceled = booking.status === 'cancelled' || booking.status === 'cancelada';
+  const isCanceled =
+    booking.status === 'cancelled' || booking.status === 'cancelada' || booking.status === 'refunded';
   const isCompleted = booking.status === 'completed' || booking.status === 'completada';
   const [reviewing, setReviewing] = useState(false);
   const [reviewed, setReviewed] = useState(alreadyReviewed);
@@ -130,11 +139,11 @@ export function ReservaCard({
             identidad verificada
           </span>
           {booking.traveler_id && <TravelerScore travelerId={booking.traveler_id} />}
-          {booking.status === 'confirmed' && (
+          {booking.status === 'confirmed' || booking.status === 'in_progress' ? (
             <span className="rounded-full bg-terra px-2 py-0.5 text-xs font-medium text-white">
               Pago en garantía
             </span>
-          )}
+          ) : null}
         </div>
 
         <p className="mt-3 text-sm font-medium text-ink">

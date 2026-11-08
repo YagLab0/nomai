@@ -97,7 +97,10 @@ export function OwnerShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
       <Toast.Provider />
-      <header className="sticky top-0 z-10 border-b border-sand bg-paper/95 backdrop-blur">
+      {/* z-40 keeps the chrome above every in-page sticky layer: the section
+          nav (z-30) parks right below it, and the calendar's sticky name
+          column (z-20) must never paint over the header. */}
+      <header className="sticky top-0 z-40 border-b border-sand bg-paper/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <Logo />
           <div className="flex items-center gap-3">

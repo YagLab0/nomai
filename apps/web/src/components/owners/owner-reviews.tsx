@@ -21,7 +21,7 @@ export function OwnerReviewsSection({
   onReplied: (reviewId: string, body: string) => void;
 }) {
   return (
-    <section aria-labelledby="resenas-heading">
+    <section id="resenas" aria-labelledby="resenas-heading" className="scroll-mt-44">
       <div className="flex items-center justify-between">
         <div>
           <h2 id="resenas-heading" className="font-brand text-2xl font-medium text-ink">

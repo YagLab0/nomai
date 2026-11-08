@@ -16,11 +16,14 @@ import {
 import { ChatModal } from '@/components/chat/chat-modal';
 import { AlojamientoCard } from '@/components/owners/alojamiento-card';
 import { LodgingWizard } from '@/components/owners/lodging-wizard';
-import { OwnerNightsCalendar } from '@/components/owners/owner-nights-calendar';
+import { OwnerBookings } from '@/components/owners/owner-bookings';
+import { OwnerCalendar } from '@/components/owners/owner-calendar';
+import { OwnerSectionNav, type OwnerSection } from '@/components/owners/owner-section-nav';
 import { OwnerReviewsSection } from '@/components/owners/owner-reviews';
-import { ReservaCard, type BookingData } from '@/components/owners/reserva-card';
+import type { BookingData } from '@/components/owners/reserva-card';
 import type { ApiInboxEntry, ApiOwnerReviews } from '@/lib/api';
 import { formatMoney, formatShortDate } from '@/lib/format';
+import { groupBookings, nextPayout } from '@/lib/owner-bookings';
 import {
   apiCityCode,
   apiKind,
@@ -604,6 +607,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           status,
           service_fee_minor,
           escrow_status,
+          cancel_deadline,
           created_at,
           listing:listings!inner (
             id,
@@ -743,6 +747,14 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     return sum + Math.max(0, rental - (releasedByBooking.get(b.id) ?? 0));
   }, 0);
 
+  // Próximo cobro — the next Escrow stage the keeper releases (ADR-0006).
+  const today = new Date().toLocaleDateString('en-CA');
+  const upcomingPayout = nextPayout(bookings, releasedByBooking, currency);
+  // The api's payout state is authoritative; the business row is the fallback
+  // when GET /owners/payout can't be reached.
+  const payoutVerified = Boolean(payout?.verified_at ?? business?.payout_verified_at);
+  const bookingGroups = groupBookings(bookings, today);
+
   // Total occupied nights
   const occupiedNights = validBookings.reduce((sum, b) => {
     const inD = new Date(b.checkin);
@@ -754,9 +766,9 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
     return sum + nights;
   }, 0);
 
-  // Next arrival (upcoming confirmed booking)
+  // Next arrival: the soonest confirmed Booking that hasn't started yet.
   const nextArrival = bookings
-    .filter((b) => b.status === 'confirmed')
+    .filter((b) => b.status === 'confirmed' && b.checkin >= today)
     .sort((a, b) => a.checkin.localeCompare(b.checkin))[0];
 
   // Bookings the Owner already reviewed (ADR-0008: one to_traveler per Booking).
@@ -784,6 +796,22 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         countryCode: ownerCountryCode,
       }
     : null;
+
+  const unreadTotal = (inbox ?? []).reduce((sum, t) => sum + t.unread, 0);
+  const sections: OwnerSection[] = [
+    { id: 'resumen', label: 'Resumen' },
+    ...(lodgings.length ? [{ id: 'calendario', label: 'Calendario' }] : []),
+    ...(inbox && inbox.length
+      ? [{ id: 'mensajes', label: 'Mensajes', badge: unreadTotal, alert: true }]
+      : []),
+    {
+      id: 'reservas',
+      label: 'Reservas',
+      badge: bookingGroups.proximas.length + bookingGroups['en-curso'].length,
+    },
+    ...(reviewFeed && reviewFeed.received.length ? [{ id: 'resenas', label: 'Reseñas' }] : []),
+    { id: 'alojamientos', label: 'Alojamientos', badge: lodgings.length },
+  ];
 
   if (loading) {
     return (
@@ -857,7 +885,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
             </p>
             <p
               className={`text-[11px] font-medium ${
-                payout?.verified_at
+                payoutVerified
                   ? 'text-emerald-700'
                   : payout?.verification?.status === 'pending'
                     ? 'text-amber-700'
@@ -867,7 +895,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
                       : 'text-ink-muted'
               }`}
             >
-              {payout?.verified_at
+              {payoutVerified
                 ? 'Verificada'
                 : payout?.verification?.status === 'pending'
                   ? 'Pendiente'
@@ -885,13 +913,37 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
             onPress={() => setPayoutModalOpen(true)}
             className="text-xs"
           >
-            {payout?.verified_at ? 'Ver' : 'Verificar'}
+            {payoutVerified ? 'Ver' : 'Verificar'}
           </Button>
         </div>
       </header>
 
+      <OwnerSectionNav sections={sections} />
+
+      {/* Unverified payout: the keeper holds every release until it's verified (#68). */}
+      {!payoutVerified && heldIncomeMinor > 0 && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-card border border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="text-sm text-amber-900">
+            <span className="font-semibold">
+              Tenés {formatMoney(heldIncomeMinor, currency)} esperando en Escrow.
+            </span>{' '}
+            No se liberan a tu Ripio hasta que verifiques tu cuenta de cobro.
+          </p>
+          <Button size="sm" onPress={() => setPayoutModalOpen(true)} className="shrink-0">
+            Verificar cuenta
+          </Button>
+        </div>
+      )}
+
       {/* Summary Metrics */}
-      <section aria-label="Resumen" className="grid gap-4 sm:grid-cols-3">
+      <section
+        id="resumen"
+        aria-label="Resumen"
+        className="grid scroll-mt-44 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
         <div className="rounded-card bg-terra p-6 text-white">
           <p className="text-sm text-white/80">Cobrado en Ripio</p>
           <p className="mt-2 font-mono text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -903,6 +955,30 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           <p className="mt-1 text-xs text-white/70">
             En Escrow: {formatMoney(heldIncomeMinor, currency)} · se libera por etapas
           </p>
+        </div>
+
+        <div className="rounded-card border border-sand bg-white p-6">
+          <p className="text-sm text-ink-muted">Próximo cobro</p>
+          {upcomingPayout ? (
+            <>
+              <p className="mt-2 font-mono text-2xl font-semibold tracking-tight text-ink">
+                {formatMoney(upcomingPayout.amountMinor, currency)}
+              </p>
+              <p className="mt-1 text-sm text-ink-muted">
+                {!payoutVerified
+                  ? 'Retenido hasta verificar tu Ripio'
+                  : upcomingPayout.date <= today
+                    ? 'Se libera en las próximas horas'
+                    : `el ${formatShortDate(upcomingPayout.date)}`}
+                {upcomingPayout.count > 1 ? ` · ${upcomingPayout.count} reservas` : ''}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 font-brand text-xl font-medium text-ink">Nada pendiente</p>
+              <p className="mt-1 text-sm text-ink-muted">No hay pagos esperando en Escrow.</p>
+            </>
+          )}
         </div>
 
         <div className="rounded-card border border-sand bg-white p-6">
@@ -940,9 +1016,25 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         )}
       </section>
 
+      {/* Calendar — every Lodging's month, Bookings as bars (owner-views §7). */}
+      {lodgings.length > 0 && (
+        <section id="calendario" aria-labelledby="calendario-heading" className="scroll-mt-44">
+          <h2 id="calendario-heading" className="font-brand text-2xl font-medium text-ink">
+            Calendario
+          </h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            Quién llega a cada alojamiento y qué noches cerraste.
+          </p>
+          <OwnerCalendar
+            lodgings={lodgings.map((l) => ({ id: l.id, name: l.name }))}
+            bookings={bookings}
+          />
+        </section>
+      )}
+
       {/* Inbox Section — the chat thread of each Booking (ADR-0009). */}
       {inbox && inbox.length > 0 && (
-        <section aria-labelledby="mensajes-heading">
+        <section id="mensajes" aria-labelledby="mensajes-heading" className="scroll-mt-44">
           <div className="flex items-center justify-between">
             <div>
               <h2 id="mensajes-heading" className="font-brand text-2xl font-medium text-ink">
@@ -988,7 +1080,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       )}
 
       {/* Bookings Section */}
-      <section aria-labelledby="reservas-heading">
+      <section id="reservas" aria-labelledby="reservas-heading" className="scroll-mt-44">
         <div className="flex items-center justify-between">
           <div>
             <h2 id="reservas-heading" className="font-brand text-2xl font-medium text-ink">
@@ -1003,25 +1095,12 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           </span>
         </div>
 
-        <div className="mt-4 flex flex-col gap-4">
-          {bookings.length > 0 ? (
-            bookings.map((b) => (
-              <ReservaCard
-                key={b.id}
-                booking={b}
-                alreadyReviewed={givenBookingIds.has(b.id)}
-                unreadMessages={inboxUnread.get(b.id) ?? 0}
-              />
-            ))
-          ) : (
-            <div className="rounded-card border border-dashed border-sand bg-white/60 p-8 text-center text-ink-muted">
-              <p className="font-medium text-ink">Aún no hay reservas registradas</p>
-              <p className="mt-1 text-sm">
-                Cuando los viajeros reserven con Nomito, aparecerán automáticamente acá.
-              </p>
-            </div>
-          )}
-        </div>
+        <OwnerBookings
+          bookings={bookings}
+          today={today}
+          reviewedIds={givenBookingIds}
+          unread={inboxUnread}
+        />
       </section>
 
       {/* Reviews Section */}
@@ -1044,7 +1123,7 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
       )}
 
       {/* Lodgings Section */}
-      <section aria-labelledby="alojamientos-heading">
+      <section id="alojamientos" aria-labelledby="alojamientos-heading" className="scroll-mt-44">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="alojamientos-heading" className="font-brand text-2xl font-medium text-ink">
@@ -1062,15 +1141,12 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
         <div className="mt-4 grid gap-5 md:grid-cols-2">
           {lodgings.length > 0 ? (
             lodgings.map((l) => (
-              <div key={l.id} className="flex flex-col gap-3">
-                <AlojamientoCard
-                  lodging={l}
-                  onEdit={() => setWizard({ lodging: l })}
-                  onToggleStatus={(status) => toggleListingStatus(l.id, status)}
-                />
-                {/* Availability per Lodging: mark nights blocked or reopen them. */}
-                <OwnerNightsCalendar listingId={l.id} lodgingName={l.name} />
-              </div>
+              <AlojamientoCard
+                key={l.id}
+                lodging={l}
+                onEdit={() => setWizard({ lodging: l })}
+                onToggleStatus={(status) => toggleListingStatus(l.id, status)}
+              />
             ))
           ) : (
             <div className="col-span-2 rounded-card border border-dashed border-sand bg-white/60 p-8 text-center text-ink-muted">
