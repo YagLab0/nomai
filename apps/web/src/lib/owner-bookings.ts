@@ -120,6 +120,75 @@ export function pendingReleases(
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** One stage of the ADR-0006 Escrow timeline, as the Owner's card shows it. */
+export interface ReleaseStage {
+  stage: 'first' | 'second';
+  /** The day the keeper releases it (YYYY-MM-DD). */
+  date: string;
+  amountMinor: number;
+  state: 'released' | 'pending' | 'due' | 'held';
+  /** Why a held stage waits — the copy differs (payout account vs Claim). */
+  heldBy?: 'payout' | 'claim';
+}
+
+/**
+ * The two Escrow stages of one Booking, mirroring process_escrow_releases:
+ * half the rental (total − Service fee) at the Cancellation deadline, the rest
+ * 24 h after check-in. Amounts floor the first stage and give it the remainder,
+ * exactly like the SQL's `v_rental / 2` and `v_rental - v_rental / 2`.
+ *
+ * `releasedMinor` is what sent release payments already covered for the
+ * Booking; once escrow_status leaves 'funded' the first half counts as
+ * committed even if its payment row is still in flight (same rule as
+ * pendingReleases). An open Claim holds the final stage until Nomai resolves
+ * it, and an unverified payout address holds whatever has not gone out yet.
+ * Cancelled/refunded and unpaid Bookings have no Escrow timeline at all.
+ */
+export function releaseStages(
+  booking: OwnerBookingLike,
+  releasedMinor: number,
+  today: string,
+  payoutVerified: boolean,
+): ReleaseStage[] {
+  if (isCancelled(booking.status) || booking.status === 'pending_payment') return [];
+  const escrow = booking.escrow_status;
+  if (escrow !== 'funded' && escrow !== 'partially_released' && escrow !== 'released' && escrow !== 'claimed') {
+    return [];
+  }
+
+  const rental = Math.max(0, booking.total_minor - (booking.service_fee_minor ?? 0));
+  const first = Math.floor(rental / 2);
+  const rest = rental - first;
+  const paid = Math.max(0, releasedMinor);
+  const stages: ReleaseStage[] = [];
+
+  const push = (stage: 'first' | 'second', date: string, amountMinor: number, released: boolean) => {
+    if (amountMinor <= 0) return;
+    if (released) {
+      stages.push({ stage, date, amountMinor, state: 'released' });
+      return;
+    }
+    if (stage === 'second' && booking.status === 'claim_open') {
+      stages.push({ stage, date, amountMinor, state: 'held', heldBy: 'claim' });
+      return;
+    }
+    if (!payoutVerified) {
+      stages.push({ stage, date, amountMinor, state: 'held', heldBy: 'payout' });
+      return;
+    }
+    stages.push({ stage, date, amountMinor, state: date <= today ? 'due' : 'pending' });
+  };
+
+  // A released/partially_released escrow proves the first half was committed
+  // even when its payment row is not in the snapshot yet.
+  const firstReleased = paid >= first || escrow === 'partially_released' || escrow === 'released';
+  const secondReleased = paid >= rental || escrow === 'released';
+  push('first', booking.cancel_deadline?.slice(0, 10) ?? addDays(booking.checkin, -5), first, firstReleased);
+  push('second', addDays(booking.checkin, 1), rest, secondReleased);
+
+  return stages;
+}
+
 /** The next payout day and everything released that day, in `currency`. */
 export function nextPayout(
   bookings: OwnerBookingLike[],

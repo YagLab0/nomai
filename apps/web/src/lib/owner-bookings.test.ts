@@ -6,6 +6,7 @@ import {
   nextPayout,
   paginate,
   pendingReleases,
+  releaseStages,
   type OwnerBookingLike,
 } from './owner-bookings';
 
@@ -125,5 +126,88 @@ describe('pendingReleases / nextPayout', () => {
     );
     expect(next).toEqual({ date: '2026-11-15', amountMinor: 1_000, count: 2 });
     expect(nextPayout([], new Map(), 'ARS')).toBeNull();
+  });
+});
+
+describe('releaseStages', () => {
+  it('shows both stages as pending while their dates are ahead', () => {
+    expect(releaseStages(booking({}), 0, TODAY, true)).toEqual([
+      { stage: 'first', date: '2026-11-15', amountMinor: 500, state: 'pending' },
+      { stage: 'second', date: '2026-11-21', amountMinor: 500, state: 'pending' },
+    ]);
+  });
+
+  it('marks a stage due once its date has arrived (keeper runs next)', () => {
+    expect(releaseStages(booking({}), 0, '2026-11-15', true)).toEqual([
+      { stage: 'first', date: '2026-11-15', amountMinor: 500, state: 'due' },
+      { stage: 'second', date: '2026-11-21', amountMinor: 500, state: 'pending' },
+    ]);
+    expect(releaseStages(booking({}), 0, '2026-11-21', true).map((s) => s.state)).toEqual([
+      'due',
+      'due',
+    ]);
+  });
+
+  it('marks the first stage released when its sent payment covered it', () => {
+    expect(releaseStages(booking({}), 500, TODAY, true)).toEqual([
+      { stage: 'first', date: '2026-11-15', amountMinor: 500, state: 'released' },
+      { stage: 'second', date: '2026-11-21', amountMinor: 500, state: 'pending' },
+    ]);
+    expect(releaseStages(booking({}), 1_000, TODAY, true).map((s) => s.state)).toEqual([
+      'released',
+      'released',
+    ]);
+  });
+
+  it('assumes the first half once escrow left funded, even without its row', () => {
+    expect(releaseStages(booking({ escrow_status: 'partially_released' }), 0, TODAY, true)).toEqual([
+      { stage: 'first', date: '2026-11-15', amountMinor: 500, state: 'released' },
+      { stage: 'second', date: '2026-11-21', amountMinor: 500, state: 'pending' },
+    ]);
+    expect(releaseStages(booking({ escrow_status: 'released', status: 'completed' }), 0, TODAY, true).map((s) => s.state)).toEqual([
+      'released',
+      'released',
+    ]);
+  });
+
+  it('holds whichever stage cannot be sent while the payout is unverified', () => {
+    expect(releaseStages(booking({}), 0, TODAY, false)).toEqual([
+      { stage: 'first', date: '2026-11-15', amountMinor: 500, state: 'held', heldBy: 'payout' },
+      { stage: 'second', date: '2026-11-21', amountMinor: 500, state: 'held', heldBy: 'payout' },
+    ]);
+    // Already released money stays released; only the remainder is held.
+    expect(releaseStages(booking({}), 500, TODAY, false)[1]).toEqual({
+      stage: 'second',
+      date: '2026-11-21',
+      amountMinor: 500,
+      state: 'held',
+      heldBy: 'payout',
+    });
+  });
+
+  it('holds the final stage while a Claim is open (ADR-0006)', () => {
+    expect(
+      releaseStages(booking({ status: 'claim_open', escrow_status: 'claimed' }), 500, TODAY, true),
+    ).toEqual([
+      { stage: 'first', date: '2026-11-15', amountMinor: 500, state: 'released' },
+      { stage: 'second', date: '2026-11-21', amountMinor: 500, state: 'held', heldBy: 'claim' },
+    ]);
+  });
+
+  it('has no stages for cancelled, refunded, unpaid or unfunded Bookings', () => {
+    expect(releaseStages(booking({ status: 'cancelled' }), 0, TODAY, true)).toEqual([]);
+    expect(releaseStages(booking({ status: 'refunded' }), 0, TODAY, true)).toEqual([]);
+    expect(releaseStages(booking({ status: 'pending_payment', escrow_status: 'unfunded' }), 0, TODAY, true)).toEqual([]);
+    expect(releaseStages(booking({ escrow_status: 'unfunded' }), 0, TODAY, true)).toEqual([]);
+  });
+
+  it('mirrors process_escrow_releases rounding: floor the first half, keep the rest', () => {
+    const stages = releaseStages(booking({ total_minor: 1_101 }), 0, TODAY, true);
+    expect(stages.map((s) => s.amountMinor)).toEqual([500, 501]);
+  });
+
+  it('uses the stored cancel_deadline and the check-in + 1 day for stage two', () => {
+    const stages = releaseStages(booking({ cancel_deadline: '2026-11-14' }), 0, TODAY, true);
+    expect(stages.map((s) => s.date)).toEqual(['2026-11-14', '2026-11-21']);
   });
 });

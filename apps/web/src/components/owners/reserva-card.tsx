@@ -6,7 +6,8 @@ import { ChatModal } from '@/components/chat/chat-modal';
 import { CheckBadgeIcon } from '@/components/icons';
 import { ReviewModal, TRAVELER_CATEGORIES, type ReviewPayload } from '@/components/reviews/review-modal';
 import { Stars } from '@/components/reviews/stars';
-import { formatMoney, formatStayRange } from '@/lib/format';
+import { formatMoney, formatShortDate, formatStayRange } from '@/lib/format';
+import { releaseStages, type ReleaseStage } from '@/lib/owner-bookings';
 
 export interface BookingData {
   id: string;
@@ -79,17 +80,44 @@ function TravelerScore({ travelerId }: { travelerId: string }) {
   );
 }
 
+/** The one-line copy of an Escrow stage (ADR-0006), in the Owner's voseo. */
+function stageCopy(stage: ReleaseStage): string {
+  if (stage.state === 'released') return 'en tu Ripio';
+  if (stage.state === 'due') return 'se libera en las próximas horas';
+  if (stage.state === 'held') {
+    return stage.heldBy === 'claim' ? 'retenido por un reclamo' : 'retenido hasta verificar tu Ripio';
+  }
+  return stage.stage === 'first' ? '5 días antes de la llegada' : '24 h después de la llegada';
+}
+
+/** The mark and tone of an Escrow stage: released, scheduled or held. */
+function stageTone(stage: ReleaseStage): { mark: string; className: string } {
+  if (stage.state === 'released') return { mark: '✓', className: 'text-emerald-700' };
+  if (stage.state === 'held') return { mark: '⊘', className: 'text-amber-700' };
+  if (stage.state === 'due') return { mark: '○', className: 'text-terra-deep' };
+  return { mark: '○', className: 'text-ink-muted' };
+}
+
 /** A Booking as the Owner sees it: real dates, settled amount in Ripio, guests. */
 export function ReservaCard({
   booking,
   alreadyReviewed = false,
   unreadMessages = 0,
+  releasedMinor = 0,
+  payoutVerified = false,
+  today,
 }: {
   booking: BookingData;
   /** True once the Owner's to_traveler Review for this Booking exists (ADR-0008). */
   alreadyReviewed?: boolean;
   /** Unread chat messages from the Traveler, from GET /owners/inbox (ADR-0009). */
   unreadMessages?: number;
+  /** Sent Escrow releases for this Booking (payments kind='release') — ADR-0006. */
+  releasedMinor?: number;
+  /** The Owner's Ripio address is verified; until then the keeper holds releases. */
+  payoutVerified?: boolean;
+  /** YYYY-MM-DD as the dashboard sees it; omitted by the mock panel (no timeline). */
+  today?: string;
 }) {
   const status = STATUS_MAP[booking.status] || STATUS_MAP.confirmed;
   const isCanceled =
@@ -124,6 +152,9 @@ export function ReservaCard({
   const guestName = booking.guest_ref || 'Viajero verificado';
   const lodgingTitle = booking.listing?.title || 'Alojamiento';
   const city = booking.listing?.property?.city || '';
+  // ADR-0006: the two Escrow releases of this Booking. The mock panel omits
+  // `today`, so its cards keep the simple total.
+  const stages = today ? releaseStages(booking, releasedMinor, today, payoutVerified) : [];
 
   return (
     <article
@@ -160,6 +191,30 @@ export function ReservaCard({
           <p className="mt-3 text-sm text-ink-muted">
             Reserva cancelada según la política de cancelación.
           </p>
+        )}
+
+        {stages.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-0.5 text-xs" aria-label="Liberaciones de Escrow">
+            {stages.map((stage) => {
+              const tone = stageTone(stage);
+              return (
+                <li
+                  key={stage.stage}
+                  data-testid="release-stage"
+                  className={`flex flex-wrap items-baseline gap-x-1.5 ${tone.className}`}
+                >
+                  <span aria-hidden="true">{tone.mark}</span>
+                  <span className="font-mono font-medium">
+                    {formatMoney(stage.amountMinor, booking.currency)}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>{formatShortDate(stage.date)}</span>
+                  <span aria-hidden="true">—</span>
+                  <span>{stageCopy(stage)}</span>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 

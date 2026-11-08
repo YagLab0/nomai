@@ -1100,6 +1100,8 @@ export function OwnerDashboard({ userId, userEmail, userName }: OwnerDashboardPr
           today={today}
           reviewedIds={givenBookingIds}
           unread={inboxUnread}
+          released={releasedByBooking}
+          payoutVerified={payoutVerified}
         />
       </section>
 

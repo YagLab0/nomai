@@ -17,11 +17,17 @@ export function OwnerBookings({
   today,
   reviewedIds,
   unread,
+  released,
+  payoutVerified,
 }: {
   bookings: BookingData[];
   today: string;
   reviewedIds?: Set<string>;
   unread?: Map<string, number>;
+  /** Sent release payments per Booking — the Escrow timeline (ADR-0006). */
+  released?: Map<string, number>;
+  /** The Owner's Ripio address is verified; else the keeper holds releases. */
+  payoutVerified?: boolean;
 }) {
   const groups = useMemo(() => groupBookings(bookings, today), [bookings, today]);
   const firstWithItems = BUCKETS.find((b) => groups[b.id].length)?.id ?? 'proximas';
@@ -86,6 +92,9 @@ export function OwnerBookings({
               booking={b}
               alreadyReviewed={reviewedIds?.has(b.id)}
               unreadMessages={unread?.get(b.id) ?? 0}
+              releasedMinor={released?.get(b.id) ?? 0}
+              payoutVerified={payoutVerified ?? false}
+              today={today}
             />
           ))
         ) : (

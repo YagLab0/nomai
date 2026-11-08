@@ -73,6 +73,32 @@ test('Owner dashboard: calendar, tabs, sticky nav and the 375px layout', async (
   await expect(past).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'reservas-tab-pasadas');
 
+  // ADR-0006 (#79): a funded Booking's card shows its two Escrow stages. The
+  // seeded project may hold no funded Booking, so only assert when one exists.
+  const stageLines = page.getByTestId('release-stage');
+  let sawStage = false;
+  for (const tabName of ['Próximas', 'En curso', 'Pasadas', 'Canceladas']) {
+    await page.getByRole('tab', { name: new RegExp(tabName) }).click();
+    await page.waitForTimeout(200);
+    if ((await stageLines.count()) > 0) {
+      sawStage = true;
+      break;
+    }
+  }
+  if (sawStage) {
+    await expect(stageLines.first()).toContainText('·');
+    await expect(stageLines.first()).toContainText(
+      /en tu Ripio|se libera en las próximas horas|después de la llegada|antes de la llegada|retenido/,
+    );
+  } else {
+    test
+      .info()
+      .annotations.push({
+        type: 'note',
+        description: 'No funded Booking in the seed — release-stage assertion skipped',
+      });
+  }
+
   // The sticky nav parks below the OwnerShell header instead of covering it,
   // and an anchor lands clear of both.
   await page.getByRole('link', { name: 'Reservas' }).click();
