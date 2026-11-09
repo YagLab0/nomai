@@ -5,8 +5,9 @@
 // handler — instead the pieces split across the flow:
 //
 //   1. bookingPrecheck (mounted before the payment middleware): validates the
-//      body and re-quotes the stay, so bad input still gets the domain
-//      400/404/409 even when the request carries no payment.
+//      body, re-quotes the stay and compares it with the total the Traveler
+//      confirmed (expected_total_minor), so bad input or a moved price still
+//      gets the domain 400/404/409 even when the request carries no payment.
 //   2. Dynamic `payTo`/`price` on the route re-resolve per request — the 402
 //      and the verify step always see a FRESH server-side quote and the
 //      shared Escrow vault (ESCROW_ADDRESS), never a stale quote.
@@ -68,6 +69,12 @@ interface BookingRequest {
   checkout: string;
   guests: number;
   guest_ref?: string;
+  /**
+   * The total the Traveler confirmed, in the quote's minor units. The precheck
+   * refuses a different fresh total with 409 price_changed, so a price edit
+   * between the quote and the payment can never charge an unseen amount.
+   */
+  expected_total_minor?: number;
 }
 
 function parseBookingBody(body: unknown): Omit<BookingRequest, "slug"> | null {
@@ -84,6 +91,12 @@ function parseBookingBody(body: unknown): Omit<BookingRequest, "slug"> | null {
     checkout: b.checkout,
     guests: b.guests,
     guest_ref: typeof b.guest_ref === "string" ? b.guest_ref : undefined,
+    expected_total_minor:
+      typeof b.expected_total_minor === "number" &&
+      Number.isInteger(b.expected_total_minor) &&
+      b.expected_total_minor >= 0
+        ? b.expected_total_minor
+        : undefined,
   };
 }
 
@@ -240,6 +253,18 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
   if (!Number.isInteger(body.guests) || body.guests < 1)
     return c.json({ error: "guests must be a positive integer" }, 400);
 
+  // The Traveler confirms a total, not just dates. Without a frozen total
+  // the API cannot tell an approved price from an edited one.
+  if (body.expected_total_minor === undefined)
+    return c.json(
+      {
+        error:
+          "body must include expected_total_minor — the total_minor of the quote the Traveler confirmed",
+        code: "missing_expected_total",
+      },
+      400
+    );
+
   // No Escrow vault configured → explicit failure, never a 402 that would
   // pay someone else. resolvePayTo throws the same way; this gate turns it
   // into a clean 503 before the payment middleware runs.
@@ -265,6 +290,22 @@ export const bookingPrecheck: MiddlewareHandler = async (c, next) => {
     return c.json(
       { error: r.error.message, code: r.error.code },
       errorStatus(r.error.code)
+    );
+
+  // The Traveler confirmed a specific total. A price edit or a different
+  // availability override since then must never charge an unseen amount:
+  // answer 409 with the new total instead of issuing a 402.
+  if (body.expected_total_minor !== r.quote.total_minor)
+    return c.json(
+      {
+        error: "price_changed",
+        code: "price_changed",
+        currency: r.quote.currency,
+        expected_total_minor: body.expected_total_minor,
+        current_total_minor: r.quote.total_minor,
+        current_total_display: r.quote.total_display,
+      },
+      409
     );
 
   // The Lodging's currency must resolve to a configured settlement asset —

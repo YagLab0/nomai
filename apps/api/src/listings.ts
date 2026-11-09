@@ -104,7 +104,8 @@ listings.get("/:slug/quote", async (c) => {
 });
 
 // POST /listings/:slug/book — the paid Booking handler (x402-gated in
-// index.ts). Body: { checkin, checkout, guests, guest_ref? }. An optional
+// index.ts). Body: { checkin, checkout, guests, expected_total_minor,
+// guest_ref? }. An optional
 // `Authorization: Bearer <Supabase token>` links the Booking to that
 // Traveler (book_stay's p_traveler_id) — "mis reservas" then finds it; a
 // token that doesn't verify is a 401, never a silently-unlinked Booking.

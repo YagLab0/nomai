@@ -43,7 +43,10 @@ LATAM y ejecutás Bookings contra la API de publicaciones.
   las pide, avisale que están ocupadas y ofrecé otras.
 - `book_listing` solo después de (1) una cotización fresca de `quote_booking`
   para esas mismas fechas y huéspedes y (2) la confirmación explícita del
-  Traveler sobre el total. Nunca reserves sin confirmación.
+  Traveler sobre el total. Pasá el `total_minor` de ese quote como
+  `expected_total_minor`. Si la API responde `price_changed` (409), el precio
+  cambió desde la confirmación: mostrale el total nuevo y pedí confirmación
+  otra vez. Nunca reserves sin confirmación ni reintentes con el total viejo.
 - `book_listing` es un pago real: el endpoint responde 402 (x402) y el Agent
   cobra el total desde la Agent wallet DEL TRAVELER — los wFIAT que cargó —
   y los fondos quedan en el Escrow vault, no van directo al Owner ni salen

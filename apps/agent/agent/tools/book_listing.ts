@@ -20,18 +20,28 @@ import { NO_TRAVELER_SESSION, travelerAuth } from "../lib/traveler-auth";
 
 export default defineTool({
   description:
-    "Book AND PAY a listing for the Traveler: a real x402 payment charged to THE TRAVELER'S Agent wallet (the wFIAT they funded), settling into the Escrow vault — not the project wallet and not straight to the Owner. Requires the Traveler to be signed in: without a session it fails with code 'no_traveler_session' (tell them 'iniciá sesión' — never pay for them). ONLY call this after (1) a fresh quote_booking for these exact dates/guests and (2) the Traveler's explicit confirmation of the total_display price (Service fee included). On success returns the booking (booking_id, status, totals) plus `payment` — the settlement receipt {transaction, payer, network}; the Booking is confirmed only when payment.transaction is present, and payer is the Traveler's Agent wallet. Errors are honest, never a confirmation: 'insufficient_balance' (409 — `details` names token/currency/required/available/missing; tell the Traveler 'te faltan X wARS' and to cargar from Tu saldo), 'funding_required' (403 — they must cargar their saldo first), 'payment_failed' (the payment could not be authorized or settlement was rejected — say so plainly, no retry), and 409 'unavailable' if the nights were taken since the quote.",
+    "Book AND PAY a listing for the Traveler: a real x402 payment charged to THE TRAVELER'S Agent wallet (the wFIAT they funded), settling into the Escrow vault — not the project wallet and not straight to the Owner. Requires the Traveler to be signed in: without a session it fails with code 'no_traveler_session' (tell them 'iniciá sesión' — never pay for them). ONLY call this after (1) a fresh quote_booking for these exact dates/guests and (2) the Traveler's explicit confirmation of the total_display price (Service fee included), and pass that quote's total_minor as expected_total_minor. On success returns the booking (booking_id, status, totals) plus `payment` — the settlement receipt {transaction, payer, network}; the Booking is confirmed only when payment.transaction is present, and payer is the Traveler's Agent wallet. Errors are honest, never a confirmation: 'price_changed' (409 — the total moved since the confirmed quote; show the new total and ask again, never retry silently), 'insufficient_balance' (409 — `details` names token/currency/required/available/missing; tell the Traveler 'te faltan X wARS' and to cargar from Tu saldo), 'funding_required' (403 — they must cargar their saldo first), 'payment_failed' (the payment could not be authorized or settlement was rejected — say so plainly, no retry), and 409 'unavailable' if the nights were taken since the quote.",
   inputSchema: z.object({
     slug: z.string().describe("The listing slug"),
     checkin: z.string().describe("Check-in date YYYY-MM-DD"),
     checkout: z.string().describe("Check-out date YYYY-MM-DD"),
     guests: z.number().int().min(1).describe("Number of guests"),
+    expected_total_minor: z
+      .number()
+      .int()
+      .min(0)
+      .describe(
+        "The total_minor from the fresh quote_booking that the Traveler explicitly confirmed. The API answers 409 price_changed if the total moved since that quote."
+      ),
     guest_ref: z
       .string()
       .optional()
       .describe("Traveler reference for the booking (name or internal ref)"),
   }),
-  execute: async ({ slug, checkin, checkout, guests, guest_ref }, ctx) => {
+  execute: async (
+    { slug, checkin, checkout, guests, expected_total_minor, guest_ref },
+    ctx
+  ) => {
     // The session's Traveler is the payer: their Bearer verifies on the book
     // route (p_traveler_id links the Booking to their account, so "mis
     // reservas" finds it later) and authorizes payment-auth to sign from
@@ -44,6 +54,7 @@ export default defineTool({
         checkin,
         checkout,
         guests,
+        expected_total_minor,
         guest_ref,
       },
       traveler

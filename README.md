@@ -71,8 +71,9 @@ subscription, no commission.
 2. Nomito runs a fresh `quote_booking`: rental + Service fee (7% by default),
    displayed in the Lodging's currency.
 3. On explicit confirmation, `book_listing` POSTs to
-   `/listings/:slug/book`. The API re-checks availability and answers `402` with
-   the exact wFIAT amount and the Escrow vault as `payTo`.
+   `/listings/:slug/book` with the confirmed `expected_total_minor`. The API
+   re-quotes and answers `409 price_changed` if the total moved, otherwise
+   `402` with the exact wFIAT amount and the Escrow vault as `payTo`.
 4. The Agent sends those requirements to `POST /wallet/:id/payment-auth`. The API
    signs with the Traveler's custodial key — only for an accepted wFIAT, only to
    the configured Escrow, and only if the balance covers it.

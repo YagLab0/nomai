@@ -357,7 +357,14 @@ async function main() {
 
     step("book_listing without a signed-in Traveler → no_traveler_session");
     const noSession = await bookListing.execute(
-      { slug: "casa-de-dios-a1c1e0b3", checkin: "2026-11-10", checkout: "2026-11-11", guests: 1 },
+      {
+        slug: "casa-de-dios-a1c1e0b3",
+        checkin: "2026-11-10",
+        checkout: "2026-11-11",
+        guests: 1,
+        // The session gate fires before any price is read; the value is moot.
+        expected_total_minor: 0,
+      },
       { session: { auth: { current: null } } } as never
     );
     assert(
@@ -382,6 +389,7 @@ async function main() {
       checkin: stay.checkin,
       checkout: stay.checkout,
       guests: stay.guests,
+      expected_total_minor: stay.total_minor,
       guest_ref: "smoke-book-traveler-pays",
     };
 
@@ -453,7 +461,25 @@ async function main() {
     const fresh = CONFIRM_MAINNET ? await cheapestArsStay() : stay;
     if (!fresh) throw new Error("no free ARS window left for the unhappy paths");
     const unhappyPath = `/listings/${fresh.slug}/book`;
-    const unhappyBody = { ...bookBody, checkin: fresh.checkin, checkout: fresh.checkout };
+    const unhappyBody = {
+      ...bookBody,
+      checkin: fresh.checkin,
+      checkout: fresh.checkout,
+      expected_total_minor: fresh.total_minor,
+    };
+
+    step("stale confirmed total → 409 price_changed before any 402");
+    const staleRes = await apiPaidPost<Record<string, unknown>>(
+      unhappyPath,
+      { ...unhappyBody, expected_total_minor: fresh.total_minor + 1 },
+      viajeraAuth,
+      { beforePaidRetry: () => false }
+    );
+    const staleErr = staleRes.ok ? null : staleRes;
+    assert(
+      staleErr?.status === 409 && staleErr.code === "price_changed",
+      `stale total → 409 price_changed: ${JSON.stringify(staleErr)}`
+    );
 
     const broke = await makeTraveler(`smoke-book-broke-${stamp}@example.com`);
     ids.push(broke.id);

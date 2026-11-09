@@ -56,6 +56,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
       checkin: string;
       checkout: string;
       guests: number;
+      total_minor?: number | null;
     }>;
   } | null;
   const req = list?.requests?.find((r) => r.request_id === id);
@@ -65,10 +66,17 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   }
   const slug = req.listing_slug;
   if (!slug) return NextResponse.json({ error: 'booking request has no listing' }, { status: 500 });
+  if (req.total_minor == null) {
+    return NextResponse.json(
+      { error: 'booking request has no frozen total — quote again', code: 'missing_expected_total' },
+      { status: 409 },
+    );
+  }
 
   const paid = await paidBook(
     slug,
     { checkin: req.checkin, checkout: req.checkout, guests: req.guests },
+    req.total_minor,
     user.id,
     token,
   );

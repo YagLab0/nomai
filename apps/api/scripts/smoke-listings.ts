@@ -138,6 +138,7 @@ async function main() {
     checkin,
     checkout,
     guests: 2,
+    expected_total_minor: q.total_minor,
     guest_ref: guestRef,
   });
   assert(book.status === 402, `book returned ${book.status}`);
@@ -192,6 +193,19 @@ async function main() {
   step("book with a bad body → expect 400");
   const bad = await post(`/listings/${slug}/book`, { checkin });
   assert(bad.status === 400, `bad book returned ${bad.status}`);
+
+  // 5b ─ a stale confirmed total → 409 price_changed, never a 402
+  step("book with a stale confirmed total → expect 409 price_changed");
+  const stale = await post(`/listings/${slug}/book`, {
+    checkin,
+    checkout,
+    guests: 2,
+    expected_total_minor: (q.total_minor ?? 0) + 1,
+  });
+  assert(
+    stale.status === 409 && stale.body?.code === "price_changed",
+    `stale total returned ${stale.status} ${JSON.stringify(stale.body)}`
+  );
 
   // 6 ─ unpaid attempt must not hold inventory
   step("search again — listing must still be available");

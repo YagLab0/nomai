@@ -12,8 +12,9 @@
  *      receipt (never a fake confirmation).
  *
  * Port of apps/agent/agent/lib/nomai-api.ts apiPaidPost, minus the dry-run
- * hooks: the web never dry-runs, the user already saw the frozen total and
- * the fresh quote is re-checked by the API before it answers 402.
+ * hooks: the web never dry-runs. The frozen total the Traveler saw travels as
+ * `expected_total_minor`; the API re-quotes and answers 409 price_changed if
+ * it moved, before any 402 or payment.
  */
 
 const API_URL = process.env.NOMAI_API_URL ?? 'http://localhost:3001';
@@ -71,6 +72,7 @@ export type PaidBookingResult =
 export async function paidBook(
   slug: string,
   stay: { checkin: string; checkout: string; guests: number },
+  expectedTotalMinor: number,
   travelerId: string,
   token: string,
 ): Promise<PaidBookingResult> {
@@ -79,11 +81,15 @@ export async function paidBook(
     'Content-Type': 'application/json',
   };
   const bookPath = `${API_URL}/listings/${encodeURIComponent(slug)}/book`;
+  const bookBody = JSON.stringify({
+    ...stay,
+    expected_total_minor: expectedTotalMinor,
+  });
 
   const first = await fetch(bookPath, {
     method: 'POST',
     headers,
-    body: JSON.stringify(stay),
+    body: bookBody,
     cache: 'no-store',
   });
   const firstBody = (await first.json().catch(() => null)) as Record<string, unknown> | null;
@@ -143,7 +149,7 @@ export async function paidBook(
   const retry = await fetch(bookPath, {
     method: 'POST',
     headers: { ...headers, 'payment-signature': xPayment },
-    body: JSON.stringify(stay),
+    body: bookBody,
     cache: 'no-store',
   });
   const retryBody = (await retry.json().catch(() => null)) as Record<string, unknown> | null;
